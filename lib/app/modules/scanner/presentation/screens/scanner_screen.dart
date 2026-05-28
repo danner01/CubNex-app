@@ -1,0 +1,158 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
+import 'package:mobile_scanner/mobile_scanner.dart';
+
+import '../../../../config/injection/injection.dart';
+import '../../../../config/routes/app_routes.dart';
+import '../../blocs/scanner/scanner_cubit.dart';
+import '../../blocs/scanner/scanner_state.dart';
+
+class ScannerScreen extends StatelessWidget {
+  const ScannerScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => sl<ScannerCubit>(),
+      child: const _ScannerView(),
+    );
+  }
+}
+
+class _ScannerView extends StatelessWidget {
+  const _ScannerView();
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      body: BlocConsumer<ScannerCubit, ScannerState>(
+        listener: (context, state) {
+          final message = state.message;
+          if (message != null) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text(message)));
+          }
+
+          if (state.status == ScannerStatus.success && state.code != null) {
+            final directTarget = context
+                .read<ScannerCubit>()
+                .resolveDirectTarget(state.code!);
+            if (directTarget != null) {
+              context.go(directTarget);
+              return;
+            }
+            if (state.products.length == 1) {
+              context.go(AppRoutes.product(state.products.first.id));
+            }
+          }
+        },
+        builder: (context, state) {
+          final resolving = state.status == ScannerStatus.resolving;
+
+          return Column(
+            children: [
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(24),
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        MobileScanner(
+                          onDetect: resolving
+                              ? null
+                              : (capture) {
+                                  final value = capture.barcodes.isEmpty
+                                      ? null
+                                      : capture.barcodes.first.rawValue;
+                                  if (value == null) return;
+                                  context.read<ScannerCubit>().processCode(
+                                    value,
+                                  );
+                                },
+                        ),
+                        DecoratedBox(
+                          decoration: BoxDecoration(
+                            border: Border.all(
+                              color: Theme.of(context).colorScheme.secondary,
+                              width: 3,
+                            ),
+                            borderRadius: BorderRadius.circular(24),
+                          ),
+                        ),
+                        if (resolving)
+                          ColoredBox(
+                            color: Colors.black.withValues(alpha: 0.45),
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.all(16),
+                child: Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      children: [
+                        Text(
+                          'Escaneo inteligente',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
+                        const SizedBox(height: 6),
+                        const Text(
+                          'Escanea QR, codigos de barra o etiquetas para buscar productos y negocios.',
+                          textAlign: TextAlign.center,
+                        ),
+                        if (state.code != null) ...[
+                          const SizedBox(height: 12),
+                          SelectableText(
+                            state.code!,
+                            textAlign: TextAlign.center,
+                            style: Theme.of(context).textTheme.bodySmall,
+                          ),
+                        ],
+                        if (state.products.length > 1) ...[
+                          const SizedBox(height: 12),
+                          ...state.products.map(
+                            (product) => ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(
+                                Icons.inventory_2_outlined,
+                              ),
+                              title: Text(product.name),
+                              subtitle: Text(product.brand ?? 'Sin marca'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () =>
+                                  context.go(AppRoutes.product(product.id)),
+                            ),
+                          ),
+                        ],
+                        const SizedBox(height: 12),
+                        OutlinedButton.icon(
+                          onPressed: resolving
+                              ? null
+                              : () => context.read<ScannerCubit>().restart(),
+                          icon: const Icon(Icons.refresh),
+                          label: const Text('Escanear otro'),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
+      ),
+    );
+  }
+}

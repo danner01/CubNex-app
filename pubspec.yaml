@@ -1,0 +1,63 @@
+name: cubnex_app
+description: "CubNex mobile app for clients, guests, and business owners."
+publish_to: "none"
+version: 0.1.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+  cupertino_icons: ^1.0.8
+
+  # State management
+  bloc: ^9.0.0
+  flutter_bloc: ^9.1.1
+  equatable: ^2.0.7
+
+  # Navigation and dependency injection
+  go_router: ^14.8.1
+  get_it: ^8.0.3
+
+  # Networking and storage
+  dio: ^5.8.0+1
+  flutter_secure_storage: ^9.2.4
+  shared_preferences: ^2.5.3
+  hive: ^2.2.3
+  hive_flutter: ^1.1.0
+
+  # Firebase and Google sign in
+  firebase_core: ^3.13.0
+  firebase_auth: ^5.5.3
+  firebase_messaging: ^15.2.5
+  google_sign_in: ^6.3.0
+
+  # Media, scanning, permissions, maps
+  image_picker: ^1.1.2
+  mobile_scanner: ^6.0.7
+  permission_handler: ^11.4.0
+  geolocator: ^13.0.4
+  mapbox_maps_flutter: ^2.6.0
+
+  # UI helpers
+  cached_network_image: ^3.4.1
+  flutter_svg: ^2.0.17
+  intl: ^0.20.2
+  url_launcher: ^6.3.1
+  share_plus: ^10.1.4
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  bloc_test: ^10.0.0
+  mocktail: ^1.0.4
+  build_runner: ^2.4.13
+  hive_generator: ^2.0.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - assets/images/
+    - assets/icons/

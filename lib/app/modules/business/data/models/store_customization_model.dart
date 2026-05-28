@@ -1,0 +1,108 @@
+class StoreCustomizationModel {
+  const StoreCustomizationModel({
+    this.id,
+    required this.businessId,
+    this.primaryColor = '#D4AF37',
+    this.secondaryColor = '#111512',
+    this.accentColor = '#3B82F6',
+    this.textColor = '#FFFFFF',
+    this.backgroundColor = '#0D0D0D',
+    this.gradientEnabled = false,
+    this.cardStyle = 'grande',
+    this.cardRadius = 16,
+    this.showDiscount = true,
+    this.showRating = true,
+    this.showStock = false,
+    this.gridColumns = 2,
+  });
+
+  final String? id;
+  final String businessId;
+  final String primaryColor;
+  final String secondaryColor;
+  final String accentColor;
+  final String textColor;
+  final String backgroundColor;
+  final bool gradientEnabled;
+  final String cardStyle;
+  final int cardRadius;
+  final bool showDiscount;
+  final bool showRating;
+  final bool showStock;
+  final int gridColumns;
+
+  StoreCustomizationModel copyWith({
+    String? primaryColor,
+    String? secondaryColor,
+    String? accentColor,
+    String? textColor,
+    String? backgroundColor,
+    bool? gradientEnabled,
+    String? cardStyle,
+    int? cardRadius,
+    bool? showDiscount,
+    bool? showRating,
+    bool? showStock,
+    int? gridColumns,
+  }) {
+    return StoreCustomizationModel(
+      id: id,
+      businessId: businessId,
+      primaryColor: primaryColor ?? this.primaryColor,
+      secondaryColor: secondaryColor ?? this.secondaryColor,
+      accentColor: accentColor ?? this.accentColor,
+      textColor: textColor ?? this.textColor,
+      backgroundColor: backgroundColor ?? this.backgroundColor,
+      gradientEnabled: gradientEnabled ?? this.gradientEnabled,
+      cardStyle: cardStyle ?? this.cardStyle,
+      cardRadius: cardRadius ?? this.cardRadius,
+      showDiscount: showDiscount ?? this.showDiscount,
+      showRating: showRating ?? this.showRating,
+      showStock: showStock ?? this.showStock,
+      gridColumns: gridColumns ?? this.gridColumns,
+    );
+  }
+
+  factory StoreCustomizationModel.fromJson(Map<String, dynamic> json) {
+    return StoreCustomizationModel(
+      id: json['id']?.toString(),
+      businessId: '${json['negocio_id'] ?? ''}',
+      primaryColor: '${json['color_primario'] ?? '#D4AF37'}',
+      secondaryColor: '${json['color_secundario'] ?? '#111512'}',
+      accentColor: '${json['color_acento'] ?? '#3B82F6'}',
+      textColor: '${json['color_texto'] ?? '#FFFFFF'}',
+      backgroundColor: '${json['color_fondo'] ?? '#0D0D0D'}',
+      gradientEnabled: json['gradiente_habilitado'] == true,
+      cardStyle: '${json['tarjeta_estilo'] ?? 'grande'}',
+      cardRadius: _int(json['tarjeta_bordes'], fallback: 16),
+      showDiscount: json['tarjeta_mostrar_descuento'] != false,
+      showRating: json['tarjeta_mostrar_calificacion'] != false,
+      showStock: json['tarjeta_mostrar_stock'] == true,
+      gridColumns: _int(json['grid_columnas'], fallback: 2),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'negocio_id': businessId,
+      'color_primario': primaryColor,
+      'color_secundario': secondaryColor,
+      'color_acento': accentColor,
+      'color_texto': textColor,
+      'color_fondo': backgroundColor,
+      'gradiente_habilitado': gradientEnabled,
+      'tarjeta_estilo': cardStyle,
+      'tarjeta_bordes': cardRadius,
+      'tarjeta_mostrar_descuento': showDiscount,
+      'tarjeta_mostrar_calificacion': showRating,
+      'tarjeta_mostrar_stock': showStock,
+      'grid_columnas': gridColumns,
+    };
+  }
+
+  static int _int(Object? value, {required int fallback}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? fallback;
+  }
+}
