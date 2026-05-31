@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../common/services/share_service.dart';
@@ -43,9 +44,7 @@ class _EngagementListener extends StatelessWidget {
       listener: (context, state) {
         if (state.status == EngagementStatus.success ||
             state.status == EngagementStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message ?? 'Accion completada.')),
-          );
+          showSnackOrAuthDialog(context, state.message);
         }
       },
       child: child,
@@ -194,7 +193,7 @@ class _BusinessDetailView extends StatelessWidget {
       message: business.description,
     );
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 
@@ -206,7 +205,7 @@ class _BusinessDetailView extends StatelessWidget {
       message: 'Hola, vi ${business.name} en CubNex.',
     );
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 }
@@ -520,14 +519,14 @@ class _ContactCard extends StatelessWidget {
   Future<void> _openPhone(BuildContext context, String? value) async {
     final message = await sl<ContactService>().openPhone(value);
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 
   Future<void> _openWhatsApp(BuildContext context, String? value) async {
     final message = await sl<ContactService>().openWhatsApp(value);
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 }

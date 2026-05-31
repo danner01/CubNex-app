@@ -16,8 +16,8 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions android = FirebaseOptions(
-    apiKey: 'AIzaSyBcyLlU6iSXsORdCYKDrfJ2xJPzELrN7pA',
-    appId: '1:182405994803:web:889e8d1ba69064b581c646',
+    apiKey: 'AIzaSyCW_4Gjwjclyswl-PP6V1no66C30Xx_OL0',
+    appId: '1:182405994803:android:40df83ff73e187d781c646',
     messagingSenderId: '182405994803',
     projectId: 'supermarkercuba',
     storageBucket: 'supermarkercuba.firebasestorage.app',

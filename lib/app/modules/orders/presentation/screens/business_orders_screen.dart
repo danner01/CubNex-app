@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../blocs/orders/orders_cubit.dart';
@@ -53,9 +54,7 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
         listener: (context, state) {
           if (state.status == OrdersStatus.failure &&
               state.errorMessage != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
+            showSnackOrAuthDialog(context, state.errorMessage);
           }
         },
         builder: (context, state) {
@@ -368,7 +367,7 @@ class _BusinessOrderCard extends StatelessWidget {
   Future<void> _openPhone(BuildContext context) async {
     final message = await sl<ContactService>().openPhone(order.phone);
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 
@@ -378,7 +377,7 @@ class _BusinessOrderCard extends StatelessWidget {
       message: 'Hola ${order.contactName ?? ''}, te escribo por tu solicitud en CubNex.',
     );
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../blocs/preferences/preferences_cubit.dart';
 import '../../blocs/preferences/preferences_state.dart';
@@ -26,9 +27,7 @@ class _PreferencesView extends StatelessWidget {
       body: BlocConsumer<PreferencesCubit, PreferencesState>(
         listener: (context, state) {
           if (state.message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.message!)));
+            showSnackOrAuthDialog(context, state.message);
           }
         },
         builder: (context, state) {

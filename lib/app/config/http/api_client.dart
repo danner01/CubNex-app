@@ -105,7 +105,7 @@ class ApiClient {
 
       final apiError = envelope is Map ? envelope['error'] as Map? : null;
       return ApiResult.failure(
-        ApiFailure(
+        _normalizeFailure(
           code: '${apiError?['codigo'] ?? 'ERROR_API'}',
           message:
               '${apiError?['mensaje'] ?? 'Respuesta invalida del servidor'}',
@@ -116,7 +116,7 @@ class ApiClient {
       final data = error.response?.data;
       final apiError = data is Map ? data['error'] as Map? : null;
       return ApiResult.failure(
-        ApiFailure(
+        _normalizeFailure(
           code: '${apiError?['codigo'] ?? 'ERROR_RED'}',
           message:
               '${apiError?['mensaje'] ?? _friendlyNetworkMessage(error)}',
@@ -131,6 +131,58 @@ class ApiClient {
         ApiFailure(code: 'ERROR_DESCONOCIDO', message: error.toString()),
       );
     }
+  }
+
+  ApiFailure _normalizeFailure({
+    required String code,
+    required String message,
+    int? statusCode,
+    Map<String, dynamic>? details,
+  }) {
+    final normalizedCode = code.toUpperCase();
+
+    if (normalizedCode == 'CREDENCIALES_INVALIDAS' ||
+        normalizedCode == 'EMAIL_NO_CONFIRMADO' ||
+        normalizedCode == 'EMAIL_INVALIDO' ||
+        normalizedCode == 'PASSWORD_DEBIL' ||
+        normalizedCode == 'REGISTRO_INVALIDO' ||
+        normalizedCode == 'USUARIO_YA_EXISTE') {
+      return ApiFailure(
+        code: code,
+        message: message,
+        statusCode: statusCode,
+        details: details,
+      );
+    }
+
+    final text = '$code $message'.toLowerCase();
+    final isAuthRequired =
+        statusCode == 401 ||
+        text.contains('sin_token') ||
+        text.contains('token bearer') ||
+        text.contains('bearer') ||
+        text.contains('sesion requerida') ||
+        text.contains('sesión requerida') ||
+        text.contains('no hay sesion') ||
+        text.contains('no hay sesión') ||
+        text.contains('unauthorized') ||
+        text.contains('no autorizado');
+
+    if (isAuthRequired) {
+      return ApiFailure(
+        code: 'AUTH_REQUIRED',
+        message: 'Debes registrarte para acceder.',
+        statusCode: statusCode ?? 401,
+        details: details,
+      );
+    }
+
+    return ApiFailure(
+      code: code,
+      message: message,
+      statusCode: statusCode,
+      details: details,
+    );
   }
 
   String _friendlyNetworkMessage(DioException error) {

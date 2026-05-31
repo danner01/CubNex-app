@@ -22,6 +22,7 @@ import '../../modules/orders/presentation/screens/cart_screen.dart';
 import '../../modules/orders/presentation/screens/business_orders_screen.dart';
 import '../../modules/orders/presentation/screens/orders_screen.dart';
 import '../../modules/product/presentation/screens/product_detail_screen.dart';
+import '../../modules/posts/presentation/screens/posts_feed_screen.dart';
 import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/profile/presentation/screens/preferences_screen.dart';
 import '../../modules/promotions/presentation/screens/promotions_screen.dart';
@@ -110,6 +111,10 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
           GoRoute(
             path: AppRoutes.promotions,
             builder: (_, __) => const PromotionsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.posts,
+            builder: (_, __) => const PostsFeedScreen(),
           ),
           GoRoute(
             path: AppRoutes.myReviews,

@@ -29,6 +29,7 @@ import '../../modules/notifications/blocs/notifications/notifications_cubit.dart
 import '../../modules/orders/blocs/cart/cart_cubit.dart';
 import '../../modules/orders/blocs/orders/orders_cubit.dart';
 import '../../modules/product/blocs/product_detail/product_detail_cubit.dart';
+import '../../modules/posts/blocs/posts/posts_cubit.dart';
 import '../../modules/properties/blocs/properties/properties_cubit.dart';
 import '../../modules/profile/blocs/preferences/preferences_cubit.dart';
 import '../../modules/promotions/blocs/promotions/promotions_cubit.dart';
@@ -39,6 +40,7 @@ import '../../modules/search/blocs/search/search_cubit.dart';
 import '../../modules/service/blocs/asset_detail/asset_detail_cubit.dart';
 import '../../modules/transport/blocs/transport/transport_cubit.dart';
 import '../../modules/wizard/blocs/business_wizard/business_wizard_cubit.dart';
+import '../environment/app_environment.dart';
 import '../http/api_client.dart';
 
 final sl = GetIt.instance;
@@ -56,7 +58,11 @@ Future<void> configureDependencies() async {
         apiClient: sl(),
       ),
     )
-    ..registerLazySingleton(GoogleSignIn.new)
+    ..registerLazySingleton(
+      () => AppEnvironment.googleWebClientId.isEmpty
+          ? GoogleSignIn()
+          : GoogleSignIn(serverClientId: AppEnvironment.googleWebClientId),
+    )
     ..registerLazySingleton<AuthRemoteDataSource>(
       () => AuthRemoteDataSourceImpl(
         apiClient: sl(),
@@ -82,6 +88,7 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => NotificationsCubit(apiClient: sl()))
     ..registerFactory(() => SearchCubit(apiClient: sl()))
     ..registerFactory(() => ProductDetailCubit(apiClient: sl()))
+    ..registerFactory(() => PostsCubit(apiClient: sl()))
     ..registerFactory(() => AssetDetailCubit(apiClient: sl()))
     ..registerFactory(() => PreferencesCubit(apiClient: sl()))
     ..registerFactory(() => PromotionsCubit(apiClient: sl()))

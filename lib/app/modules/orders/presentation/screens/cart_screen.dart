@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../blocs/cart/cart_cubit.dart';
 import '../../blocs/cart/cart_state.dart';
 import '../../data/models/cart_item_model.dart';
@@ -43,9 +44,7 @@ class _CartViewState extends State<_CartView> {
       listener: (context, state) {
         if (state.status == CartStatus.success ||
             state.status == CartStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message ?? 'Accion completada.')),
-          );
+          showSnackOrAuthDialog(context, state.message);
         }
       },
       builder: (context, state) {

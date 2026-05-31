@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
@@ -57,9 +58,7 @@ class _MapViewState extends State<_MapView> {
       body: BlocConsumer<MapCubit, MapState>(
         listener: (context, state) {
           if (state.message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.message!)));
+            showSnackOrAuthDialog(context, state.message);
           }
           _flyTo(state.latitude, state.longitude, zoom: 13.5);
         },

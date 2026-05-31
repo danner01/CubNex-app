@@ -50,7 +50,7 @@ class _HomeView extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 178,
+                  height: 188,
                   child: ListView.separated(
                     scrollDirection: Axis.horizontal,
                     itemCount: state.banners.isEmpty ? 2 : state.banners.length,
@@ -109,6 +109,12 @@ class _HomeView extends StatelessWidget {
                       subtitle: 'QR, etiqueta o codigo.',
                       icon: Icons.qr_code_scanner_rounded,
                       onTap: () => context.go(AppRoutes.scanner),
+                    ),
+                    QuickActionCard(
+                      title: 'Feed',
+                      subtitle: 'Posts de negocios.',
+                      icon: Icons.dynamic_feed_rounded,
+                      onTap: () => context.go(AppRoutes.posts),
                     ),
                     QuickActionCard(
                       title: 'Ver mapa',

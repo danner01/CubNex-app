@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
 import '../../../../config/http/api_client.dart';
@@ -57,13 +58,36 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         Map<String, dynamic>.from(json as Map),
       ),
     );
+    if (result.isSuccess && (result.data?.accessToken.isEmpty ?? true)) {
+      return const ApiResult.failure(
+        ApiFailure(
+          code: 'EMAIL_CONFIRMATION_REQUIRED',
+          message:
+              'Cuenta creada. Revisa tu correo para confirmar el email antes de iniciar sesion.',
+          statusCode: 201,
+        ),
+      );
+    }
     await _syncFcmToken(result);
     return result;
   }
 
   @override
   Future<ApiResult<AuthSessionModel>> loginWithGoogle() async {
-    final googleUser = await _googleSignIn.signIn();
+    GoogleSignInAccount? googleUser;
+    try {
+      googleUser = await _googleSignIn.signIn();
+    } on PlatformException catch (error) {
+      return ApiResult.failure(_googlePlatformFailure(error));
+    } catch (error) {
+      return ApiResult.failure(
+        ApiFailure(
+          code: 'GOOGLE_ERROR',
+          message: 'No se pudo iniciar con Google: $error',
+        ),
+      );
+    }
+
     if (googleUser == null) {
       return const ApiResult.failure(
         ApiFailure(
@@ -73,7 +97,23 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       );
     }
 
-    final googleAuth = await googleUser.authentication;
+    late final GoogleSignInAuthentication googleAuth;
+    try {
+      googleAuth = await googleUser.authentication;
+    } on PlatformException catch (error) {
+      return ApiResult.failure(_googlePlatformFailure(error));
+    }
+
+    if (googleAuth.idToken == null || googleAuth.idToken!.isEmpty) {
+      return const ApiResult.failure(
+        ApiFailure(
+          code: 'GOOGLE_ID_TOKEN_FALTANTE',
+          message:
+              'Google no devolvio idToken. Revisa GOOGLE_WEB_CLIENT_ID y la configuracion OAuth/Firebase.',
+        ),
+      );
+    }
+
     final credential = GoogleAuthProvider.credential(
       accessToken: googleAuth.accessToken,
       idToken: googleAuth.idToken,
@@ -82,13 +122,70 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
     final result = await _apiClient.post<AuthSessionModel>(
       '/auth/login-google',
-      data: {'id_token': googleAuth.idToken, 'provider': 'google'},
+      data: {
+        'id_token': googleAuth.idToken,
+        'access_token': googleAuth.accessToken,
+        'provider': 'google',
+      },
       parser: (json) => AuthSessionModel.fromLoginJson(
         Map<String, dynamic>.from(json as Map),
       ),
     );
+
+    if (!result.isSuccess && result.error != null) {
+      final backendMessage = result.error!.message.toLowerCase();
+      if (backendMessage.contains('accounts.google.com') &&
+          backendMessage.contains('not enabled')) {
+        return const ApiResult.failure(
+          ApiFailure(
+            code: 'GOOGLE_PROVIDER_BACKEND_DISABLED',
+            message:
+                'Google no esta habilitado en Supabase Auth. Activalo en Supabase > Authentication > Providers > Google.',
+          ),
+        );
+      }
+
+      if (backendMessage.contains('google no esta habilitado') ||
+          backendMessage.contains('proveedor google')) {
+        return const ApiResult.failure(
+          ApiFailure(
+            code: 'GOOGLE_PROVIDER_BACKEND_DISABLED',
+            message:
+                'Google no esta habilitado en Supabase Auth. Activalo en Supabase > Authentication > Providers > Google.',
+          ),
+        );
+      }
+
+      if (backendMessage.contains('supabase auth respondio 400') ||
+          backendMessage.contains('supabase auth respondió 400')) {
+        return const ApiResult.failure(
+          ApiFailure(
+            code: 'GOOGLE_PROVIDER_BACKEND_BAD_REQUEST',
+            message:
+                'Google ya autentico en Firebase, pero Supabase aun rechaza la sesion. Revisa el Client ID completo en Supabase y redespliega el backend en Vercel.',
+          ),
+        );
+      }
+    }
+
     await _syncFcmToken(result);
     return result;
+  }
+
+  ApiFailure _googlePlatformFailure(PlatformException error) {
+    if (error.code == 'sign_in_failed' &&
+        '${error.message}'.contains('ApiException: 10')) {
+      return const ApiFailure(
+        code: 'GOOGLE_CONFIG_INVALIDA',
+        message:
+            'Google Sign-In no esta configurado para esta app. Registra el paquete com.cubnex.app y el SHA-1/SHA-256 en Firebase.',
+      );
+    }
+
+    return ApiFailure(
+      code: 'GOOGLE_${error.code.toUpperCase()}',
+      message: error.message ?? 'No se pudo iniciar con Google.',
+    );
   }
 
   @override

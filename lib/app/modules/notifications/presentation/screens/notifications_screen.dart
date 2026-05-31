@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
 import '../../../../config/injection/injection.dart';
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../blocs/notifications/notifications_cubit.dart';
 import '../../blocs/notifications/notifications_state.dart';
 import '../../data/models/notification_model.dart';
@@ -29,9 +30,7 @@ class _NotificationsView extends StatelessWidget {
       body: BlocConsumer<NotificationsCubit, NotificationsState>(
         listener: (context, state) {
           if (state.message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.message!)));
+            showSnackOrAuthDialog(context, state.message);
           }
         },
         builder: (context, state) {

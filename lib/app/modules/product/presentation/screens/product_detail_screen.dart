@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/services/share_service.dart';
 import '../../../favorites/blocs/engagement/engagement_cubit.dart';
 import '../../../favorites/blocs/engagement/engagement_state.dart';
@@ -41,9 +42,7 @@ class _EngagementListener extends StatelessWidget {
       listener: (context, state) {
         if (state.status == EngagementStatus.success ||
             state.status == EngagementStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message ?? 'Accion completada.')),
-          );
+          showSnackOrAuthDialog(context, state.message);
         }
       },
       child: child,
@@ -206,7 +205,7 @@ class _ProductDetailView extends StatelessWidget {
       message: product.description,
     );
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 }

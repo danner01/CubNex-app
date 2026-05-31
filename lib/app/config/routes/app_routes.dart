@@ -17,6 +17,7 @@ class AppRoutes {
   static const preferences = '/preferences';
   static const gamification = '/gamification';
   static const promotions = '/promotions';
+  static const posts = '/posts';
   static const myReviews = '/my-reviews';
   static const properties = '/properties';
   static const transport = '/transport';

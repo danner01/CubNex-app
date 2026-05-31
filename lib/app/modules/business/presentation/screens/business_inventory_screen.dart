@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../blocs/inventory/business_inventory_cubit.dart';
@@ -31,9 +32,7 @@ class _BusinessInventoryView extends StatelessWidget {
         if (state.message != null &&
             (state.status == BusinessInventoryStatus.failure ||
                 state.status == BusinessInventoryStatus.success)) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message!)));
+          showSnackOrAuthDialog(context, state.message);
         }
       },
       builder: (context, state) {

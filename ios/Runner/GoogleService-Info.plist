@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CLIENT_ID</key>
+	<string>182405994803-n0b9mirs703o1ob16ugcmqp3k0gukm5q.apps.googleusercontent.com</string>
+	<key>REVERSED_CLIENT_ID</key>
+	<string>com.googleusercontent.apps.182405994803-n0b9mirs703o1ob16ugcmqp3k0gukm5q</string>
+	<key>ANDROID_CLIENT_ID</key>
+	<string>182405994803-9cdkghlh4j7p60i1okdl6n7c6jp40f3l.apps.googleusercontent.com</string>
+	<key>API_KEY</key>
+	<string>AIzaSyBIbkLX4ILdWZkM5ZBoy7UXQAOxV16qds0</string>
+	<key>GCM_SENDER_ID</key>
+	<string>182405994803</string>
+	<key>PLIST_VERSION</key>
+	<string>1</string>
+	<key>BUNDLE_ID</key>
+	<string>com.cubnex.app.</string>
+	<key>PROJECT_ID</key>
+	<string>supermarkercuba</string>
+	<key>STORAGE_BUCKET</key>
+	<string>supermarkercuba.firebasestorage.app</string>
+	<key>IS_ADS_ENABLED</key>
+	<false></false>
+	<key>IS_ANALYTICS_ENABLED</key>
+	<false></false>
+	<key>IS_APPINVITE_ENABLED</key>
+	<true></true>
+	<key>IS_GCM_ENABLED</key>
+	<true></true>
+	<key>IS_SIGNIN_ENABLED</key>
+	<true></true>
+	<key>GOOGLE_APP_ID</key>
+	<string>1:182405994803:ios:b21ccf873883e4a181c646</string>
+</dict>
+</plist>

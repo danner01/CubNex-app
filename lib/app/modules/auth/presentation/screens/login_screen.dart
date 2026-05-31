@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/presentation/widgets/cubnex_logo.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
@@ -51,6 +52,7 @@ class _LoginViewState extends State<_LoginView> {
   final _recoveryEmailController = TextEditingController();
   _AuthMode _mode = _AuthMode.login;
   _RegisterRole _role = _RegisterRole.client;
+  bool _showPassword = false;
 
   @override
   void dispose() {
@@ -104,9 +106,12 @@ class _LoginViewState extends State<_LoginView> {
                   phoneController: _phoneController,
                   emailController: _emailController,
                   passwordController: _passwordController,
+                  showPassword: _showPassword,
                   isLoading: isLoading,
                   onModeChanged: (mode) => setState(() => _mode = mode),
                   onRoleChanged: (role) => setState(() => _role = role),
+                  onTogglePassword: () =>
+                      setState(() => _showPassword = !_showPassword),
                   onSubmit: () => _submit(context),
                   onGoogle: isLoading
                       ? null
@@ -132,6 +137,7 @@ class _LoginViewState extends State<_LoginView> {
     final cubit = context.read<AuthCubit>();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
+    final fullName = _nameController.text.trim();
 
     if (_mode == _AuthMode.login) {
       cubit.loginWithEmail(email: email, password: password);
@@ -139,7 +145,7 @@ class _LoginViewState extends State<_LoginView> {
     }
 
     cubit.register(
-      fullName: _nameController.text.trim(),
+      fullName: fullName,
       email: email,
       password: password,
       phone: _phoneController.text.trim().isEmpty
@@ -183,24 +189,7 @@ class _BrandHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                width: 56,
-                height: 56,
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  boxShadow: [
-                    BoxShadow(
-                      color: AppColors.gold.withValues(alpha: 0.18),
-                      blurRadius: 18,
-                    ),
-                  ],
-                ),
-                clipBehavior: Clip.antiAlias,
-                child: Image.asset(
-                  'assets/icons/cubnex_icon.png',
-                  fit: BoxFit.cover,
-                ),
-              ),
+              const CubNexLogo(size: 56),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(
@@ -262,9 +251,11 @@ class _AuthCard extends StatelessWidget {
     required this.phoneController,
     required this.emailController,
     required this.passwordController,
+    required this.showPassword,
     required this.isLoading,
     required this.onModeChanged,
     required this.onRoleChanged,
+    required this.onTogglePassword,
     required this.onSubmit,
     required this.onGoogle,
   });
@@ -276,9 +267,11 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final bool showPassword;
   final bool isLoading;
   final ValueChanged<_AuthMode> onModeChanged;
   final ValueChanged<_RegisterRole> onRoleChanged;
+  final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final VoidCallback? onGoogle;
 
@@ -362,14 +355,27 @@ class _AuthCard extends StatelessWidget {
               const SizedBox(height: 14),
               TextFormField(
                 controller: passwordController,
-                obscureText: true,
-                decoration: const InputDecoration(
+                obscureText: !showPassword,
+                textInputAction: TextInputAction.done,
+                onFieldSubmitted: (_) {
+                  if (!isLoading) onSubmit();
+                },
+                decoration: InputDecoration(
                   labelText: 'Contrasena',
-                  prefixIcon: Icon(Icons.lock_outline),
+                  prefixIcon: const Icon(Icons.lock_outline),
+                  suffixIcon: IconButton(
+                    tooltip: showPassword
+                        ? 'Ocultar contrasena'
+                        : 'Mostrar contrasena',
+                    onPressed: isLoading ? null : onTogglePassword,
+                    icon: Icon(
+                      showPassword
+                          ? Icons.visibility_off_outlined
+                          : Icons.visibility_outlined,
+                    ),
+                  ),
                 ),
-                validator: (value) => value == null || value.length < 6
-                    ? 'Minimo 6 caracteres'
-                    : null,
+                validator: _validatePassword,
               ),
               const SizedBox(height: 18),
               FilledButton(
@@ -460,8 +466,22 @@ class _RecoveryCard extends StatelessWidget {
 
 String? _validateEmail(String? value) {
   final email = value?.trim() ?? '';
+  if (email.isEmpty) {
+    return 'Escribe tu email';
+  }
   if (!RegExp(r'^\S+@\S+\.\S+$').hasMatch(email)) {
     return 'Email invalido';
+  }
+  return null;
+}
+
+String? _validatePassword(String? value) {
+  final password = value ?? '';
+  if (password.isEmpty) {
+    return 'Escribe tu contrasena';
+  }
+  if (password.length < 6) {
+    return 'Minimo 6 caracteres';
   }
   return null;
 }

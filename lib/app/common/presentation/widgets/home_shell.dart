@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../blocs/app_session/app_session_cubit.dart';
 import '../../../config/routes/app_routes.dart';
+import 'auth_required_dialog.dart';
 import 'market_app_bar.dart';
 
 class HomeShell extends StatelessWidget {
@@ -18,7 +21,15 @@ class HomeShell extends StatelessWidget {
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indexFromLocation(location),
-        onDestinationSelected: (index) => context.go(_locationFromIndex(index)),
+        onDestinationSelected: (index) {
+          final session = context.read<AppSessionCubit>().state;
+          final isProtected = index == 3 || index == 4;
+          if (isProtected && session.status == AppSessionStatus.guest) {
+            showAuthRequiredDialog(context);
+            return;
+          }
+          context.go(_locationFromIndex(index));
+        },
         destinations: const [
           NavigationDestination(
             icon: Icon(Icons.home_outlined),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../blocs/menus/menus_cubit.dart';
 import '../../blocs/menus/menus_state.dart';
@@ -39,9 +40,7 @@ class _BusinessMenusView extends StatelessWidget {
       body: BlocConsumer<MenusCubit, MenusState>(
         listener: (context, state) {
           if (state.message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.message!)));
+            showSnackOrAuthDialog(context, state.message);
           }
         },
         builder: (context, state) => RefreshIndicator(

@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/scanner/scanner_cubit.dart';
@@ -30,9 +31,7 @@ class _ScannerView extends StatelessWidget {
         listener: (context, state) {
           final message = state.message;
           if (message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(message)));
+            showSnackOrAuthDialog(context, message);
           }
 
           if (state.status == ScannerStatus.success && state.code != null) {

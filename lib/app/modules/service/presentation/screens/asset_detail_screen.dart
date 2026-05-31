@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../common/services/share_service.dart';
@@ -44,9 +45,7 @@ class _EngagementListener extends StatelessWidget {
       listener: (context, state) {
         if (state.status == EngagementStatus.success ||
             state.status == EngagementStatus.failure) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message ?? 'Accion completada.')),
-          );
+          showSnackOrAuthDialog(context, state.message);
         }
       },
       child: child,
@@ -63,9 +62,7 @@ class _AssetDetailView extends StatelessWidget {
       body: BlocConsumer<AssetDetailCubit, AssetDetailState>(
         listener: (context, state) {
           if (state.message != null) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(state.message!)));
+            showSnackOrAuthDialog(context, state.message);
           }
         },
         builder: (context, state) {
@@ -255,7 +252,7 @@ class _AssetDetailView extends StatelessWidget {
       message: asset.description,
     );
     if (message != null && context.mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+      showSnackOrAuthDialog(context, message);
     }
   }
 

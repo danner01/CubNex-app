@@ -4,6 +4,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -64,9 +65,7 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     return BlocConsumer<BusinessWizardCubit, BusinessWizardState>(
       listener: (context, state) {
         if (state.message != null) {
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text(state.message!)));
+          showSnackOrAuthDialog(context, state.message);
         }
         if (state.status == BusinessWizardStatus.success) {
           context.go(AppRoutes.businessInventory);
@@ -576,6 +575,6 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    showSnackOrAuthDialog(context, message);
   }
 }

@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../blocs/app_session/app_session_cubit.dart';
+import '../widgets/cubnex_logo.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -224,24 +225,7 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        boxShadow: [
-          BoxShadow(
-            color: AppColors.gold.withValues(alpha: 0.18),
-            blurRadius: size * 0.35,
-          ),
-        ],
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: Image.asset(
-        'assets/icons/cubnex_icon.png',
-        fit: BoxFit.cover,
-      ),
-    );
+    return CubNexLogo(size: size);
   }
 }
 

@@ -20,29 +20,29 @@ Ejecuta dependencias:
 flutter pub get
 ```
 
-Por defecto la app apunta al backend desplegado en Vercel:
+Por defecto la app apunta al backend desplegado en Vercel y ya trae configurado el token publico de Mapbox. Puedes sobrescribirlo asi:
 
 ```bash
-flutter run --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN
+flutter run --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 ```
 
 Android emulador contra backend local:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000 --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN
+flutter run --dart-define=API_BASE_URL=http://10.0.2.2:3000 --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 ```
 
 Dispositivo fisico:
 
 ```bash
-flutter run --dart-define=API_BASE_URL=http://IP_DE_TU_PC:3000 --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN
+flutter run --dart-define=API_BASE_URL=http://IP_DE_TU_PC:3000 --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 ```
 
 Produccion:
 
 ```bash
-flutter build apk --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN
-flutter build ios --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN
+flutter build apk --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
+flutter build ios --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 ```
 
 ## Pendientes antes de publicar tiendas

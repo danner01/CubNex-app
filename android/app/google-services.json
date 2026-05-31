@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "182405994803",
+    "project_id": "supermarkercuba",
+    "storage_bucket": "supermarkercuba.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:182405994803:android:40df83ff73e187d781c646",
+        "android_client_info": {
+          "package_name": "com.cubnex.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCW_4Gjwjclyswl-PP6V1no66C30Xx_OL0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

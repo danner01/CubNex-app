@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../blocs/favorites/favorites_cubit.dart';
 import '../../blocs/favorites/favorites_state.dart';
 import '../../data/models/favorite_model.dart';
@@ -30,9 +31,7 @@ class _FavoritesView extends StatelessWidget {
         listener: (context, state) {
           final message = state.message ?? state.errorMessage;
           if (message != null && message.isNotEmpty) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(message)));
+            showSnackOrAuthDialog(context, message);
           }
         },
         builder: (context, state) {

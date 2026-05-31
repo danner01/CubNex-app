@@ -281,36 +281,41 @@ class BusinessPreviewCard extends StatelessWidget {
                     ),
                   ],
                 ),
-                const SizedBox(height: 14),
+                const SizedBox(height: 8),
                 Text(
                   name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
+                    height: 1.15,
                   ),
                 ),
-                const SizedBox(height: 4),
+                const SizedBox(height: 3),
                 Text(
                   province ?? 'Cuba',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                     fontWeight: FontWeight.w800,
+                    height: 1.1,
                     color: Theme.of(context).colorScheme.secondary,
                   ),
                 ),
-                const SizedBox(height: 8),
-                Text(
-                  description ?? 'Tienda disponible en CubNex.',
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.color
-                        ?.withValues(alpha: 0.62),
+                const SizedBox(height: 6),
+                Expanded(
+                  child: Text(
+                    description ?? 'Tienda disponible en CubNex.',
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      height: 1.18,
+                      color: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.color
+                          ?.withValues(alpha: 0.62),
+                    ),
                   ),
                 ),
               ],

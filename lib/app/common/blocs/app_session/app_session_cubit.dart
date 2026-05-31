@@ -21,8 +21,13 @@ class AppSessionCubit extends Cubit<AppSessionState> {
   static const _onboardingSeenKey = 'onboarding.seen';
 
   Future<void> restoreSession() async {
-    await _apiClient.clearSession();
-    emit(const AppSessionState.unauthenticated());
+    try {
+      await _apiClient.clearSession();
+    } catch (_) {
+      // Keep startup resilient even if secure storage fails once.
+    } finally {
+      emit(const AppSessionState.unauthenticated());
+    }
   }
 
   Future<void> setSession(AuthSession session) async {
