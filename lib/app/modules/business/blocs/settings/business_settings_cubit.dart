@@ -72,6 +72,21 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
     );
   }
 
+  void updateBusinessBrand({String? logoUrl, String? bannerUrl}) {
+    final business = state.business;
+    if (business == null) return;
+
+    emit(
+      state.copyWith(
+        status: BusinessSettingsStatus.ready,
+        business: business.copyWith(
+          logoUrl: logoUrl ?? business.logoUrl,
+          bannerUrl: bannerUrl ?? business.bannerUrl,
+        ),
+      ),
+    );
+  }
+
   Future<void> save() async {
     final customization = state.customization;
     if (customization == null) return;
@@ -97,6 +112,37 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
         ),
       );
       return;
+    }
+
+    final business = state.business;
+    if (business != null) {
+      final businessResult = await _apiClient.put<void>(
+        '/negocios/${business.id}',
+        data: {
+          'logo_url': business.logoUrl,
+          'banner_url': business.bannerUrl,
+          'colores': {
+            'primario': customization.primaryColor,
+            'secundario': customization.secondaryColor,
+            'acento': customization.accentColor,
+            'texto': customization.textColor,
+            'fondo': customization.backgroundColor,
+          },
+        },
+        parser: (_) {},
+      );
+
+      if (!businessResult.isSuccess) {
+        emit(
+          state.copyWith(
+            status: BusinessSettingsStatus.failure,
+            message:
+                businessResult.error?.message ??
+                'La paleta se guardo, pero no se pudo actualizar logo/banner.',
+          ),
+        );
+        return;
+      }
     }
 
     emit(

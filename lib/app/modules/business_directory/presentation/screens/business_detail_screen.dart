@@ -10,6 +10,8 @@ import '../../../../common/services/share_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
+import '../../../../config/theme/store_brand_theme.dart';
+import '../../../business/data/models/store_customization_model.dart';
 import '../../../favorites/blocs/engagement/engagement_cubit.dart';
 import '../../../favorites/blocs/engagement/engagement_state.dart';
 import '../../../review_rating/data/models/review_model.dart';
@@ -57,16 +59,18 @@ class _BusinessDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      body: BlocBuilder<BusinessDetailCubit, BusinessDetailState>(
-        builder: (context, state) {
-          if (state.status == BusinessDetailStatus.loading) {
-            return const Center(child: CircularProgressIndicator());
-          }
+    return BlocBuilder<BusinessDetailCubit, BusinessDetailState>(
+      builder: (context, state) {
+        if (state.status == BusinessDetailStatus.loading) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-          if (state.status == BusinessDetailStatus.failure ||
-              state.business == null) {
-            return Center(
+        if (state.status == BusinessDetailStatus.failure ||
+            state.business == null) {
+          return Scaffold(
+            body: Center(
               child: Padding(
                 padding: const EdgeInsets.all(24),
                 child: Text(
@@ -74,112 +78,133 @@ class _BusinessDetailView extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
               ),
+            ),
+          );
+        }
+
+        final business = state.business!;
+        final customization =
+            state.customization ??
+            StoreCustomizationModel.fromBusinessColors(
+              businessId: business.id,
+              colors: business.colors,
             );
-          }
+        final brand = StoreBrandTheme.fromCustomization(
+          customization,
+          Theme.of(context).brightness,
+        );
 
-          final business = state.business!;
-
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-            children: [
-              _BusinessHero(
-                name: business.name,
-                description: business.description,
-                logoUrl: business.logoUrl,
-                bannerUrl: business.bannerUrl,
-                rating: business.rating,
-                location: [
-                  business.municipality,
-                  business.province,
-                ].where((value) => value != null && value.isNotEmpty).join(', '),
-              ),
-              const SizedBox(height: 14),
-              Row(
-                children: [
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: () => _openBusinessChat(context),
-                      icon: const Icon(Icons.chat_bubble_outline_rounded),
-                      label: const Text('Chat'),
+        return Theme(
+          data: brand.applyTo(Theme.of(context)),
+          child: Builder(
+            builder: (context) {
+              return Scaffold(
+                backgroundColor: brand.background,
+                body: ListView(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                  children: [
+                    _BusinessHero(
+                      name: business.name,
+                      description: business.description,
+                      logoUrl: business.logoUrl,
+                      bannerUrl: business.bannerUrl,
+                      rating: business.rating,
+                      brand: brand,
+                      location: [
+                        business.municipality,
+                        business.province,
+                      ].where((value) => value != null && value.isNotEmpty).join(', '),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: OutlinedButton.icon(
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: FilledButton.icon(
+                            onPressed: () => _openBusinessChat(context),
+                            icon: const Icon(Icons.chat_bubble_outline_rounded),
+                            label: const Text('Chat'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => context
+                                .read<EngagementCubit>()
+                                .followBusiness(business.id),
+                            icon: const Icon(Icons.favorite_border_rounded),
+                            label: const Text('Seguir'),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        IconButton.filledTonal(
+                          tooltip: 'Compartir',
+                          onPressed: () => _shareBusiness(context),
+                          icon: const Icon(Icons.share_rounded),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    _ContactCard(phone: business.phone, whatsapp: business.whatsapp),
+                    const SizedBox(height: 22),
+                    SectionHeader(title: 'Productos de la tienda'),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
                       onPressed: () => context
                           .read<EngagementCubit>()
-                          .followBusiness(business.id),
-                      icon: const Icon(Icons.favorite_border_rounded),
-                      label: const Text('Seguir'),
+                          .favoriteBusiness(business.id),
+                      icon: const Icon(Icons.bookmark_add_outlined),
+                      label: const Text('Guardar negocio en favoritos'),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  IconButton.filledTonal(
-                    tooltip: 'Compartir',
-                    onPressed: () => _shareBusiness(context),
-                    icon: const Icon(Icons.share_rounded),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 18),
-              _ContactCard(phone: business.phone, whatsapp: business.whatsapp),
-              const SizedBox(height: 22),
-              SectionHeader(title: 'Productos de la tienda'),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () => context
-                    .read<EngagementCubit>()
-                    .favoriteBusiness(business.id),
-                icon: const Icon(Icons.bookmark_add_outlined),
-                label: const Text('Guardar negocio en favoritos'),
-              ),
-              const SizedBox(height: 12),
-              if (state.products.isEmpty)
-                const _EmptyProducts()
-              else
-                SizedBox(
-                  height: 238,
-                  child: ListView.separated(
-                    scrollDirection: Axis.horizontal,
-                    itemCount: state.products.length,
-                    separatorBuilder: (_, __) => const SizedBox(width: 12),
-                    itemBuilder: (context, index) {
-                      final product = state.products[index];
-                      return ProductPreviewCard(
-                        name: product.name,
-                        brand: product.brand,
-                        imageUrl: product.imageUrl,
-                        price: product.currentPrice,
-                        currency: product.currency,
-                        onTap: () => context.go(AppRoutes.product(product.id)),
-                      );
-                    },
-                  ),
+                    const SizedBox(height: 12),
+                    if (state.products.isEmpty)
+                      const _EmptyProducts()
+                    else
+                      SizedBox(
+                        height: 238,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: state.products.length,
+                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          itemBuilder: (context, index) {
+                            final product = state.products[index];
+                            return ProductPreviewCard(
+                              name: product.name,
+                              brand: product.brand,
+                              imageUrl: product.imageUrl,
+                              price: product.currentPrice,
+                              currency: product.currency,
+                              onTap: () => context.go(AppRoutes.product(product.id)),
+                            );
+                          },
+                        ),
+                      ),
+                    const SizedBox(height: 22),
+                    SectionHeader(title: 'Resenas'),
+                    const SizedBox(height: 10),
+                    OutlinedButton.icon(
+                      onPressed: () => showModalBottomSheet<void>(
+                        context: context,
+                        isScrollControlled: true,
+                        builder: (_) => BlocProvider.value(
+                          value: context.read<BusinessDetailCubit>(),
+                          child: const _ReviewFormSheet(),
+                        ),
+                      ),
+                      icon: const Icon(Icons.rate_review_outlined),
+                      label: const Text('Escribir resena'),
+                    ),
+                    const SizedBox(height: 12),
+                    if (state.reviews.isEmpty)
+                      const _EmptyReviews()
+                    else
+                      ...state.reviews.map((review) => _ReviewCard(review: review)),
+                  ],
                 ),
-              const SizedBox(height: 22),
-              SectionHeader(title: 'Resenas'),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () => showModalBottomSheet<void>(
-                  context: context,
-                  isScrollControlled: true,
-                  builder: (_) => BlocProvider.value(
-                    value: context.read<BusinessDetailCubit>(),
-                    child: const _ReviewFormSheet(),
-                  ),
-                ),
-                icon: const Icon(Icons.rate_review_outlined),
-                label: const Text('Escribir resena'),
-              ),
-              const SizedBox(height: 12),
-              if (state.reviews.isEmpty)
-                const _EmptyReviews()
-              else
-                ...state.reviews.map((review) => _ReviewCard(review: review)),
-            ],
-          );
-        },
-      ),
+              );
+            },
+          ),
+        );
+      },
     );
   }
 
@@ -358,6 +383,7 @@ class _ReviewFormSheetState extends State<_ReviewFormSheet> {
 class _BusinessHero extends StatelessWidget {
   const _BusinessHero({
     required this.name,
+    required this.brand,
     this.description,
     this.logoUrl,
     this.bannerUrl,
@@ -366,6 +392,7 @@ class _BusinessHero extends StatelessWidget {
   });
 
   final String name;
+  final StoreBrandTheme brand;
   final String? description;
   final String? logoUrl;
   final String? bannerUrl;
@@ -383,11 +410,7 @@ class _BusinessHero extends StatelessWidget {
             child: Container(
               height: 150,
               width: double.infinity,
-              decoration: const BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [AppColors.gold, AppColors.greenLight, AppColors.blue],
-                ),
-              ),
+              decoration: BoxDecoration(gradient: brand.heroGradient),
               child: bannerUrl != null && bannerUrl!.isNotEmpty
                   ? CachedNetworkImage(
                       imageUrl: bannerUrl!,
@@ -404,8 +427,8 @@ class _BusinessHero extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 32,
-                  backgroundColor: Theme.of(context).colorScheme.secondary,
-                  foregroundColor: Theme.of(context).colorScheme.onSecondary,
+                  backgroundColor: brand.primary,
+                  foregroundColor: brand.onPrimary,
                   backgroundImage: logoUrl != null && logoUrl!.isNotEmpty
                       ? CachedNetworkImageProvider(logoUrl!)
                       : null,
@@ -423,6 +446,7 @@ class _BusinessHero extends StatelessWidget {
                         style: Theme.of(context).textTheme.titleLarge?.copyWith(
                           fontWeight: FontWeight.w900,
                           height: 1.04,
+                          color: brand.onSurface,
                         ),
                       ),
                       const SizedBox(height: 6),
@@ -436,7 +460,10 @@ class _BusinessHero extends StatelessWidget {
                           const SizedBox(width: 4),
                           Text(
                             rating?.toStringAsFixed(1) ?? '0.0',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
+                            style: TextStyle(
+                              color: brand.onSurface,
+                              fontWeight: FontWeight.w900,
+                            ),
                           ),
                           if (location != null && location!.isNotEmpty) ...[
                             const SizedBox(width: 10),
@@ -445,6 +472,9 @@ class _BusinessHero extends StatelessWidget {
                                 location!,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
+                                style: TextStyle(
+                                  color: brand.onSurface.withValues(alpha: 0.72),
+                                ),
                               ),
                             ),
                           ],
@@ -456,6 +486,9 @@ class _BusinessHero extends StatelessWidget {
                           description!,
                           maxLines: 3,
                           overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            color: brand.onSurface.withValues(alpha: 0.82),
+                          ),
                         ),
                       ],
                     ],

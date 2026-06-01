@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../business/data/models/store_customization_model.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../../home/data/models/product_model.dart';
 import '../../../review_rating/data/models/review_model.dart';
@@ -60,14 +61,36 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
     );
 
     final businessResult = await businessFuture;
+    final customizationFuture = _apiClient.get<StoreCustomizationModel?>(
+      '/personalizacion/$id',
+      parser: (json) {
+        if (json is List && json.isNotEmpty) {
+          return StoreCustomizationModel.fromJson(
+            Map<String, dynamic>.from(json.first as Map),
+          );
+        }
+        if (json is Map && json.isNotEmpty) {
+          return StoreCustomizationModel.fromJson(Map<String, dynamic>.from(json));
+        }
+        return null;
+      },
+    );
     final productsResult = await productsFuture;
     final reviewsResult = await reviewsFuture;
+    final customizationResult = await customizationFuture;
 
     if (businessResult.isSuccess && businessResult.data != null) {
+      final business = businessResult.data!;
       emit(
         state.copyWith(
           status: BusinessDetailStatus.success,
-          business: businessResult.data,
+          business: business,
+          customization:
+              customizationResult.data ??
+              StoreCustomizationModel.fromBusinessColors(
+                businessId: business.id,
+                colors: business.colors,
+              ),
           products: productsResult.data ?? const [],
           reviews: reviewsResult.data ?? const [],
         ),

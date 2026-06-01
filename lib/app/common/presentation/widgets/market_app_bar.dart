@@ -3,6 +3,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
+import 'cubnex_logo.dart';
 
 class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MarketAppBar({super.key});
@@ -21,19 +22,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
         child: Row(
           children: [
-            Container(
-              width: 54,
-              height: 54,
-              decoration: BoxDecoration(
-                color: isDark ? AppColors.gold : AppColors.ink,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Icon(
-                Icons.shopping_bag_outlined,
-                color: isDark ? AppColors.ink : AppColors.gold,
-                size: 30,
-              ),
-            ),
+            const CubNexLogo(size: 54),
             const SizedBox(width: 12),
             Expanded(
               child: Column(

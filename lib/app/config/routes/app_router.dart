@@ -102,7 +102,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
           ),
           GoRoute(
             path: AppRoutes.preferences,
-            builder: (_, __) => const PreferencesScreen(),
+            builder: (_, __) => const PreferencesV2Screen(),
           ),
           GoRoute(
             path: AppRoutes.gamification,

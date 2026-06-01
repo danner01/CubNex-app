@@ -26,6 +26,14 @@ ANDROID_LAUNCH_IMAGES = {
     "mipmap-xxxhdpi": 384,
 }
 
+ANDROID_ADAPTIVE_FOREGROUND = {
+    "mipmap-mdpi": 108,
+    "mipmap-hdpi": 162,
+    "mipmap-xhdpi": 216,
+    "mipmap-xxhdpi": 324,
+    "mipmap-xxxhdpi": 432,
+}
+
 IOS_ICON_FILES = {
     "Icon-App-20x20@1x.png": 20,
     "Icon-App-20x20@2x.png": 40,
@@ -86,8 +94,14 @@ def main() -> None:
     android_res = ROOT / "android" / "app" / "src" / "main" / "res"
     for folder, size in ANDROID_ICONS.items():
         save_png(
-            fit_square(source, size, padding=0.0),
+            circular_icon(source, size, padding=0.01),
             android_res / folder / "ic_launcher.png",
+        )
+
+    for folder, size in ANDROID_ADAPTIVE_FOREGROUND.items():
+        save_png(
+            circular_icon(source, size, padding=0.1),
+            android_res / folder / "ic_launcher_foreground.png",
         )
 
     for folder, size in ANDROID_LAUNCH_IMAGES.items():

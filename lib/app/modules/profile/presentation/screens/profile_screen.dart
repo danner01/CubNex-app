@@ -66,6 +66,7 @@ class ProfileScreen extends StatelessWidget {
               label: const Text('Crear mi negocio'),
             ),
           const SizedBox(height: 18),
+          const _SectionLabel('Actividad'),
           _ProfileTile(
             icon: Icons.favorite_border_rounded,
             title: 'Favoritos',
@@ -84,6 +85,8 @@ class ProfileScreen extends StatelessWidget {
             subtitle: 'Solicitudes enviadas a negocios.',
             onTap: () => context.go(AppRoutes.orders),
           ),
+          const SizedBox(height: 10),
+          const _SectionLabel('Historial y reputacion'),
           _ProfileTile(
             icon: Icons.qr_code_scanner_rounded,
             title: 'Historial de escaneos',
@@ -102,9 +105,11 @@ class ProfileScreen extends StatelessWidget {
             subtitle: 'Gamificacion, sorteos y cashback.',
             onTap: () => context.go(AppRoutes.gamification),
           ),
+          const SizedBox(height: 10),
+          const _SectionLabel('Configuracion'),
           _ProfileTile(
             icon: Icons.settings_outlined,
-            title: 'Preferencias',
+            title: 'Preferencias v2',
             subtitle: 'Tema, categorias y privacidad.',
             onTap: () => context.go(AppRoutes.preferences),
           ),
@@ -118,6 +123,26 @@ class ProfileScreen extends StatelessWidget {
             label: const Text('Cerrar sesion'),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(4, 4, 4, 8),
+      child: Text(
+        title,
+        style: Theme.of(context).textTheme.labelLarge?.copyWith(
+          color: Theme.of(context).colorScheme.secondary,
+          fontWeight: FontWeight.w900,
+        ),
       ),
     );
   }
@@ -138,13 +163,26 @@ class _ProfileTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: ListTile(
-        leading: Icon(icon, color: Theme.of(context).colorScheme.secondary),
-        title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
-        subtitle: Text(subtitle),
-        trailing: const Icon(Icons.chevron_right_rounded),
-        onTap: onTap,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 8,
+          ),
+          leading: Icon(icon, color: Theme.of(context).colorScheme.secondary),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(subtitle),
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: onTap,
+        ),
       ),
     );
   }

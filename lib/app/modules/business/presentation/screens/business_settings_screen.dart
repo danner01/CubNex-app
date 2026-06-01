@@ -3,6 +3,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../../config/theme/store_brand_theme.dart';
+import '../../../home/data/models/business_model.dart';
 import '../../blocs/settings/business_settings_cubit.dart';
 import '../../blocs/settings/business_settings_state.dart';
 import '../../data/models/store_customization_model.dart';
@@ -61,9 +63,19 @@ class _BusinessSettingsView extends StatelessWidget {
                   ),
                 )
               else ...[
-                _StorePreview(customization: customization),
+                _StorePreview(
+                  customization: customization,
+                  business: state.business,
+                ),
+                const SizedBox(height: 12),
+                _BrandAssetsSection(business: state.business, saving: saving),
                 const SizedBox(height: 12),
                 _PaletteSection(customization: customization),
+                const SizedBox(height: 12),
+                _ColorFineTuneSection(
+                  customization: customization,
+                  saving: saving,
+                ),
                 const SizedBox(height: 12),
                 _LayoutSection(customization: customization, saving: saving),
               ],
@@ -97,21 +109,23 @@ class _BusinessSettingsView extends StatelessWidget {
 }
 
 class _StorePreview extends StatelessWidget {
-  const _StorePreview({required this.customization});
+  const _StorePreview({required this.customization, this.business});
 
   final StoreCustomizationModel customization;
+  final BusinessModel? business;
 
   @override
   Widget build(BuildContext context) {
-    final primary = _hex(customization.primaryColor);
-    final background = _hex(customization.backgroundColor);
-    final text = _hex(customization.textColor);
+    final brand = StoreBrandTheme.fromCustomization(
+      customization,
+      Theme.of(context).brightness,
+    );
 
     return Card(
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: background,
+          color: brand.background,
           borderRadius: BorderRadius.circular(16),
         ),
         child: Column(
@@ -120,16 +134,21 @@ class _StorePreview extends StatelessWidget {
             Row(
               children: [
                 CircleAvatar(
-                  backgroundColor: primary,
-                  foregroundColor: Colors.black,
-                  child: const Icon(Icons.storefront_outlined),
+                  backgroundColor: brand.primary,
+                  foregroundColor: brand.onPrimary,
+                  backgroundImage: business?.logoUrl?.isNotEmpty == true
+                      ? NetworkImage(business!.logoUrl!)
+                      : null,
+                  child: business?.logoUrl?.isNotEmpty == true
+                      ? null
+                      : const Icon(Icons.storefront_outlined),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    'Vista previa de tienda',
+                    business?.name ?? 'Vista previa de tienda',
                     style: TextStyle(
-                      color: text,
+                      color: brand.onBackground,
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
                     ),
@@ -141,18 +160,78 @@ class _StorePreview extends StatelessWidget {
             Container(
               height: 94,
               decoration: BoxDecoration(
-                color: primary.withValues(alpha: 0.18),
+                color: brand.surface,
                 borderRadius: BorderRadius.circular(
                   customization.cardRadius.toDouble(),
                 ),
-                border: Border.all(color: primary.withValues(alpha: 0.45)),
+                border: Border.all(color: brand.primary.withValues(alpha: 0.45)),
               ),
               child: Center(
                 child: Text(
-                  'Producto destacado · ${customization.cardStyle}',
-                  style: TextStyle(color: text, fontWeight: FontWeight.w800),
+                  'Producto destacado - ${customization.cardStyle}',
+                  style: TextStyle(
+                    color: brand.onSurface,
+                    fontWeight: FontWeight.w800,
+                  ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BrandAssetsSection extends StatelessWidget {
+  const _BrandAssetsSection({required this.business, required this.saving});
+
+  final BusinessModel? business;
+  final bool saving;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Identidad visual',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Usa enlaces de Supabase Storage para logo y banner. Luego podemos conectar selector de galeria y camara.',
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              initialValue: business?.logoUrl ?? '',
+              enabled: !saving && business != null,
+              decoration: const InputDecoration(
+                labelText: 'Logo de la tienda',
+                prefixIcon: Icon(Icons.image_outlined),
+                hintText: 'https://.../logo.png',
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateBusinessBrand(logoUrl: value.trim()),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              initialValue: business?.bannerUrl ?? '',
+              enabled: !saving && business != null,
+              decoration: const InputDecoration(
+                labelText: 'Banner principal',
+                prefixIcon: Icon(Icons.panorama_outlined),
+                hintText: 'https://.../banner.png',
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateBusinessBrand(bannerUrl: value.trim()),
             ),
           ],
         ),
@@ -175,10 +254,10 @@ class _PaletteSection extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Paleta de colores',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              'Paletas rapidas',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -195,11 +274,13 @@ class _PaletteSection extends StatelessWidget {
                         accentColor: palette.accent,
                         backgroundColor: palette.background,
                         textColor: palette.text,
+                        gradientStart: palette.primary,
+                        gradientEnd: palette.accent,
                       ),
                     );
                   },
                   child: Container(
-                    width: 92,
+                    width: 96,
                     padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(16),
@@ -236,6 +317,181 @@ class _PaletteSection extends StatelessWidget {
   }
 }
 
+class _ColorFineTuneSection extends StatelessWidget {
+  const _ColorFineTuneSection({
+    required this.customization,
+    required this.saving,
+  });
+
+  final StoreCustomizationModel customization;
+  final bool saving;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Colores editables',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Puedes ajustar cada color en formato HEX. La app corrige el contraste para que textos y botones se lean bien.',
+            ),
+            const SizedBox(height: 14),
+            _HexColorField(
+              label: 'Principal',
+              value: customization.primaryColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(primaryColor: value),
+              ),
+            ),
+            _HexColorField(
+              label: 'Secundario',
+              value: customization.secondaryColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(secondaryColor: value),
+              ),
+            ),
+            _HexColorField(
+              label: 'Acento',
+              value: customization.accentColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(accentColor: value),
+              ),
+            ),
+            _HexColorField(
+              label: 'Fondo',
+              value: customization.backgroundColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(backgroundColor: value),
+              ),
+            ),
+            _HexColorField(
+              label: 'Texto sugerido',
+              value: customization.textColor,
+              enabled: !saving,
+              onChanged: (value) =>
+                  _update(context, customization.copyWith(textColor: value)),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: customization.gradientEnabled,
+              title: const Text('Usar gradiente en banner'),
+              onChanged: saving
+                  ? null
+                  : (value) => _update(
+                      context,
+                      customization.copyWith(gradientEnabled: value),
+                    ),
+            ),
+            if (customization.gradientEnabled) ...[
+              _HexColorField(
+                label: 'Gradiente inicio',
+                value: customization.gradientStart,
+                enabled: !saving,
+                onChanged: (value) => _update(
+                  context,
+                  customization.copyWith(gradientStart: value),
+                ),
+              ),
+              _HexColorField(
+                label: 'Gradiente fin',
+                value: customization.gradientEnd,
+                enabled: !saving,
+                onChanged: (value) => _update(
+                  context,
+                  customization.copyWith(gradientEnd: value),
+                ),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: customization.gradientDirection,
+                decoration: const InputDecoration(
+                  labelText: 'Direccion del gradiente',
+                ),
+                items: const [
+                  DropdownMenuItem(value: 'vertical', child: Text('Vertical')),
+                  DropdownMenuItem(
+                    value: 'horizontal',
+                    child: Text('Horizontal'),
+                  ),
+                  DropdownMenuItem(value: 'diagonal', child: Text('Diagonal')),
+                ],
+                onChanged: saving
+                    ? null
+                    : (value) => _update(
+                        context,
+                        customization.copyWith(
+                          gradientDirection: value ?? 'vertical',
+                        ),
+                      ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _update(BuildContext context, StoreCustomizationModel value) {
+    context.read<BusinessSettingsCubit>().update(value);
+  }
+}
+
+class _HexColorField extends StatelessWidget {
+  const _HexColorField({
+    required this.label,
+    required this.value,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final String label;
+  final String value;
+  final bool enabled;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final normalized = normalizeHexColor(value, fallback: value);
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: TextFormField(
+        initialValue: normalized,
+        enabled: enabled,
+        textCapitalization: TextCapitalization.characters,
+        decoration: InputDecoration(
+          labelText: label,
+          prefixIcon: Padding(
+            padding: const EdgeInsets.all(12),
+            child: _Swatch(color: normalized),
+          ),
+          hintText: '#D4AF37',
+        ),
+        onChanged: (text) {
+          final fallback = normalized.startsWith('#') ? normalized : '#D4AF37';
+          onChanged(normalizeHexColor(text, fallback: fallback));
+        },
+      ),
+    );
+  }
+}
+
 class _LayoutSection extends StatelessWidget {
   const _LayoutSection({required this.customization, required this.saving});
 
@@ -248,7 +504,15 @@ class _LayoutSection extends StatelessWidget {
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Tarjetas y layout',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
             DropdownButtonFormField<String>(
               initialValue: customization.cardStyle,
               decoration: const InputDecoration(labelText: 'Estilo de tarjeta'),
@@ -327,9 +591,9 @@ class _Swatch extends StatelessWidget {
       width: 18,
       height: 18,
       decoration: BoxDecoration(
-        color: _hex(color),
+        color: parseStoreColor(color, fallback: Colors.black),
         shape: BoxShape.circle,
-        border: Border.all(color: Colors.white),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
       ),
     );
   }
@@ -386,10 +650,12 @@ const _palettes = [
     background: '#F8FAFC',
     text: '#0F172A',
   ),
+  _Palette(
+    name: 'Neon',
+    primary: '#8B5CF6',
+    secondary: '#111827',
+    accent: '#22D3EE',
+    background: '#09090B',
+    text: '#FFFFFF',
+  ),
 ];
-
-Color _hex(String value) {
-  final normalized = value.replaceAll('#', '');
-  final hex = normalized.length == 6 ? 'FF$normalized' : normalized;
-  return Color(int.tryParse(hex, radix: 16) ?? 0xFF111512);
-}

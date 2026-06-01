@@ -8,6 +8,9 @@ class StoreCustomizationModel {
     this.textColor = '#FFFFFF',
     this.backgroundColor = '#0D0D0D',
     this.gradientEnabled = false,
+    this.gradientStart = '#000000',
+    this.gradientEnd = '#1A1A1A',
+    this.gradientDirection = 'vertical',
     this.cardStyle = 'grande',
     this.cardRadius = 16,
     this.showDiscount = true,
@@ -24,6 +27,9 @@ class StoreCustomizationModel {
   final String textColor;
   final String backgroundColor;
   final bool gradientEnabled;
+  final String gradientStart;
+  final String gradientEnd;
+  final String gradientDirection;
   final String cardStyle;
   final int cardRadius;
   final bool showDiscount;
@@ -38,6 +44,9 @@ class StoreCustomizationModel {
     String? textColor,
     String? backgroundColor,
     bool? gradientEnabled,
+    String? gradientStart,
+    String? gradientEnd,
+    String? gradientDirection,
     String? cardStyle,
     int? cardRadius,
     bool? showDiscount,
@@ -54,6 +63,9 @@ class StoreCustomizationModel {
       textColor: textColor ?? this.textColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
       gradientEnabled: gradientEnabled ?? this.gradientEnabled,
+      gradientStart: gradientStart ?? this.gradientStart,
+      gradientEnd: gradientEnd ?? this.gradientEnd,
+      gradientDirection: gradientDirection ?? this.gradientDirection,
       cardStyle: cardStyle ?? this.cardStyle,
       cardRadius: cardRadius ?? this.cardRadius,
       showDiscount: showDiscount ?? this.showDiscount,
@@ -73,6 +85,9 @@ class StoreCustomizationModel {
       textColor: '${json['color_texto'] ?? '#FFFFFF'}',
       backgroundColor: '${json['color_fondo'] ?? '#0D0D0D'}',
       gradientEnabled: json['gradiente_habilitado'] == true,
+      gradientStart: '${json['gradiente_inicio'] ?? '#000000'}',
+      gradientEnd: '${json['gradiente_fin'] ?? '#1A1A1A'}',
+      gradientDirection: '${json['gradiente_direccion'] ?? 'vertical'}',
       cardStyle: '${json['tarjeta_estilo'] ?? 'grande'}',
       cardRadius: _int(json['tarjeta_bordes'], fallback: 16),
       showDiscount: json['tarjeta_mostrar_descuento'] != false,
@@ -91,6 +106,9 @@ class StoreCustomizationModel {
       'color_texto': textColor,
       'color_fondo': backgroundColor,
       'gradiente_habilitado': gradientEnabled,
+      'gradiente_inicio': gradientStart,
+      'gradiente_fin': gradientEnd,
+      'gradiente_direccion': gradientDirection,
       'tarjeta_estilo': cardStyle,
       'tarjeta_bordes': cardRadius,
       'tarjeta_mostrar_descuento': showDiscount,
@@ -98,6 +116,21 @@ class StoreCustomizationModel {
       'tarjeta_mostrar_stock': showStock,
       'grid_columnas': gridColumns,
     };
+  }
+
+  factory StoreCustomizationModel.fromBusinessColors({
+    required String businessId,
+    required Map<String, String> colors,
+  }) {
+    return StoreCustomizationModel(
+      businessId: businessId,
+      primaryColor: colors['primario'] ?? colors['primary'] ?? '#D4AF37',
+      secondaryColor:
+          colors['secundario'] ?? colors['secondary'] ?? '#111512',
+      accentColor: colors['acento'] ?? colors['accent'] ?? '#3B82F6',
+      textColor: colors['texto'] ?? colors['text'] ?? '#FFFFFF',
+      backgroundColor: colors['fondo'] ?? colors['background'] ?? '#0D0D0D',
+    );
   }
 
   static int _int(Object? value, {required int fallback}) {
