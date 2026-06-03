@@ -1,8 +1,10 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../blocs/app_session/app_session_cubit.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../widgets/cubnex_logo.dart';
@@ -16,6 +18,13 @@ class SplashScreen extends StatefulWidget {
 
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
+  static const _splashSeconds = 2;
+  static const _networkAnimationSeconds = 2;
+  static const _splashDuration = Duration(seconds: _splashSeconds);
+  static const _totalDuration = Duration(
+    seconds: _splashSeconds + _networkAnimationSeconds,
+  );
+
   late final AnimationController _controller;
 
   @override
@@ -23,8 +32,8 @@ class _SplashScreenState extends State<SplashScreen>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 2600),
-    )..repeat();
+      duration: _totalDuration,
+    )..forward();
     _goToOnboarding();
   }
 
@@ -35,9 +44,18 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _goToOnboarding() async {
-    await Future<void>.delayed(const Duration(milliseconds: 2400));
+    await Future<void>.delayed(_totalDuration);
     if (!mounted) return;
-    context.go(AppRoutes.onboarding);
+    final session = context.read<AppSessionCubit>().state;
+    final target = switch (session.status) {
+      AppSessionStatus.authenticated || AppSessionStatus.guest =>
+        AppRoutes.home,
+      AppSessionStatus.unauthenticated => session.onboardingSeen
+          ? AppRoutes.login
+          : AppRoutes.onboarding,
+      AppSessionStatus.loading => AppRoutes.onboarding,
+    };
+    context.go(target);
   }
 
   @override
@@ -51,8 +69,9 @@ class _SplashScreenState extends State<SplashScreen>
               child: AnimatedBuilder(
                 animation: _controller,
                 builder: (context, _) {
+                  final networkProgress = _networkProgress;
                   return CustomPaint(
-                    painter: _CubaNetworkPainter(progress: _controller.value),
+                    painter: _CubaNetworkPainter(progress: networkProgress),
                   );
                 },
               ),
@@ -74,53 +93,67 @@ class _SplashScreenState extends State<SplashScreen>
               ),
             ),
             Center(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  AnimatedCubNexLogo(
-                    animation: _controller,
-                    size: 138,
-                  ),
-                  const SizedBox(height: 20),
-                  const Text(
-                    'CubNex',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 34,
-                      fontWeight: FontWeight.w900,
-                      height: 1,
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  const Text(
-                    'Conecta negocios, clientes y oportunidades',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(
-                      color: AppColors.greenLight,
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0.4,
-                    ),
-                  ),
-                  const SizedBox(height: 34),
-                  SizedBox(
-                    width: 148,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(99),
-                      child: LinearProgressIndicator(
-                        minHeight: 4,
-                        value: _controller.value,
-                        backgroundColor: Colors.white.withValues(alpha: 0.08),
-                        color: AppColors.gold,
+              child: AnimatedBuilder(
+                animation: _controller,
+                builder: (context, _) {
+                  final networkProgress = _networkProgress;
+                  return Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      AnimatedCubNexLogo(
+                        animation: _controller,
+                        size: 138,
                       ),
-                    ),
-                  ),
-                ],
+                      const SizedBox(height: 20),
+                      const Text(
+                        'CubNex',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 34,
+                          fontWeight: FontWeight.w900,
+                          height: 1,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      const Text(
+                        'Conecta negocios, clientes y oportunidades',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: AppColors.greenLight,
+                          fontWeight: FontWeight.w900,
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(height: 34),
+                      SizedBox(
+                        width: 148,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(99),
+                          child: LinearProgressIndicator(
+                            minHeight: 4,
+                            value: networkProgress,
+                            backgroundColor:
+                                Colors.white.withValues(alpha: 0.08),
+                            color: AppColors.gold,
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                },
               ),
             ),
           ],
         ),
       ),
     );
+  }
+
+  double get _networkProgress {
+    final splashPortion =
+        _splashDuration.inMilliseconds / _totalDuration.inMilliseconds;
+    final value = (_controller.value - splashPortion) / (1 - splashPortion);
+    return value.clamp(0.0, 1.0);
   }
 }
 

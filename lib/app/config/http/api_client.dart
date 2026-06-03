@@ -18,13 +18,60 @@ class ApiClient {
           ),
       _secureStorage = secureStorage ?? const FlutterSecureStorage() {
     _dio.interceptors.add(
-      InterceptorsWrapper(
+      QueuedInterceptorsWrapper(
         onRequest: (options, handler) async {
+          if (!_skipsAuthRefresh(options)) {
+            await refreshSession(force: false);
+          }
+
           final token = await _secureStorage.read(key: _accessTokenKey);
-          if (token != null && token.isNotEmpty) {
+          if (token != null && token.isNotEmpty && !_skipsAuth(options)) {
             options.headers['authorization'] = 'Bearer $token';
           }
           handler.next(options);
+        },
+        onError: (error, handler) async {
+          final requestOptions = error.requestOptions;
+          final canRefresh =
+              error.response?.statusCode == 401 &&
+              !_skipsAuthRefresh(requestOptions);
+
+          if (canRefresh && await refreshSession(force: true)) {
+            final token = await _secureStorage.read(key: _accessTokenKey);
+            final retryOptions = Options(
+              method: requestOptions.method,
+              headers: {
+                ...requestOptions.headers,
+                if (token != null && token.isNotEmpty)
+                  'authorization': 'Bearer $token',
+              },
+              responseType: requestOptions.responseType,
+              contentType: requestOptions.contentType,
+              extra: {
+                ...requestOptions.extra,
+                _skipAuthRefreshExtra: true,
+              },
+            );
+
+            try {
+              final response = await _dio.request<dynamic>(
+                requestOptions.path,
+                data: requestOptions.data,
+                queryParameters: requestOptions.queryParameters,
+                options: retryOptions,
+                cancelToken: requestOptions.cancelToken,
+                onReceiveProgress: requestOptions.onReceiveProgress,
+                onSendProgress: requestOptions.onSendProgress,
+              );
+              handler.resolve(response);
+              return;
+            } on DioException catch (retryError) {
+              handler.next(retryError);
+              return;
+            }
+          }
+
+          handler.next(error);
         },
       ),
     );
@@ -32,17 +79,35 @@ class ApiClient {
 
   static const _accessTokenKey = 'auth.access_token';
   static const _refreshTokenKey = 'auth.refresh_token';
+  static const _tokenExpiresAtKey = 'auth.expires_at';
+  static const _skipAuthRefreshExtra = 'skip_auth_refresh';
+  static const _refreshLeeway = Duration(minutes: 5);
 
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
+  Future<bool>? _refreshFuture;
 
   Future<void> saveSession({
     required String accessToken,
     String? refreshToken,
+    int? expiresAt,
+    int? expiresIn,
   }) async {
     await _secureStorage.write(key: _accessTokenKey, value: accessToken);
     if (refreshToken != null) {
       await _secureStorage.write(key: _refreshTokenKey, value: refreshToken);
+    }
+
+    final resolvedExpiresAt =
+        expiresAt ??
+        (expiresIn == null
+            ? null
+            : DateTime.now().millisecondsSinceEpoch ~/ 1000 + expiresIn);
+    if (resolvedExpiresAt != null) {
+      await _secureStorage.write(
+        key: _tokenExpiresAtKey,
+        value: resolvedExpiresAt.toString(),
+      );
     }
   }
 
@@ -50,9 +115,81 @@ class ApiClient {
     return _secureStorage.read(key: _accessTokenKey);
   }
 
+  Future<String?> readRefreshToken() {
+    return _secureStorage.read(key: _refreshTokenKey);
+  }
+
+  Future<bool> hasLocalSession() async {
+    final accessToken = await readAccessToken();
+    final refreshToken = await readRefreshToken();
+    return (accessToken != null && accessToken.isNotEmpty) ||
+        (refreshToken != null && refreshToken.isNotEmpty);
+  }
+
   Future<void> clearSession() async {
     await _secureStorage.delete(key: _accessTokenKey);
     await _secureStorage.delete(key: _refreshTokenKey);
+    await _secureStorage.delete(key: _tokenExpiresAtKey);
+  }
+
+  Future<bool> refreshSession({bool force = false}) {
+    if (_refreshFuture != null) return _refreshFuture!;
+    _refreshFuture = _refreshSession(force: force).whenComplete(() {
+      _refreshFuture = null;
+    });
+    return _refreshFuture!;
+  }
+
+  Future<bool> _refreshSession({required bool force}) async {
+    final refreshToken = await readRefreshToken();
+    if (refreshToken == null || refreshToken.isEmpty) return false;
+
+    if (!force && !await _isTokenExpiringSoon()) {
+      return true;
+    }
+
+    try {
+      final response = await _dio.post<dynamic>(
+        '/auth/refresh-token',
+        data: {'refresh_token': refreshToken},
+        options: Options(extra: {_skipAuthRefreshExtra: true}),
+      );
+      final envelope = response.data;
+      final data = envelope is Map ? envelope['datos'] : null;
+      if (data is! Map || data['access_token'] == null) {
+        return false;
+      }
+
+      await saveSession(
+        accessToken: '${data['access_token']}',
+        refreshToken: data['refresh_token']?.toString(),
+        expiresAt: data['expires_at'] is num
+            ? (data['expires_at'] as num).toInt()
+            : null,
+        expiresIn: data['expires_in'] is num
+            ? (data['expires_in'] as num).toInt()
+            : null,
+      );
+      return true;
+    } on DioException catch (error) {
+      if (error.response?.statusCode == 400 ||
+          error.response?.statusCode == 401 ||
+          error.response?.statusCode == 403) {
+        await clearSession();
+      }
+      return false;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  Future<bool> _isTokenExpiringSoon() async {
+    final expiresAtRaw = await _secureStorage.read(key: _tokenExpiresAtKey);
+    final expiresAt = int.tryParse(expiresAtRaw ?? '');
+    if (expiresAt == null) return false;
+
+    final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
+    return expiresAt - now <= _refreshLeeway.inSeconds;
   }
 
   Future<ApiResult<T>> get<T>(
@@ -196,5 +333,17 @@ class ApiClient {
       default:
         return error.message ?? 'Error de conexion';
     }
+  }
+
+  bool _skipsAuth(RequestOptions options) {
+    final path = options.path;
+    return path.contains('/auth/login') ||
+        path.contains('/auth/registro') ||
+        path.contains('/auth/recuperar-password') ||
+        path.contains('/auth/refresh-token');
+  }
+
+  bool _skipsAuthRefresh(RequestOptions options) {
+    return options.extra[_skipAuthRefreshExtra] == true || _skipsAuth(options);
   }
 }

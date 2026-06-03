@@ -98,7 +98,9 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => ProductDetailCubit(apiClient: sl()))
     ..registerFactory(() => PostsCubit(apiClient: sl()))
     ..registerFactory(() => AssetDetailCubit(apiClient: sl()))
-    ..registerFactory(() => PreferencesCubit(apiClient: sl()))
+    ..registerFactory(
+      () => PreferencesCubit(apiClient: sl(), sharedPreferences: sl()),
+    )
     ..registerFactory(() => PromotionsCubit(apiClient: sl()))
     ..registerFactory(() => PropertiesCubit(apiClient: sl()))
     ..registerFactory(() => TransportCubit(apiClient: sl()))

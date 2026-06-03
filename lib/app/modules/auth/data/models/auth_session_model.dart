@@ -7,6 +7,8 @@ class AuthSessionModel extends AuthSession {
     required super.userId,
     required super.role,
     super.refreshToken,
+    super.expiresAt,
+    super.expiresIn,
     super.email,
   });
 
@@ -21,6 +23,12 @@ class AuthSessionModel extends AuthSession {
     return AuthSessionModel(
       accessToken: '${json['access_token'] ?? ''}',
       refreshToken: json['refresh_token']?.toString(),
+      expiresAt: json['expires_at'] is num
+          ? (json['expires_at'] as num).toInt()
+          : null,
+      expiresIn: json['expires_in'] is num
+          ? (json['expires_in'] as num).toInt()
+          : null,
       userId: '${user['id'] ?? ''}',
       email: user['email']?.toString(),
       role: UserRole.fromApi(perfil['rol']?.toString()),

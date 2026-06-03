@@ -27,6 +27,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _apiClient.saveSession(
         accessToken: result.data!.accessToken,
         refreshToken: result.data!.refreshToken,
+        expiresAt: result.data!.expiresAt,
+        expiresIn: result.data!.expiresIn,
       );
       return ApiResult.success(result.data!);
     }
@@ -40,6 +42,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _apiClient.saveSession(
         accessToken: result.data!.accessToken,
         refreshToken: result.data!.refreshToken,
+        expiresAt: result.data!.expiresAt,
+        expiresIn: result.data!.expiresIn,
       );
       return ApiResult.success(result.data!);
     }
@@ -65,6 +69,8 @@ class AuthRepositoryImpl implements AuthRepository {
       await _apiClient.saveSession(
         accessToken: result.data!.accessToken,
         refreshToken: result.data!.refreshToken,
+        expiresAt: result.data!.expiresAt,
+        expiresIn: result.data!.expiresIn,
       );
       return ApiResult.success(result.data!);
     }

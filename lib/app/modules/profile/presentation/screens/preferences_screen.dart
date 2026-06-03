@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../common/blocs/app_theme/app_theme_cubit.dart';
@@ -11,8 +12,8 @@ import '../../blocs/preferences/preferences_state.dart';
 
 enum _PreferencePanel { theme, categories, privacy }
 
-class PreferencesV2Screen extends StatelessWidget {
-  const PreferencesV2Screen({super.key});
+class PreferencesScreen extends StatelessWidget {
+  const PreferencesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -105,9 +106,9 @@ class _HeaderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final title = switch (panel) {
-      _PreferencePanel.theme => 'Preferencias V2 - Tema visual',
-      _PreferencePanel.categories => 'Preferencias V2 - Categorias',
-      _PreferencePanel.privacy => 'Preferencias V2 - Privacidad',
+      _PreferencePanel.theme => 'Preferencias',
+      _PreferencePanel.categories => 'Preferencias',
+      _PreferencePanel.privacy => 'Preferencias',
     };
     final subtitle = switch (panel) {
       _PreferencePanel.theme =>
@@ -413,18 +414,17 @@ class _PrivacySectionState extends State<_PrivacySection> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Controles de privacidad',
+              'Privacidad y permisos',
               style: Theme.of(context).textTheme.titleMedium?.copyWith(
                 fontWeight: FontWeight.w900,
               ),
             ),
             const SizedBox(height: 6),
             const Text(
-              'Estos ajustes se guardan en este dispositivo y preparan el flujo para sincronizarlos con el perfil.',
+              'Activa o desactiva como se usan tus datos dentro de la app. Estos ajustes se guardan en este dispositivo.',
             ),
-            const SizedBox(height: 8),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+            const SizedBox(height: 12),
+            _PrivacyToggleTile(
               value: _recommendations,
               title: const Text('Recomendaciones personalizadas'),
               subtitle: const Text('Usar favoritos, escaneos y categorias.'),
@@ -434,8 +434,7 @@ class _PrivacySectionState extends State<_PrivacySection> {
                 update: () => _recommendations = value,
               ),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+            _PrivacyToggleTile(
               value: _publicReviews,
               title: const Text('Actividad de resenas visible'),
               subtitle: const Text('Permite mostrar tus opiniones publicas.'),
@@ -445,8 +444,7 @@ class _PrivacySectionState extends State<_PrivacySection> {
                 update: () => _publicReviews = value,
               ),
             ),
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
+            _PrivacyToggleTile(
               value: _marketing,
               title: const Text('Notificaciones comerciales'),
               subtitle: const Text('Promociones, sorteos y anuncios.'),
@@ -455,6 +453,31 @@ class _PrivacySectionState extends State<_PrivacySection> {
                 value: value,
                 update: () => _marketing = value,
               ),
+            ),
+            const SizedBox(height: 12),
+            _PermissionsInfoCard(
+              items: const [
+                _PermissionInfo(
+                  icon: Icons.camera_alt_outlined,
+                  title: 'Camara',
+                  description: 'Se solicita al escanear QR, codigos o etiquetas.',
+                ),
+                _PermissionInfo(
+                  icon: Icons.photo_library_outlined,
+                  title: 'Galeria',
+                  description: 'Se solicita al subir logos, banners o productos.',
+                ),
+                _PermissionInfo(
+                  icon: Icons.location_on_outlined,
+                  title: 'Ubicacion',
+                  description: 'Se solicita al buscar negocios cercanos o usar mapa.',
+                ),
+                _PermissionInfo(
+                  icon: Icons.notifications_outlined,
+                  title: 'Notificaciones',
+                  description: 'Se solicita para avisos, promociones y pedidos.',
+                ),
+              ],
             ),
           ],
         ),
@@ -471,6 +494,168 @@ class _PrivacySectionState extends State<_PrivacySection> {
     if (!mounted) return;
     setState(update);
   }
+}
+
+class _PrivacyToggleTile extends StatelessWidget {
+  const _PrivacyToggleTile({
+    required this.value,
+    required this.title,
+    required this.subtitle,
+    required this.onChanged,
+  });
+
+  final bool value;
+  final Widget title;
+  final Widget subtitle;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colorScheme.outlineVariant),
+        ),
+        child: SwitchListTile(
+          contentPadding: const EdgeInsets.fromLTRB(14, 6, 10, 6),
+          value: value,
+          title: Row(
+            children: [
+              Expanded(child: title),
+              const SizedBox(width: 8),
+              _StatusPill(active: value),
+            ],
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 4),
+            child: subtitle,
+          ),
+          onChanged: onChanged,
+        ),
+      ),
+    );
+  }
+}
+
+class _StatusPill extends StatelessWidget {
+  const _StatusPill({required this.active});
+
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: active
+            ? colorScheme.primary.withValues(alpha: 0.16)
+            : colorScheme.errorContainer,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+        child: Text(
+          active ? 'Activado' : 'Desactivado',
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+            color: active ? colorScheme.primary : colorScheme.onErrorContainer,
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionsInfoCard extends StatelessWidget {
+  const _PermissionsInfoCard({required this.items});
+
+  final List<_PermissionInfo> items;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Permisos del dispositivo',
+              style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 6),
+            const Text(
+              'La app pedira cada permiso solo cuando uses una funcion que lo necesite.',
+            ),
+            const SizedBox(height: 10),
+            ...items.map((item) => _PermissionInfoRow(item: item)),
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: openAppSettings,
+              icon: const Icon(Icons.settings_outlined),
+              label: const Text('Abrir ajustes de permisos'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _PermissionInfoRow extends StatelessWidget {
+  const _PermissionInfoRow({required this.item});
+
+  final _PermissionInfo item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(item.icon, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.title,
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const SizedBox(height: 2),
+                Text(item.description),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PermissionInfo {
+  const _PermissionInfo({
+    required this.icon,
+    required this.title,
+    required this.description,
+  });
+
+  final IconData icon;
+  final String title;
+  final String description;
 }
 
 class _ThemeModeSection extends StatelessWidget {

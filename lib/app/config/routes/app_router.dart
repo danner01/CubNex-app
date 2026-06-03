@@ -48,22 +48,24 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
       final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
 
       if (session.status == AppSessionStatus.loading) {
-        return isSplash ? null : AppRoutes.splash;
+        return (isSplash || isLogin || isOnboarding) ? null : AppRoutes.splash;
       }
 
       if (session.status == AppSessionStatus.unauthenticated) {
         final target = session.onboardingSeen
             ? AppRoutes.login
             : AppRoutes.onboarding;
-        return (isLogin || isOnboarding) ? null : target;
+        return (isSplash || isLogin || isOnboarding) ? null : target;
       }
 
       if (session.status == AppSessionStatus.guest) {
-        return (isSplash || isLogin || isOnboarding) ? AppRoutes.home : null;
+        if (isSplash) return null;
+        return (isLogin || isOnboarding) ? AppRoutes.home : null;
       }
 
-      if (session.status == AppSessionStatus.authenticated &&
-          (isLogin || isSplash)) {
+      if (session.status == AppSessionStatus.authenticated) {
+        if (isSplash) return null;
+        if (!isLogin && !isOnboarding) return null;
         return AppRoutes.home;
       }
 
@@ -102,7 +104,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
           ),
           GoRoute(
             path: AppRoutes.preferences,
-            builder: (_, __) => const PreferencesV2Screen(),
+            builder: (_, __) => const PreferencesScreen(),
           ),
           GoRoute(
             path: AppRoutes.gamification,

@@ -227,13 +227,20 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   @override
   Future<ApiResult<AuthSessionModel>> me() async {
-    final token = await _apiClient.readAccessToken();
-    if (token == null) {
+    var token = await _apiClient.readAccessToken();
+    if (token == null || token.isEmpty) {
+      if (await _apiClient.refreshSession(force: true)) {
+        token = await _apiClient.readAccessToken();
+      }
+    }
+
+    if (token == null || token.isEmpty) {
       return const ApiResult.failure(
         ApiFailure(code: 'SIN_TOKEN', message: 'No hay sesion local.'),
       );
     }
 
+    final sessionToken = token;
     return _apiClient.get<AuthSessionModel>(
       '/usuarios/perfil',
       parser: (json) {
@@ -241,7 +248,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         final profile = list.isNotEmpty
             ? Map<String, dynamic>.from(list.first as Map)
             : <String, dynamic>{};
-        return AuthSessionModel.fromProfileJson(profile, token);
+        return AuthSessionModel.fromProfileJson(profile, sessionToken);
       },
     );
   }

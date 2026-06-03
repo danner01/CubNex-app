@@ -21,12 +21,25 @@ class AppSessionCubit extends Cubit<AppSessionState> {
   static const _onboardingSeenKey = 'onboarding.seen';
 
   Future<void> restoreSession() async {
+    final preferences = await SharedPreferences.getInstance();
+    final onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? false;
+
     try {
+      if (!await _apiClient.hasLocalSession()) {
+        emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
+        return;
+      }
+
+      final result = await _authRepository.me();
+      if (result.isSuccess && result.data != null) {
+        _emitAuthenticated(result.data!);
+        return;
+      }
+
       await _apiClient.clearSession();
+      emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
     } catch (_) {
-      // Keep startup resilient even if secure storage fails once.
-    } finally {
-      emit(const AppSessionState.unauthenticated());
+      emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
     }
   }
 
@@ -34,6 +47,8 @@ class AppSessionCubit extends Cubit<AppSessionState> {
     await _apiClient.saveSession(
       accessToken: session.accessToken,
       refreshToken: session.refreshToken,
+      expiresAt: session.expiresAt,
+      expiresIn: session.expiresIn,
     );
     _emitAuthenticated(session);
   }

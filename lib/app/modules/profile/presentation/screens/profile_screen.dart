@@ -109,7 +109,7 @@ class ProfileScreen extends StatelessWidget {
           const _SectionLabel('Configuracion'),
           _ProfileTile(
             icon: Icons.settings_outlined,
-            title: 'Preferencias v2',
+            title: 'Preferencias',
             subtitle: 'Tema, categorias y privacidad.',
             onTap: () => context.go(AppRoutes.preferences),
           ),

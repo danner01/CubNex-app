@@ -6,11 +6,15 @@ class AuthSession {
     required this.userId,
     required this.role,
     this.refreshToken,
+    this.expiresAt,
+    this.expiresIn,
     this.email,
   });
 
   final String accessToken;
   final String? refreshToken;
+  final int? expiresAt;
+  final int? expiresIn;
   final String userId;
   final String? email;
   final UserRole role;

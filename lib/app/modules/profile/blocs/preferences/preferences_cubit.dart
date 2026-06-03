@@ -1,15 +1,23 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../wizard/data/models/business_type_model.dart';
 import 'preferences_state.dart';
 
 class PreferencesCubit extends Cubit<PreferencesState> {
-  PreferencesCubit({required ApiClient apiClient})
+  PreferencesCubit({
+    required ApiClient apiClient,
+    required SharedPreferences sharedPreferences,
+  })
     : _apiClient = apiClient,
+      _sharedPreferences = sharedPreferences,
       super(const PreferencesState());
 
+  static const _localPreferencesKey = 'profile.preferencias_categorias';
+
   final ApiClient _apiClient;
+  final SharedPreferences _sharedPreferences;
 
   Future<void> load() async {
     emit(state.copyWith(status: PreferencesStatus.loading));
@@ -56,10 +64,16 @@ class PreferencesCubit extends Cubit<PreferencesState> {
       return;
     }
 
+    final serverPreferences = profileResult.data ?? <String>{};
+    final localPreferences = _readLocalPreferences();
+    final selectedPreferences = localPreferences.isNotEmpty
+        ? localPreferences
+        : serverPreferences;
+
     emit(
       state.copyWith(
         status: PreferencesStatus.ready,
-        selectedTypeIds: profileResult.data ?? <String>{},
+        selectedTypeIds: selectedPreferences,
         types: typesResult.data ?? const [],
       ),
     );
@@ -84,6 +98,19 @@ class PreferencesCubit extends Cubit<PreferencesState> {
     );
 
     if (!result.isSuccess) {
+      final errorCode = result.error?.code.toUpperCase();
+      if (errorCode == 'SOLO_SUPERADMIN' || result.error?.statusCode == 403) {
+        await _saveLocalPreferences(state.selectedTypeIds);
+        emit(
+          state.copyWith(
+            status: PreferencesStatus.success,
+            message:
+                'Preferencias guardadas en este dispositivo. El backend necesita redeploy para sincronizarlas.',
+          ),
+        );
+        return;
+      }
+
       emit(
         state.copyWith(
           status: PreferencesStatus.failure,
@@ -98,6 +125,20 @@ class PreferencesCubit extends Cubit<PreferencesState> {
         status: PreferencesStatus.success,
         message: 'Preferencias guardadas.',
       ),
+    );
+  }
+
+  Set<String> _readLocalPreferences() {
+    return _sharedPreferences
+        .getStringList(_localPreferencesKey)
+        ?.toSet() ??
+        <String>{};
+  }
+
+  Future<void> _saveLocalPreferences(Set<String> preferences) async {
+    await _sharedPreferences.setStringList(
+      _localPreferencesKey,
+      preferences.toList(),
     );
   }
 
