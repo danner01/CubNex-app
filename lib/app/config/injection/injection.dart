@@ -48,6 +48,10 @@ import '../http/api_client.dart';
 final sl = GetIt.instance;
 
 Future<void> configureDependencies() async {
+  if (sl.isRegistered<SharedPreferences>()) {
+    return;
+  }
+
   final sharedPreferences = await SharedPreferences.getInstance();
 
   sl

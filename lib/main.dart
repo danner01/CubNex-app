@@ -55,14 +55,96 @@ Future<void> firebaseMessagingBackgroundHandler(RemoteMessage message) async {
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await _ensureFirebaseInitialized();
-  FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
-  await Hive.initFlutter();
-  await configureDependencies();
-
-  runApp(const CubNexApp());
-  unawaited(_initializeForegroundServices());
+  runApp(const _BootstrapApp());
 }
+
+class _BootstrapApp extends StatefulWidget {
+  const _BootstrapApp();
+
+  @override
+  State<_BootstrapApp> createState() => _BootstrapAppState();
+}
+
+class _BootstrapAppState extends State<_BootstrapApp> {
+  bool _ready = false;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    unawaited(_bootstrap());
+  }
+
+  Future<void> _bootstrap() async {
+    setState(() {
+      _error = null;
+    });
+
+    try {
+      await _ensureFirebaseInitialized().timeout(const Duration(seconds: 12));
+      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+
+      await Hive.initFlutter().timeout(const Duration(seconds: 8));
+      await configureDependencies().timeout(const Duration(seconds: 12));
+
+      if (!mounted) return;
+      setState(() {
+        _ready = true;
+      });
+      unawaited(_initializeForegroundServices());
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _error = error.toString();
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_ready) {
+      return const CubNexApp();
+    }
+
+    return MaterialApp(
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: SafeArea(
+          child: Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(
+                    _error == null ? 'Iniciando aplicacion...' : 'No se pudo iniciar la app',
+                    textAlign: TextAlign.center,
+                  ),
+                  if (_error != null) ...[
+                    const SizedBox(height: 10),
+                    Text(
+                      _error!,
+                      textAlign: TextAlign.center,
+                      style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                    ),
+                    const SizedBox(height: 14),
+                    ElevatedButton(
+                      onPressed: () => unawaited(_bootstrap()),
+                      child: const Text('Reintentar'),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 
 Future<void> _initializeForegroundServices() async {
   try {
