@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
@@ -108,7 +109,7 @@ class _ScannerView extends StatelessWidget {
                         ),
                         const SizedBox(height: 6),
                         const Text(
-                          'Escanea QR, codigos de barra o etiquetas para buscar productos y negocios.',
+                          'Busca productos por imagen: toma una foto del empaque, etiqueta o producto. El lector QR queda solo para enlaces directos.',
                           textAlign: TextAlign.center,
                         ),
                         if (state.code != null) ...[
@@ -136,6 +137,38 @@ class _ScannerView extends StatelessWidget {
                           ),
                         ],
                         const SizedBox(height: 12),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: FilledButton.icon(
+                                onPressed: resolving
+                                    ? null
+                                    : () => context
+                                          .read<ScannerCubit>()
+                                          .pickAndSearchProduct(
+                                            ImageSource.camera,
+                                          ),
+                                icon: const Icon(Icons.camera_alt_rounded),
+                                label: const Text('Foto'),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: resolving
+                                    ? null
+                                    : () => context
+                                          .read<ScannerCubit>()
+                                          .pickAndSearchProduct(
+                                            ImageSource.gallery,
+                                          ),
+                                icon: const Icon(Icons.photo_library_outlined),
+                                label: const Text('Galeria'),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 10),
                         OutlinedButton.icon(
                           onPressed: resolving
                               ? null

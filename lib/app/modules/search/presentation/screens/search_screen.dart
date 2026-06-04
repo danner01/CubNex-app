@@ -31,6 +31,23 @@ class _SearchView extends StatefulWidget {
 
 class _SearchViewState extends State<_SearchView> {
   final _controller = TextEditingController();
+  bool _initialQueryApplied = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_initialQueryApplied) return;
+    _initialQueryApplied = true;
+
+    final query = GoRouterState.of(context).uri.queryParameters['q']?.trim();
+    if (query == null || query.isEmpty) return;
+
+    _controller.text = query;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      context.read<SearchCubit>().search(query);
+    });
+  }
 
   @override
   void dispose() {
@@ -88,6 +105,11 @@ class _SearchViewState extends State<_SearchView> {
                     onTap: () => _searchPreset(context, 'negocios'),
                   ),
                   CategoryChipCard(
+                    label: 'Gastronomia',
+                    icon: Icons.restaurant_rounded,
+                    onTap: () => _searchPreset(context, 'gastronomia'),
+                  ),
+                  CategoryChipCard(
                     label: 'Propiedades',
                     icon: Icons.home_work_rounded,
                     onTap: () => context.go(AppRoutes.properties),
@@ -100,18 +122,50 @@ class _SearchViewState extends State<_SearchView> {
                 ],
               ),
               const SizedBox(height: 20),
+              const SectionHeader(title: 'Gastronomia'),
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 10,
+                runSpacing: 10,
+                children: [
+                  CategoryChipCard(
+                    label: 'Restaurantes',
+                    icon: Icons.restaurant_menu_rounded,
+                    onTap: () => _searchPreset(context, 'restaurante'),
+                  ),
+                  CategoryChipCard(
+                    label: 'Bares',
+                    icon: Icons.local_bar_rounded,
+                    onTap: () => _searchPreset(context, 'bar'),
+                  ),
+                  CategoryChipCard(
+                    label: 'Discotecas',
+                    icon: Icons.nightlife_rounded,
+                    onTap: () => _searchPreset(context, 'discoteca'),
+                  ),
+                  CategoryChipCard(
+                    label: 'Cafeterias',
+                    icon: Icons.local_cafe_rounded,
+                    onTap: () => _searchPreset(context, 'cafeteria'),
+                  ),
+                  CategoryChipCard(
+                    label: 'Pizzerias',
+                    icon: Icons.local_pizza_rounded,
+                    onTap: () => _searchPreset(context, 'pizzeria'),
+                  ),
+                  CategoryChipCard(
+                    label: 'Food trucks',
+                    icon: Icons.ramen_dining_rounded,
+                    onTap: () => _searchPreset(context, 'food truck'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
               QuickActionCard(
                 title: 'Vista de mapa',
                 subtitle: 'Negocios y anuncios con ubicacion.',
                 icon: Icons.map_rounded,
                 onTap: () => context.go(AppRoutes.map),
-              ),
-              const SizedBox(height: 12),
-              QuickActionCard(
-                title: 'Escaneo inteligente',
-                subtitle: 'Busca por QR, codigo de barra o foto de etiqueta.',
-                icon: Icons.camera_alt_rounded,
-                onTap: () => context.go(AppRoutes.scanner),
               ),
               const SizedBox(height: 24),
               _SearchResults(state: state),

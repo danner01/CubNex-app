@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/services.dart';
@@ -45,6 +47,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
   final FirebaseAuth _firebaseAuth;
   final GoogleSignIn _googleSignIn;
   final FirebaseMessaging _firebaseMessaging;
+  static const _fcmSyncTimeout = Duration(seconds: 6);
 
   @override
   Future<ApiResult<AuthSessionModel>> loginWithEmail({
@@ -68,7 +71,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         ),
       );
     }
-    await _syncFcmToken(result);
+    unawaited(_syncFcmTokenSafely(result));
     return result;
   }
 
@@ -168,7 +171,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
       }
     }
 
-    await _syncFcmToken(result);
+    unawaited(_syncFcmTokenSafely(result));
     return result;
   }
 
@@ -209,7 +212,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         Map<String, dynamic>.from(json as Map),
       ),
     );
-    await _syncFcmToken(result);
+    unawaited(_syncFcmTokenSafely(result));
     return result;
   }
 
@@ -266,6 +269,14 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     final token = await _firebaseMessaging.getToken();
     if (token != null) {
       await _apiClient.put('/auth/fcm-token', data: {'fcm_token': token});
+    }
+  }
+
+  Future<void> _syncFcmTokenSafely(ApiResult<AuthSessionModel> result) async {
+    try {
+      await _syncFcmToken(result).timeout(_fcmSyncTimeout);
+    } catch (_) {
+      // FCM sync is non-critical and must not block auth flow.
     }
   }
 }

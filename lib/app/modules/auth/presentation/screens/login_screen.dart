@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -53,6 +55,7 @@ class _LoginViewState extends State<_LoginView> {
   _AuthMode _mode = _AuthMode.login;
   _RegisterRole _role = _RegisterRole.client;
   bool _showPassword = false;
+  bool _navigatingAfterAuth = false;
 
   @override
   void dispose() {
@@ -68,8 +71,11 @@ class _LoginViewState extends State<_LoginView> {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) async {
-        if (state.status == AuthStatus.success && state.session != null) {
-          await context.read<AppSessionCubit>().setSession(state.session!);
+        if (state.status == AuthStatus.success &&
+            state.session != null &&
+            !_navigatingAfterAuth) {
+          _navigatingAfterAuth = true;
+          unawaited(context.read<AppSessionCubit>().setSession(state.session!));
           if (!context.mounted) return;
           context.go(
             state.session!.role.name == 'businessAdmin'

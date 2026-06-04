@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../home/data/models/product_model.dart';
@@ -10,6 +13,7 @@ class ScannerCubit extends Cubit<ScannerState> {
       super(const ScannerState());
 
   final ApiClient _apiClient;
+  final ImagePicker _picker = ImagePicker();
   bool _processing = false;
 
   Future<void> processCode(String rawValue) async {
@@ -31,16 +35,98 @@ class ScannerCubit extends Cubit<ScannerState> {
       emit(
         state.copyWith(
           status: ScannerStatus.success,
-          message: 'Codigo reconocido.',
+          message: 'Enlace reconocido.',
         ),
       );
       _processing = false;
       return;
     }
 
+    emit(
+      state.copyWith(
+        status: ScannerStatus.failure,
+        message:
+            'Para buscar productos usa una foto del producto o etiqueta. Los codigos solo abren enlaces directos.',
+      ),
+    );
+    _processing = false;
+  }
+
+  Future<void> pickAndSearchProduct(ImageSource source) async {
+    if (_processing) return;
+
+    final image = await _picker.pickImage(
+      source: source,
+      imageQuality: 72,
+      maxWidth: 1280,
+    );
+    if (image == null) return;
+
+    _processing = true;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.resolving,
+        code: 'Imagen de producto',
+        products: const [],
+      ),
+    );
+
+    try {
+      final bytes = await image.readAsBytes();
+      final imageBase64 = base64Encode(bytes);
+      await _saveVisualScan(image.name);
+      await _searchVisual(
+        {
+          'imagen_base64': imageBase64,
+          'tipo_deteccion': 'producto_visual',
+          'guardar_historial': true,
+          'limite': 12,
+        },
+        emptyMessage:
+            'No encontramos productos parecidos. Prueba con una foto mas clara de la etiqueta o empaque.',
+      );
+    } catch (error) {
+      emit(
+        state.copyWith(
+          status: ScannerStatus.failure,
+          message: 'No se pudo analizar la imagen. Intenta de nuevo.',
+        ),
+      );
+    } finally {
+      _processing = false;
+    }
+  }
+
+  Future<void> searchByDetectedText(String text) async {
+    final query = text.trim();
+    if (query.isEmpty || _processing) return;
+
+    _processing = true;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.resolving,
+        code: query,
+        products: const [],
+      ),
+    );
+    await _saveVisualScan(query);
+    await _searchVisual(
+      {
+        'texto_detectado': query,
+        'limite': 12,
+      },
+      emptyMessage: 'No encontramos productos parecidos a ese texto.',
+    );
+    _processing = false;
+  }
+
+  Future<void> _searchVisual(
+    Map<String, dynamic> payload, {
+    required String emptyMessage,
+  }) async {
     final result = await _apiClient.post<List<ProductModel>>(
-      '/productos/buscar-codigo',
-      data: {'codigo_barras': code},
+      '/productos/buscar-visual',
+      data: payload,
       parser: (json) {
         if (json is List) {
           return json
@@ -65,10 +151,9 @@ class ScannerCubit extends Cubit<ScannerState> {
       emit(
         state.copyWith(
           status: ScannerStatus.failure,
-          message: result.error?.message ?? 'No se pudo buscar el codigo.',
+          message: result.error?.message ?? 'No se pudo analizar el producto.',
         ),
       );
-      _processing = false;
       return;
     }
 
@@ -78,11 +163,12 @@ class ScannerCubit extends Cubit<ScannerState> {
         status: ScannerStatus.success,
         products: products,
         message: products.isEmpty
-            ? 'No encontramos productos con ese codigo.'
-            : 'Producto encontrado.',
+            ? emptyMessage
+            : products.length == 1
+            ? 'Producto parecido encontrado.'
+            : 'Encontramos ${products.length} productos parecidos.',
       ),
     );
-    _processing = false;
   }
 
   String? resolveDirectTarget(String code) {
@@ -119,6 +205,17 @@ class ScannerCubit extends Cubit<ScannerState> {
       data: {
         'tipo': _scanType(code),
         'contenido': code,
+      },
+      parser: (_) {},
+    );
+  }
+
+  Future<void> _saveVisualScan(String content) async {
+    await _apiClient.post<void>(
+      '/historial/escaneos',
+      data: {
+        'tipo': 'etiqueta_ia',
+        'contenido': content,
       },
       parser: (_) {},
     );

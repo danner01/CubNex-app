@@ -96,51 +96,15 @@ class _HomeView extends StatelessWidget {
                       .toList(),
                 ),
                 const SizedBox(height: 24),
-                GridView.count(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  crossAxisCount: MediaQuery.sizeOf(context).width > 520 ? 4 : 2,
-                  crossAxisSpacing: 12,
-                  mainAxisSpacing: 12,
-                  childAspectRatio: 1.45,
-                  children: [
-                    QuickActionCard(
-                      title: 'Escanear',
-                      subtitle: 'QR, etiqueta o codigo.',
-                      icon: Icons.qr_code_scanner_rounded,
-                      onTap: () => context.go(AppRoutes.scanner),
-                    ),
-                    QuickActionCard(
-                      title: 'Feed',
-                      subtitle: 'Posts de negocios.',
-                      icon: Icons.dynamic_feed_rounded,
-                      onTap: () => context.go(AppRoutes.posts),
-                    ),
-                    QuickActionCard(
-                      title: 'Ver mapa',
-                      subtitle: 'Negocios cercanos.',
-                      icon: Icons.map_rounded,
-                      onTap: () => context.go(AppRoutes.map),
-                    ),
-                    QuickActionCard(
-                      title: 'Favoritos',
-                      subtitle: 'Guarda tiendas y productos.',
-                      icon: Icons.favorite_border_rounded,
-                      onTap: () => context.go(AppRoutes.profile),
-                    ),
-                    QuickActionCard(
-                      title: 'Propiedades',
-                      subtitle: 'Casas y autos.',
-                      icon: Icons.home_work_rounded,
-                      onTap: () => context.go(AppRoutes.properties),
-                    ),
-                    QuickActionCard(
-                      title: 'Transporte',
-                      subtitle: 'Carga y delivery.',
-                      icon: Icons.local_shipping_rounded,
-                      onTap: () => context.go(AppRoutes.transport),
-                    ),
-                  ],
+                const SectionHeader(title: 'Explora a tu manera'),
+                const SizedBox(height: 12),
+                _DiscoverySections(
+                  onSearch: (query) => context.go(
+                    Uri(
+                      path: AppRoutes.search,
+                      queryParameters: {'q': query},
+                    ).toString(),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 SectionHeader(
@@ -270,41 +234,213 @@ class _SearchHero extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 16),
-          InkWell(
-            borderRadius: BorderRadius.circular(16),
-            onTap: () => context.go(AppRoutes.search),
-            child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-              decoration: BoxDecoration(
-                color: Theme.of(context).brightness == Brightness.dark
-                    ? AppColors.darkSurfaceVariant
-                    : AppColors.lightSurfaceVariant,
-                borderRadius: BorderRadius.circular(16),
+          Row(
+            children: [
+              Expanded(
+                child: InkWell(
+                  borderRadius: BorderRadius.circular(16),
+                  onTap: () => context.go(AppRoutes.search),
+                  child: Container(
+                    height: 58,
+                    padding: const EdgeInsets.symmetric(horizontal: 14),
+                    decoration: BoxDecoration(
+                      color: Theme.of(context).brightness == Brightness.dark
+                          ? AppColors.darkSurfaceVariant
+                          : AppColors.lightSurfaceVariant,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(Icons.search_rounded),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: Text(
+                            'Productos, servicios, propiedades...',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              color: Theme.of(context)
+                                  .textTheme
+                                  .bodyMedium
+                                  ?.color
+                                  ?.withValues(alpha: 0.62),
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.search_rounded),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Text(
-                      'Productos, servicios, propiedades...',
-                      style: TextStyle(
-                        color: Theme.of(
-                          context,
-                        ).textTheme.bodyMedium?.color?.withValues(alpha: 0.62),
-                        fontWeight: FontWeight.w700,
+              const SizedBox(width: 10),
+              Tooltip(
+                message: 'Buscar con la camara',
+                child: Material(
+                  color: Theme.of(context).colorScheme.primary,
+                  borderRadius: BorderRadius.circular(16),
+                  child: InkWell(
+                    borderRadius: BorderRadius.circular(16),
+                    onTap: () => context.go(AppRoutes.scanner),
+                    child: SizedBox(
+                      width: 58,
+                      height: 58,
+                      child: Icon(
+                        Icons.document_scanner_rounded,
+                        color: Theme.of(context).colorScheme.onPrimary,
                       ),
                     ),
                   ),
-                  const Icon(Icons.tune_rounded),
-                ],
+                ),
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _DiscoverySections extends StatelessWidget {
+  const _DiscoverySections({required this.onSearch});
+
+  final ValueChanged<String> onSearch;
+
+  @override
+  Widget build(BuildContext context) {
+    final items = [
+      _DiscoveryInfo(
+        eyebrow: 'Hoy',
+        title: 'Para comer hoy',
+        subtitle: 'Restaurantes, bares, cafeterias y cartas QR.',
+        color: AppColors.gold,
+        query: 'gastronomia restaurante bar cafeteria carta menu',
+      ),
+      _DiscoveryInfo(
+        eyebrow: 'Servicios',
+        title: 'Servicios rapidos',
+        subtitle: 'Plomeria, barberia, reparaciones y profesionales.',
+        color: AppColors.green,
+        query: 'servicio reparacion barberia plomeria',
+      ),
+      _DiscoveryInfo(
+        eyebrow: 'Ahorra',
+        title: 'Ofertas cerca',
+        subtitle: 'Promociones, cashback y productos destacados.',
+        color: AppColors.warning,
+        query: 'oferta promocion descuento',
+      ),
+      _DiscoveryInfo(
+        eyebrow: 'Rutas',
+        title: 'Mover o enviar',
+        subtitle: 'Delivery, carga, taxi, mudanzas y rutas.',
+        color: AppColors.blue,
+        query: 'transporte delivery taxi carga',
+      ),
+    ];
+
+    return SizedBox(
+      height: 156,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: items.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final item = items[index];
+          return _DiscoveryCard(
+            item: item,
+            onTap: () => onSearch(item.query),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _DiscoveryCard extends StatelessWidget {
+  const _DiscoveryCard({required this.item, required this.onTap});
+
+  final _DiscoveryInfo item;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return SizedBox(
+      width: 230,
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(22),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(22),
+          onTap: onTap,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  decoration: BoxDecoration(
+                    color: item.color.withValues(alpha: isDark ? 0.22 : 0.14),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Text(
+                    item.eyebrow,
+                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                      color: item.color,
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                Text(
+                  item.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  item.subtitle,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: Theme.of(
+                      context,
+                    ).textTheme.bodySmall?.color?.withValues(alpha: 0.68),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DiscoveryInfo {
+  const _DiscoveryInfo({
+    required this.eyebrow,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.query,
+  });
+
+  final String eyebrow;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final String query;
 }
 
 class _InlineWarning extends StatelessWidget {

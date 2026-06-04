@@ -29,21 +29,14 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'CubNex',
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                      letterSpacing: 0,
-                    ),
-                  ),
+                  const _BrandWordmark(),
                   Text(
                     'CUBA',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: isDark ? AppColors.greenLight : AppColors.green,
                       fontWeight: FontWeight.w900,
-                      letterSpacing: 2.4,
+                      fontStyle: FontStyle.italic,
+                      letterSpacing: 2.8,
                     ),
                   ),
                 ],
@@ -62,6 +55,51 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _BrandWordmark extends StatelessWidget {
+  const _BrandWordmark();
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final base = Theme.of(context).textTheme.titleLarge?.copyWith(
+      fontWeight: FontWeight.w900,
+      letterSpacing: 0,
+      height: 0.98,
+      shadows: [
+        Shadow(
+          color: (isDark ? AppColors.gold : AppColors.ink).withValues(alpha: 0.22),
+          blurRadius: 10,
+        ),
+      ],
+    );
+
+    return RichText(
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      text: TextSpan(
+        style: base,
+        children: [
+          TextSpan(
+            text: 'Cub',
+            style: TextStyle(color: isDark ? Colors.white : AppColors.ink),
+          ),
+          const TextSpan(
+            text: 'N',
+            style: TextStyle(
+              color: AppColors.gold,
+              fontStyle: FontStyle.italic,
+            ),
+          ),
+          TextSpan(
+            text: 'ex',
+            style: TextStyle(color: isDark ? AppColors.greenLight : AppColors.green),
+          ),
+        ],
       ),
     );
   }

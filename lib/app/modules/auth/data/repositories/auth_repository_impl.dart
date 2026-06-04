@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
 import '../../domain/entities/auth_session.dart';
@@ -13,6 +15,7 @@ class AuthRepositoryImpl implements AuthRepository {
 
   final AuthRemoteDataSource _remoteDataSource;
   final ApiClient _apiClient;
+  static const _sessionSaveTimeout = Duration(seconds: 4);
 
   @override
   Future<ApiResult<AuthSession>> loginWithEmail({
@@ -24,12 +27,7 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
     );
     if (result.isSuccess && result.data != null) {
-      await _apiClient.saveSession(
-        accessToken: result.data!.accessToken,
-        refreshToken: result.data!.refreshToken,
-        expiresAt: result.data!.expiresAt,
-        expiresIn: result.data!.expiresIn,
-      );
+      _saveSessionInBackground(result.data!);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -39,12 +37,7 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<ApiResult<AuthSession>> loginWithGoogle() async {
     final result = await _remoteDataSource.loginWithGoogle();
     if (result.isSuccess && result.data != null) {
-      await _apiClient.saveSession(
-        accessToken: result.data!.accessToken,
-        refreshToken: result.data!.refreshToken,
-        expiresAt: result.data!.expiresAt,
-        expiresIn: result.data!.expiresIn,
-      );
+      _saveSessionInBackground(result.data!);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -66,12 +59,7 @@ class AuthRepositoryImpl implements AuthRepository {
       role: role,
     );
     if (result.isSuccess && result.data != null) {
-      await _apiClient.saveSession(
-        accessToken: result.data!.accessToken,
-        refreshToken: result.data!.refreshToken,
-        expiresAt: result.data!.expiresAt,
-        expiresIn: result.data!.expiresIn,
-      );
+      _saveSessionInBackground(result.data!);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -93,4 +81,18 @@ class AuthRepositoryImpl implements AuthRepository {
 
   @override
   Future<void> logout() => _remoteDataSource.logout();
+
+  void _saveSessionInBackground(AuthSession session) {
+    unawaited(
+      _apiClient
+          .saveSession(
+            accessToken: session.accessToken,
+            refreshToken: session.refreshToken,
+            expiresAt: session.expiresAt,
+            expiresIn: session.expiresIn,
+          )
+          .timeout(_sessionSaveTimeout)
+          .catchError((_) {}),
+    );
+  }
 }

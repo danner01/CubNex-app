@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
@@ -57,7 +59,15 @@ Future<void> main() async {
   FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
   await Hive.initFlutter();
   await configureDependencies();
-  await sl<PushNotificationService>().init();
 
   runApp(const CubNexApp());
+  unawaited(_initializeForegroundServices());
+}
+
+Future<void> _initializeForegroundServices() async {
+  try {
+    await sl<PushNotificationService>().init();
+  } catch (_) {
+    // Startup must not be blocked by optional services.
+  }
 }

@@ -27,37 +27,56 @@ class AuthCubit extends Cubit<AuthState> {
     required String email,
     required String password,
   }) async {
-    emit(state.copyWith(status: AuthStatus.loading));
-    final result = await _loginWithEmail(email: email, password: password);
+    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    try {
+      final result = await _loginWithEmail(email: email, password: password);
 
-    if (result.isSuccess && result.data != null) {
-      emit(state.copyWith(status: AuthStatus.success, session: result.data));
-      return;
+      if (result.isSuccess && result.data != null) {
+        emit(state.copyWith(status: AuthStatus.success, session: result.data));
+        return;
+      }
+
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: result.error?.message ?? 'No se pudo iniciar sesion.',
+        ),
+      );
+    } catch (_) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: 'Ocurrio un error inesperado al iniciar sesion.',
+        ),
+      );
     }
-
-    emit(
-      state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: result.error?.message ?? 'No se pudo iniciar sesion.',
-      ),
-    );
   }
 
   Future<void> loginWithGoogle() async {
-    emit(state.copyWith(status: AuthStatus.loading));
-    final result = await _loginWithGoogle();
+    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    try {
+      final result = await _loginWithGoogle();
 
-    if (result.isSuccess && result.data != null) {
-      emit(state.copyWith(status: AuthStatus.success, session: result.data));
-      return;
+      if (result.isSuccess && result.data != null) {
+        emit(state.copyWith(status: AuthStatus.success, session: result.data));
+        return;
+      }
+
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage:
+              result.error?.message ?? 'No se pudo iniciar con Google.',
+        ),
+      );
+    } catch (_) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: 'Ocurrio un error inesperado con Google Sign-In.',
+        ),
+      );
     }
-
-    emit(
-      state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: result.error?.message ?? 'No se pudo iniciar con Google.',
-      ),
-    );
   }
 
   Future<void> register({
@@ -67,48 +86,66 @@ class AuthCubit extends Cubit<AuthState> {
     String? phone,
     required String role,
   }) async {
-    emit(state.copyWith(status: AuthStatus.loading));
-    final result = await _registerAccount(
-      fullName: fullName,
-      email: email,
-      password: password,
-      phone: phone,
-      role: role,
-    );
+    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    try {
+      final result = await _registerAccount(
+        fullName: fullName,
+        email: email,
+        password: password,
+        phone: phone,
+        role: role,
+      );
 
-    if (result.isSuccess && result.data != null) {
-      emit(state.copyWith(status: AuthStatus.success, session: result.data));
-      return;
+      if (result.isSuccess && result.data != null) {
+        emit(state.copyWith(status: AuthStatus.success, session: result.data));
+        return;
+      }
+
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: result.error?.message ?? 'No se pudo crear la cuenta.',
+        ),
+      );
+    } catch (_) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: 'Ocurrio un error inesperado al crear la cuenta.',
+        ),
+      );
     }
-
-    emit(
-      state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage: result.error?.message ?? 'No se pudo crear la cuenta.',
-      ),
-    );
   }
 
   Future<void> recoverPassword({required String email}) async {
-    emit(state.copyWith(status: AuthStatus.loading));
-    final result = await _recoverPassword(email: email);
+    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    try {
+      final result = await _recoverPassword(email: email);
 
-    if (result.isSuccess) {
+      if (result.isSuccess) {
+        emit(
+          state.copyWith(
+            status: AuthStatus.recoverySent,
+            errorMessage: 'Si el email existe, enviaremos un enlace.',
+          ),
+        );
+        return;
+      }
+
       emit(
         state.copyWith(
-          status: AuthStatus.recoverySent,
-          errorMessage: 'Si el email existe, enviaremos un enlace.',
+          status: AuthStatus.failure,
+          errorMessage:
+              result.error?.message ?? 'No se pudo enviar el enlace.',
         ),
       );
-      return;
+    } catch (_) {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage: 'Ocurrio un error inesperado al recuperar acceso.',
+        ),
+      );
     }
-
-    emit(
-      state.copyWith(
-        status: AuthStatus.failure,
-        errorMessage:
-            result.error?.message ?? 'No se pudo enviar el enlace.',
-      ),
-    );
   }
 }

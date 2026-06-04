@@ -42,8 +42,9 @@ class HomeShell extends StatelessWidget {
             label: 'Buscar',
           ),
           NavigationDestination(
-            icon: Icon(Icons.qr_code_scanner),
-            label: 'Escanear',
+            icon: Icon(Icons.dynamic_feed_outlined),
+            selectedIcon: Icon(Icons.dynamic_feed_rounded),
+            label: 'Feed',
           ),
           NavigationDestination(
             icon: Icon(Icons.business_center_outlined),
@@ -62,7 +63,7 @@ class HomeShell extends StatelessWidget {
 
   int _indexFromLocation(String location) {
     if (location.startsWith(AppRoutes.search)) return 1;
-    if (location.startsWith(AppRoutes.scanner)) return 2;
+    if (location.startsWith(AppRoutes.posts)) return 2;
     if (location.startsWith('/business')) return 3;
     if (location.startsWith(AppRoutes.profile)) return 4;
     return 0;
@@ -71,7 +72,7 @@ class HomeShell extends StatelessWidget {
   String _locationFromIndex(int index) {
     return switch (index) {
       1 => AppRoutes.search,
-      2 => AppRoutes.scanner,
+      2 => AppRoutes.posts,
       3 => AppRoutes.businessDashboard,
       4 => AppRoutes.profile,
       _ => AppRoutes.home,
