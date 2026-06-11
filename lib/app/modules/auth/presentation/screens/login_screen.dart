@@ -363,28 +363,10 @@ class _AuthCard extends StatelessWidget {
               ),
               if (mode == _AuthMode.register) ...[
                 const SizedBox(height: 16),
-                SegmentedButton<_RegisterRole>(
-                  segments: const [
-                    ButtonSegment(
-                      value: _RegisterRole.client,
-                      icon: Icon(Icons.person_outline),
-                      label: Text('Cliente'),
-                    ),
-                    ButtonSegment(
-                      value: _RegisterRole.business,
-                      icon: Icon(Icons.storefront_outlined),
-                      label: Text('Negocio'),
-                    ),
-                    ButtonSegment(
-                      value: _RegisterRole.delivery,
-                      icon: Icon(Icons.delivery_dining_outlined),
-                      label: Text('Delivery'),
-                    ),
-                  ],
-                  selected: {role},
-                  onSelectionChanged: isLoading
-                      ? null
-                      : (value) => onRoleChanged(value.first),
+                _RegisterRoleSelector(
+                  role: role,
+                  enabled: !isLoading,
+                  onChanged: onRoleChanged,
                 ),
                 const SizedBox(height: 14),
                 TextFormField(
@@ -481,6 +463,95 @@ class _AuthCard extends StatelessWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+class _RegisterRoleSelector extends StatelessWidget {
+  const _RegisterRoleSelector({
+    required this.role,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final _RegisterRole role;
+  final bool enabled;
+  final ValueChanged<_RegisterRole> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      alignment: WrapAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        _RoleChoice(
+          selected: role == _RegisterRole.client,
+          enabled: enabled,
+          icon: Icons.person_outline,
+          label: 'Cliente',
+          onSelected: () => onChanged(_RegisterRole.client),
+        ),
+        _RoleChoice(
+          selected: role == _RegisterRole.business,
+          enabled: enabled,
+          icon: Icons.storefront_outlined,
+          label: 'Negocio',
+          onSelected: () => onChanged(_RegisterRole.business),
+        ),
+        _RoleChoice(
+          selected: role == _RegisterRole.delivery,
+          enabled: enabled,
+          icon: Icons.delivery_dining_outlined,
+          label: 'Delivery',
+          onSelected: () => onChanged(_RegisterRole.delivery),
+        ),
+      ],
+    );
+  }
+}
+
+class _RoleChoice extends StatelessWidget {
+  const _RoleChoice({
+    required this.selected,
+    required this.enabled,
+    required this.icon,
+    required this.label,
+    required this.onSelected,
+  });
+
+  final bool selected;
+  final bool enabled;
+  final IconData icon;
+  final String label;
+  final VoidCallback onSelected;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return ChoiceChip(
+      selected: selected,
+      onSelected: enabled ? (_) => onSelected() : null,
+      avatar: Icon(
+        selected ? Icons.check_rounded : icon,
+        size: 18,
+        color: selected ? scheme.onPrimaryContainer : scheme.primary,
+      ),
+      label: Text(label),
+      labelStyle: TextStyle(
+        fontWeight: FontWeight.w900,
+        color: selected ? scheme.onPrimaryContainer : scheme.onSurface,
+      ),
+      selectedColor: scheme.primaryContainer,
+      backgroundColor: scheme.surfaceContainerHighest.withValues(alpha: 0.5),
+      side: BorderSide(
+        color: selected
+            ? scheme.primary.withValues(alpha: 0.55)
+            : scheme.outline.withValues(alpha: 0.35),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
     );
   }
 }
