@@ -35,10 +35,6 @@ android {
         targetSdk = 36
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-
-        ndk {
-            abiFilters += "arm64-v8a"
-        }
     }
 
     signingConfigs {
