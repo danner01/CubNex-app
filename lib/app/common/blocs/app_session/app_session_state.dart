@@ -41,6 +41,8 @@ class AppSessionState extends Equatable {
   bool get isBusiness =>
       role == UserRole.businessAdmin || role == UserRole.superadmin;
 
+  bool get isDelivery => role == UserRole.delivery;
+
   @override
   List<Object?> get props => [status, role, userId, email, onboardingSeen];
 }

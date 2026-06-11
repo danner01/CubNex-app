@@ -85,6 +85,9 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       await Hive.initFlutter().timeout(const Duration(seconds: 8));
+      await Hive.openBox<dynamic>('cart_items').timeout(
+        const Duration(seconds: 8),
+      );
       await configureDependencies().timeout(const Duration(seconds: 12));
 
       if (!mounted) return;

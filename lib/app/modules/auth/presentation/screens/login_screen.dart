@@ -16,7 +16,7 @@ import '../../domain/usecases/register_account.dart';
 
 enum _AuthMode { login, register }
 
-enum _RegisterRole { client, business }
+enum _RegisterRole { client, business, delivery }
 
 class LoginScreen extends StatelessWidget {
   const LoginScreen({super.key});
@@ -79,9 +79,11 @@ class _LoginViewState extends State<_LoginView> {
               .timeout(const Duration(seconds: 5), onTimeout: () {});
           if (!context.mounted) return;
           context.go(
-            state.session!.role.name == 'businessAdmin'
-                ? AppRoutes.businessDashboard
-                : AppRoutes.home,
+            switch (state.session!.role.name) {
+              'businessAdmin' => AppRoutes.businessDashboard,
+              'delivery' => AppRoutes.deliveryDashboard,
+              _ => AppRoutes.home,
+            },
           );
         }
 
@@ -159,7 +161,11 @@ class _LoginViewState extends State<_LoginView> {
       phone: _phoneController.text.trim().isEmpty
           ? null
           : _phoneController.text.trim(),
-      role: _role == _RegisterRole.business ? 'admin_negocio' : 'cliente',
+      role: switch (_role) {
+        _RegisterRole.business => 'admin_negocio',
+        _RegisterRole.delivery => 'delivery',
+        _RegisterRole.client => 'cliente',
+      },
     );
   }
 
@@ -318,6 +324,11 @@ class _AuthCard extends StatelessWidget {
                       value: _RegisterRole.business,
                       icon: Icon(Icons.storefront_outlined),
                       label: Text('Negocio'),
+                    ),
+                    ButtonSegment(
+                      value: _RegisterRole.delivery,
+                      icon: Icon(Icons.delivery_dining_outlined),
+                      label: Text('Delivery'),
                     ),
                   ],
                   selected: {role},

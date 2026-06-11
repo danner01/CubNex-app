@@ -2,10 +2,12 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
+import 'package:hive/hive.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../common/blocs/app_session/app_session_cubit.dart';
 import '../../common/blocs/app_theme/app_theme_cubit.dart';
+import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/push_notification_service.dart';
 import '../../common/services/share_service.dart';
@@ -94,6 +96,9 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(
       () => AppThemeCubit(sharedPreferences: sl())..load(),
     )
+    ..registerLazySingleton(
+      () => RoleModeCubit(sharedPreferences: sl()),
+    )
     ..registerFactory(() => MapCubit(apiClient: sl()))
     ..registerFactory(() => HomeCubit(apiClient: sl()))
     ..registerFactory(() => MenusCubit(apiClient: sl()))
@@ -113,7 +118,9 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => EngagementCubit(apiClient: sl()))
     ..registerFactory(() => FavoritesCubit(apiClient: sl()))
     ..registerFactory(() => GamificationCubit(apiClient: sl()))
-    ..registerLazySingleton(() => CartCubit(apiClient: sl()))
+    ..registerLazySingleton(
+      () => CartCubit(apiClient: sl(), cartBox: Hive.box<dynamic>('cart_items')),
+    )
     ..registerFactory(() => OrdersCubit(apiClient: sl()))
     ..registerFactory(() => ScannerCubit(apiClient: sl()))
     ..registerFactory(() => ScanHistoryCubit(apiClient: sl()))

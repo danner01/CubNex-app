@@ -34,6 +34,11 @@ class AppRoutes {
   static const businessInventory = '/business/inventory';
   static const businessSettings = '/business/settings';
   static const businessWizard = '/business/wizard';
+  static const deliveryDashboard = '/delivery/dashboard';
+  static const deliveryRequests = '/delivery/requests';
+  static const deliveryRoute = '/delivery/route';
+  static const deliveryHistory = '/delivery/history';
+  static const deliveryProfile = '/delivery/profile';
 
   static String product(String id) => '/product/$id';
   static String store(String id) => '/store/$id';

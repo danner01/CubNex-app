@@ -66,6 +66,27 @@ class ProductModel {
     );
   }
 
+  Map<String, dynamic> toJson() {
+    return {
+      'id': id,
+      'nombre': name,
+      'marca': brand,
+      'descripcion': description,
+      'negocio_id': businessId,
+      'imagenes': imageUrl == null ? <String>[] : [imageUrl],
+      'precio': price,
+      'precio_oferta': offerPrice,
+      'moneda': currency,
+      'sku': sku,
+      'codigo_barras': barcode,
+      'stock': stock,
+      'disponible': available,
+      'en_inventario': inInventory,
+      'comprable': purchasable,
+      'caracteristicas': features,
+    };
+  }
+
   static Map<String, dynamic> _parseMap(Object? value) {
     if (value is! Map) return const {};
     return value.map((key, item) => MapEntry(key.toString(), item));

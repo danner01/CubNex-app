@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../config/routes/app_routes.dart';
 
 class ProfileScreen extends StatelessWidget {
@@ -11,6 +12,7 @@ class ProfileScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final session = context.watch<AppSessionCubit>().state;
+    final roleMode = context.watch<RoleModeCubit>().state;
 
     return Scaffold(
       body: ListView(
@@ -53,6 +55,10 @@ class ProfileScreen extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 14),
+          if (roleMode.canSwitch) ...[
+            _ModeSwitcher(state: roleMode),
+            const SizedBox(height: 14),
+          ],
           if (session.isBusiness)
             FilledButton.icon(
               onPressed: () => context.go(AppRoutes.businessDashboard),
@@ -65,6 +71,14 @@ class ProfileScreen extends StatelessWidget {
               icon: const Icon(Icons.add_business_rounded),
               label: const Text('Crear mi negocio'),
             ),
+          if (session.isDelivery) ...[
+            const SizedBox(height: 10),
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.deliveryDashboard),
+              icon: const Icon(Icons.delivery_dining_rounded),
+              label: const Text('Panel delivery'),
+            ),
+          ],
           const SizedBox(height: 18),
           const _SectionLabel('Actividad'),
           _ProfileTile(
@@ -125,6 +139,74 @@ class ProfileScreen extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _ModeSwitcher extends StatelessWidget {
+  const _ModeSwitcher({required this.state});
+
+  final RoleModeState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Modo de uso',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: state.availableModes.map((mode) {
+                final selected = state.activeMode == mode;
+                return ChoiceChip(
+                  selected: selected,
+                  label: Text(_modeLabel(mode)),
+                  avatar: Icon(_modeIcon(mode), size: 18),
+                  onSelected: (_) async {
+                    await context.read<RoleModeCubit>().setMode(mode);
+                    if (!context.mounted) return;
+                    context.go(_modeHome(mode));
+                  },
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _modeLabel(RoleMode mode) {
+    return switch (mode) {
+      RoleMode.client => 'Cliente',
+      RoleMode.business => 'Negocio',
+      RoleMode.delivery => 'Delivery',
+    };
+  }
+
+  IconData _modeIcon(RoleMode mode) {
+    return switch (mode) {
+      RoleMode.client => Icons.shopping_bag_outlined,
+      RoleMode.business => Icons.storefront_outlined,
+      RoleMode.delivery => Icons.delivery_dining_outlined,
+    };
+  }
+
+  String _modeHome(RoleMode mode) {
+    return switch (mode) {
+      RoleMode.client => AppRoutes.home,
+      RoleMode.business => AppRoutes.businessDashboard,
+      RoleMode.delivery => AppRoutes.deliveryDashboard,
+    };
   }
 }
 

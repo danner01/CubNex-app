@@ -13,6 +13,7 @@ import '../../modules/business/presentation/screens/business_dashboard_screen.da
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
 import '../../modules/business_directory/presentation/screens/business_detail_screen.dart';
+import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
 import '../../modules/favorites/presentation/screens/favorites_screen.dart';
 import '../../modules/gamification/presentation/screens/gamification_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
@@ -36,6 +37,7 @@ import '../../modules/service/presentation/screens/asset_detail_screen.dart';
 import '../../modules/transport/presentation/screens/transport_screen.dart';
 import '../../modules/wizard/presentation/screens/business_wizard_screen.dart';
 import 'app_routes.dart';
+import '../../common/entities/user_role.dart';
 
 GoRouter createAppRouter(AppSessionCubit sessionCubit) {
   return GoRouter(
@@ -66,7 +68,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
       if (session.status == AppSessionStatus.authenticated) {
         if (isSplash) return null;
         if (!isLogin && !isOnboarding) return null;
-        return AppRoutes.home;
+        return _defaultLocationForRole(session.role);
       }
 
       return null;
@@ -208,10 +210,48 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
             path: AppRoutes.businessWizard,
             builder: (_, __) => const BusinessWizardScreen(),
           ),
+          GoRoute(
+            path: AppRoutes.deliveryDashboard,
+            builder: (_, __) => const DeliveryHubScreen(
+              section: DeliveryHubSection.dashboard,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryRequests,
+            builder: (_, __) => const DeliveryHubScreen(
+              section: DeliveryHubSection.requests,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryRoute,
+            builder: (_, __) => const DeliveryHubScreen(
+              section: DeliveryHubSection.route,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryHistory,
+            builder: (_, __) => const DeliveryHubScreen(
+              section: DeliveryHubSection.history,
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryProfile,
+            builder: (_, __) => const DeliveryHubScreen(
+              section: DeliveryHubSection.profile,
+            ),
+          ),
         ],
       ),
     ],
   );
+}
+
+String _defaultLocationForRole(UserRole role) {
+  return switch (role) {
+    UserRole.businessAdmin || UserRole.superadmin => AppRoutes.businessDashboard,
+    UserRole.delivery => AppRoutes.deliveryDashboard,
+    _ => AppRoutes.home,
+  };
 }
 
 class GoRouterRefreshStream extends ChangeNotifier {
