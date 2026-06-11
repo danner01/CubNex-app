@@ -23,6 +23,7 @@ abstract class AuthRemoteDataSource {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   });
 
   Future<ApiResult<bool>> recoverPassword({required String email});
@@ -198,6 +199,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   }) async {
     final result = await _apiClient.post<AuthSessionModel>(
       '/auth/registro',
@@ -207,6 +209,7 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
         'password': password,
         'telefono': phone,
         'rol': role,
+        if (deliveryProfile != null) 'delivery_perfil': deliveryProfile,
       },
       parser: (json) => AuthSessionModel.fromLoginJson(
         Map<String, dynamic>.from(json as Map),

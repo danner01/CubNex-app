@@ -82,6 +82,7 @@ class _FakeAuthRepository implements AuthRepository {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   }) async => const ApiResult.failure(_failure);
 
   @override

@@ -50,8 +50,14 @@ class _LoginViewState extends State<_LoginView> {
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _recoveryEmailController = TextEditingController();
+  final _deliveryPlateController = TextEditingController();
+  final _deliveryCapacityController = TextEditingController();
+  final _deliveryBaseFareController = TextEditingController(text: '0');
+  final _deliveryKmFareController = TextEditingController(text: '0');
+  final _deliveryRadiusController = TextEditingController(text: '8');
   _AuthMode _mode = _AuthMode.login;
   _RegisterRole _role = _RegisterRole.client;
+  String _deliveryVehicleType = 'motorina';
   bool _showPassword = false;
   bool _navigatingAfterAuth = false;
 
@@ -62,6 +68,11 @@ class _LoginViewState extends State<_LoginView> {
     _emailController.dispose();
     _passwordController.dispose();
     _recoveryEmailController.dispose();
+    _deliveryPlateController.dispose();
+    _deliveryCapacityController.dispose();
+    _deliveryBaseFareController.dispose();
+    _deliveryKmFareController.dispose();
+    _deliveryRadiusController.dispose();
     super.dispose();
   }
 
@@ -116,10 +127,18 @@ class _LoginViewState extends State<_LoginView> {
                   phoneController: _phoneController,
                   emailController: _emailController,
                   passwordController: _passwordController,
+                  deliveryVehicleType: _deliveryVehicleType,
+                  deliveryPlateController: _deliveryPlateController,
+                  deliveryCapacityController: _deliveryCapacityController,
+                  deliveryBaseFareController: _deliveryBaseFareController,
+                  deliveryKmFareController: _deliveryKmFareController,
+                  deliveryRadiusController: _deliveryRadiusController,
                   showPassword: _showPassword,
                   isLoading: isLoading,
                   onModeChanged: (mode) => setState(() => _mode = mode),
                   onRoleChanged: (role) => setState(() => _role = role),
+                  onDeliveryVehicleChanged: (value) =>
+                      setState(() => _deliveryVehicleType = value),
                   onTogglePassword: () =>
                       setState(() => _showPassword = !_showPassword),
                   onSubmit: () => _submit(context),
@@ -166,6 +185,23 @@ class _LoginViewState extends State<_LoginView> {
         _RegisterRole.delivery => 'delivery',
         _RegisterRole.client => 'cliente',
       },
+      deliveryProfile: _role == _RegisterRole.delivery
+          ? {
+              'tipo_vehiculo': _deliveryVehicleType,
+              'placa': _deliveryPlateController.text.trim().isEmpty
+                  ? null
+                  : _deliveryPlateController.text.trim(),
+              'capacidad_carga': _deliveryCapacityController.text.trim().isEmpty
+                  ? null
+                  : _deliveryCapacityController.text.trim(),
+              'tarifa_base': _parseDouble(_deliveryBaseFareController.text),
+              'tarifa_por_km': _parseDouble(_deliveryKmFareController.text),
+              'radio_operacion_km': _parseDouble(
+                _deliveryRadiusController.text,
+                fallback: 8,
+              ),
+            }
+          : null,
     );
   }
 
@@ -265,10 +301,17 @@ class _AuthCard extends StatelessWidget {
     required this.phoneController,
     required this.emailController,
     required this.passwordController,
+    required this.deliveryVehicleType,
+    required this.deliveryPlateController,
+    required this.deliveryCapacityController,
+    required this.deliveryBaseFareController,
+    required this.deliveryKmFareController,
+    required this.deliveryRadiusController,
     required this.showPassword,
     required this.isLoading,
     required this.onModeChanged,
     required this.onRoleChanged,
+    required this.onDeliveryVehicleChanged,
     required this.onTogglePassword,
     required this.onSubmit,
     required this.onGoogle,
@@ -281,10 +324,17 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController emailController;
   final TextEditingController passwordController;
+  final String deliveryVehicleType;
+  final TextEditingController deliveryPlateController;
+  final TextEditingController deliveryCapacityController;
+  final TextEditingController deliveryBaseFareController;
+  final TextEditingController deliveryKmFareController;
+  final TextEditingController deliveryRadiusController;
   final bool showPassword;
   final bool isLoading;
   final ValueChanged<_AuthMode> onModeChanged;
   final ValueChanged<_RegisterRole> onRoleChanged;
+  final ValueChanged<String> onDeliveryVehicleChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final VoidCallback? onGoogle;
@@ -360,6 +410,19 @@ class _AuthCard extends StatelessWidget {
                     prefixIcon: Icon(Icons.phone_outlined),
                   ),
                 ),
+                if (role == _RegisterRole.delivery) ...[
+                  const SizedBox(height: 14),
+                  _DeliveryProfileFields(
+                    vehicleType: deliveryVehicleType,
+                    plateController: deliveryPlateController,
+                    capacityController: deliveryCapacityController,
+                    baseFareController: deliveryBaseFareController,
+                    kmFareController: deliveryKmFareController,
+                    radiusController: deliveryRadiusController,
+                    enabled: !isLoading,
+                    onVehicleChanged: onDeliveryVehicleChanged,
+                  ),
+                ],
               ],
               const SizedBox(height: 14),
               TextFormField(
@@ -416,6 +479,136 @@ class _AuthCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliveryProfileFields extends StatelessWidget {
+  const _DeliveryProfileFields({
+    required this.vehicleType,
+    required this.plateController,
+    required this.capacityController,
+    required this.baseFareController,
+    required this.kmFareController,
+    required this.radiusController,
+    required this.enabled,
+    required this.onVehicleChanged,
+  });
+
+  final String vehicleType;
+  final TextEditingController plateController;
+  final TextEditingController capacityController;
+  final TextEditingController baseFareController;
+  final TextEditingController kmFareController;
+  final TextEditingController radiusController;
+  final bool enabled;
+  final ValueChanged<String> onVehicleChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
+        ),
+        borderRadius: BorderRadius.circular(18),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Perfil de delivery',
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 10),
+            DropdownButtonFormField<String>(
+              initialValue: vehicleType,
+              decoration: const InputDecoration(
+                labelText: 'Tipo de vehiculo',
+                prefixIcon: Icon(Icons.two_wheeler_outlined),
+              ),
+              items: const [
+                DropdownMenuItem(value: 'bicicleta', child: Text('Bicicleta')),
+                DropdownMenuItem(value: 'motorina', child: Text('Motorina')),
+                DropdownMenuItem(value: 'moto', child: Text('Moto')),
+                DropdownMenuItem(value: 'auto', child: Text('Auto')),
+                DropdownMenuItem(value: 'camioneta', child: Text('Camioneta')),
+                DropdownMenuItem(value: 'camion', child: Text('Camion')),
+              ],
+              onChanged: enabled
+                  ? (value) {
+                      if (value != null) onVehicleChanged(value);
+                    }
+                  : null,
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: plateController,
+              textInputAction: TextInputAction.next,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Placa o identificacion',
+                prefixIcon: Icon(Icons.confirmation_number_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: capacityController,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Capacidad de carga',
+                hintText: 'Ej: hasta 20 kg, caja pequena',
+                prefixIcon: Icon(Icons.inventory_2_outlined),
+              ),
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    controller: baseFareController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Tarifa base',
+                      prefixIcon: Icon(Icons.payments_outlined),
+                    ),
+                    validator: _validateOptionalNumber,
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    controller: kmFareController,
+                    keyboardType: TextInputType.number,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Por km',
+                      prefixIcon: Icon(Icons.route_outlined),
+                    ),
+                    validator: _validateOptionalNumber,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            TextFormField(
+              controller: radiusController,
+              keyboardType: TextInputType.number,
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(
+                labelText: 'Radio de operacion (km)',
+                prefixIcon: Icon(Icons.radar_outlined),
+              ),
+              validator: _validatePositiveNumber,
+            ),
+          ],
         ),
       ),
     );
@@ -504,4 +697,26 @@ String? _validatePassword(String? value) {
     return 'Minimo 6 caracteres';
   }
   return null;
+}
+
+String? _validateOptionalNumber(String? value) {
+  final text = (value ?? '').trim();
+  if (text.isEmpty) return null;
+  if (double.tryParse(text.replaceAll(',', '.')) == null) {
+    return 'Numero invalido';
+  }
+  return null;
+}
+
+String? _validatePositiveNumber(String? value) {
+  final text = (value ?? '').trim();
+  final number = double.tryParse(text.replaceAll(',', '.'));
+  if (number == null || number <= 0) {
+    return 'Debe ser mayor que 0';
+  }
+  return null;
+}
+
+double _parseDouble(String value, {double fallback = 0}) {
+  return double.tryParse(value.trim().replaceAll(',', '.')) ?? fallback;
 }

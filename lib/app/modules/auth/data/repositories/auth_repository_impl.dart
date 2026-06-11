@@ -50,6 +50,7 @@ class AuthRepositoryImpl implements AuthRepository {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   }) async {
     final result = await _remoteDataSource.register(
       fullName: fullName,
@@ -57,6 +58,7 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
       phone: phone,
       role: role,
+      deliveryProfile: deliveryProfile,
     );
     if (result.isSuccess && result.data != null) {
       _saveSessionInBackground(result.data!);

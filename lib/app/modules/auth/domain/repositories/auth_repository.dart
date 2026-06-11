@@ -15,6 +15,7 @@ abstract class AuthRepository {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   });
 
   Future<ApiResult<bool>> recoverPassword({required String email});

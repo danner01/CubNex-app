@@ -13,6 +13,7 @@ class RegisterAccount {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   }) {
     return _repository.register(
       fullName: fullName,
@@ -20,6 +21,7 @@ class RegisterAccount {
       password: password,
       phone: phone,
       role: role,
+      deliveryProfile: deliveryProfile,
     );
   }
 }

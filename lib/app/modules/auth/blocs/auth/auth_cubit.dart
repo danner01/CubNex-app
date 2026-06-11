@@ -121,6 +121,7 @@ class AuthCubit extends Cubit<AuthState> {
     required String password,
     String? phone,
     required String role,
+    Map<String, dynamic>? deliveryProfile,
   }) async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
     try {
@@ -130,6 +131,7 @@ class AuthCubit extends Cubit<AuthState> {
         password: password,
         phone: phone,
         role: role,
+        deliveryProfile: deliveryProfile,
       ).timeout(_requestTimeout);
 
       if (result.isSuccess && result.data != null) {
