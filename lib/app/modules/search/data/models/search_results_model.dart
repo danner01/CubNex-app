@@ -20,6 +20,28 @@ class SearchResultsModel {
       properties.isEmpty &&
       transport.isEmpty;
 
+  int get totalCount =>
+      businesses.length +
+      products.length +
+      properties.length +
+      transport.length;
+
+  bool hasPageWithAtLeast(int limit) {
+    return businesses.length >= limit ||
+        products.length >= limit ||
+        properties.length >= limit ||
+        transport.length >= limit;
+  }
+
+  SearchResultsModel merge(SearchResultsModel next) {
+    return SearchResultsModel(
+      businesses: [...businesses, ...next.businesses],
+      products: [...products, ...next.products],
+      properties: [...properties, ...next.properties],
+      transport: [...transport, ...next.transport],
+    );
+  }
+
   factory SearchResultsModel.fromJson(Map<String, dynamic> json) {
     return SearchResultsModel(
       businesses: _asList(

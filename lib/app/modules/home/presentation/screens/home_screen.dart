@@ -1,4 +1,7 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
@@ -9,6 +12,7 @@ import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../blocs/home/home_cubit.dart';
 import '../../blocs/home/home_state.dart';
+import '../../data/models/banner_model.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,8 +26,36 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _HomeView extends StatelessWidget {
+class _HomeView extends StatefulWidget {
   const _HomeView();
+
+  @override
+  State<_HomeView> createState() => _HomeViewState();
+}
+
+class _HomeViewState extends State<_HomeView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 420) return;
+    final cubit = context.read<HomeCubit>();
+    cubit.loadMoreBusinesses();
+    cubit.loadMoreProducts();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -37,6 +69,7 @@ class _HomeView extends StatelessWidget {
           return RefreshIndicator(
             onRefresh: () => context.read<HomeCubit>().loadHome(),
             child: ListView(
+              controller: _scrollController,
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
               children: [
                 _SearchHero(sessionLabel: _sessionLabel(session)),
@@ -72,6 +105,7 @@ class _HomeView extends StatelessWidget {
                         title: banner.title,
                         subtitle: banner.subtitle,
                         imageUrl: banner.imageUrl,
+                        onTap: () => _openPromotion(context, banner),
                       );
                     },
                   ),
@@ -82,18 +116,16 @@ class _HomeView extends StatelessWidget {
                   onAction: () => context.go(AppRoutes.search),
                 ),
                 const SizedBox(height: 12),
-                Wrap(
-                  spacing: 10,
-                  runSpacing: 10,
-                  children: _categories
-                      .map(
-                        (category) => CategoryChipCard(
-                          label: category.label,
-                          icon: category.icon,
-                          onTap: () => context.go(AppRoutes.search),
-                        ),
-                      )
-                      .toList(),
+                SizedBox(
+                  height: 120,
+                  child: _PopularCategoriesTicker(
+                    onCategory: (category) => context.go(
+                      Uri(
+                        path: AppRoutes.search,
+                        queryParameters: {'q': category.query},
+                      ).toString(),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 24),
                 const SectionHeader(title: 'Explora a tu manera'),
@@ -113,7 +145,7 @@ class _HomeView extends StatelessWidget {
                 ),
                 const SizedBox(height: 12),
                 SizedBox(
-                  height: 178,
+                  height: 242,
                   child: isLoading && state.businesses.isEmpty
                       ? const Center(child: CircularProgressIndicator())
                       : ListView.separated(
@@ -121,7 +153,8 @@ class _HomeView extends StatelessWidget {
                           itemCount: state.businesses.isEmpty
                               ? _fallbackBusinesses.length
                               : state.businesses.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
                           itemBuilder: (context, index) {
                             if (state.businesses.isEmpty) {
                               final business = _fallbackBusinesses[index];
@@ -138,12 +171,22 @@ class _HomeView extends StatelessWidget {
                               province: business.province,
                               description: business.description,
                               logoUrl: business.logoUrl,
+                              bannerUrl: business.bannerUrl,
                               rating: business.rating,
-                              onTap: () => context.go(AppRoutes.store(business.id)),
+                              availableNow: business.availableNow,
+                              requiresElectricity: business.requiresElectricity,
+                              hasElectricService: business.hasElectricService,
+                              onTap: () =>
+                                  context.go(AppRoutes.store(business.id)),
                             );
                           },
                         ),
                 ),
+                if (state.loadingMoreBusinesses)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
                 const SizedBox(height: 24),
                 SectionHeader(
                   title: 'Productos destacados',
@@ -181,6 +224,11 @@ class _HomeView extends StatelessWidget {
                     },
                   ),
                 ),
+                if (state.loadingMoreProducts)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 10),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
                 const SizedBox(height: 24),
                 _SellerCta(
                   onCreateBusiness: () => context.go(AppRoutes.businessWizard),
@@ -189,6 +237,47 @@ class _HomeView extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  void _openPromotion(BuildContext context, BannerModel banner) {
+    final businessId = banner.businessId;
+    if (businessId != null && businessId.isNotEmpty) {
+      context.go(AppRoutes.store(businessId));
+      return;
+    }
+
+    showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (_) => Padding(
+        padding: const EdgeInsets.fromLTRB(18, 8, 18, 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              banner.title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            if (banner.subtitle != null && banner.subtitle!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Text(banner.subtitle!),
+            ],
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                Navigator.of(context).pop();
+                context.go(AppRoutes.promotions);
+              },
+              icon: const Icon(Icons.local_offer_outlined),
+              label: const Text('Ver promociones'),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -347,12 +436,130 @@ class _DiscoverySections extends StatelessWidget {
         separatorBuilder: (_, __) => const SizedBox(width: 12),
         itemBuilder: (context, index) {
           final item = items[index];
-          return _DiscoveryCard(
-            item: item,
-            onTap: () => onSearch(item.query),
-          );
+          return _DiscoveryCard(item: item, onTap: () => onSearch(item.query));
         },
       ),
+    );
+  }
+}
+
+class _PopularCategoriesTicker extends StatefulWidget {
+  const _PopularCategoriesTicker({required this.onCategory});
+
+  final ValueChanged<_CategoryInfo> onCategory;
+
+  @override
+  State<_PopularCategoriesTicker> createState() =>
+      _PopularCategoriesTickerState();
+}
+
+class _PopularCategoriesTickerState extends State<_PopularCategoriesTicker> {
+  final _controller = ScrollController();
+  Timer? _timer;
+  bool _userScrolling = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _startTicker());
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _startTicker() {
+    if (!mounted || _timer != null) return;
+    _timer = Timer.periodic(const Duration(milliseconds: 28), (_) {
+      if (!_controller.hasClients || _userScrolling) return;
+      final max = _controller.position.maxScrollExtent;
+      if (max <= 0) return;
+      final next = _controller.offset + 0.42;
+      if (next >= max - 1) {
+        _controller.jumpTo(0);
+        return;
+      }
+      _controller.jumpTo(next);
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final loop = List<_CategoryInfo>.generate(
+      _categories.length * 6,
+      (index) => _categories[index % _categories.length],
+    );
+    final top = [
+      for (var index = 0; index < loop.length; index += 2) loop[index],
+    ];
+    final bottom = [
+      for (var index = 1; index < loop.length; index += 2) loop[index],
+    ];
+
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: 128),
+      child: NotificationListener<ScrollNotification>(
+        onNotification: (notification) {
+          if (notification is UserScrollNotification) {
+            _userScrolling = notification.direction != ScrollDirection.idle;
+          }
+          return false;
+        },
+        child: SingleChildScrollView(
+          controller: _controller,
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Padding(
+            padding: const EdgeInsets.only(left: 4, right: 4),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _CategoryTickerRow(
+                  categories: top,
+                  onCategory: widget.onCategory,
+                ),
+                const SizedBox(height: 2),
+                Padding(
+                  padding: const EdgeInsets.only(left: 82),
+                  child: _CategoryTickerRow(
+                    categories: bottom,
+                    onCategory: widget.onCategory,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CategoryTickerRow extends StatelessWidget {
+  const _CategoryTickerRow({
+    required this.categories,
+    required this.onCategory,
+  });
+
+  final List<_CategoryInfo> categories;
+  final ValueChanged<_CategoryInfo> onCategory;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        for (final category in categories) ...[
+          CategoryChipCard(
+            label: category.label,
+            icon: category.icon,
+            onTap: () => onCategory(category),
+          ),
+          const SizedBox(width: 8),
+        ],
+      ],
     );
   }
 }
@@ -455,9 +662,7 @@ class _InlineWarning extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.warning.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: AppColors.warning.withValues(alpha: 0.35),
-        ),
+        border: Border.all(color: AppColors.warning.withValues(alpha: 0.35)),
       ),
       child: Row(
         children: [
@@ -525,19 +730,40 @@ class _SellerCta extends StatelessWidget {
 }
 
 class _CategoryInfo {
-  const _CategoryInfo(this.label, this.icon);
+  const _CategoryInfo(this.label, this.icon, this.query);
 
   final String label;
   final IconData icon;
+  final String query;
 }
 
 const _categories = [
-  _CategoryInfo('Alimentos', Icons.shopping_basket_rounded),
-  _CategoryInfo('Transporte', Icons.local_shipping_rounded),
-  _CategoryInfo('Servicios', Icons.handyman_rounded),
-  _CategoryInfo('Propiedades', Icons.home_work_rounded),
-  _CategoryInfo('Vehiculos', Icons.directions_car_rounded),
-  _CategoryInfo('Gastronomia', Icons.restaurant_rounded),
+  _CategoryInfo('Alimentos', Icons.shopping_basket_rounded, 'alimentos'),
+  _CategoryInfo(
+    'Transporte',
+    Icons.local_shipping_rounded,
+    'transporte delivery carga taxi',
+  ),
+  _CategoryInfo(
+    'Servicios',
+    Icons.handyman_rounded,
+    'servicios plomeria barberia reparacion',
+  ),
+  _CategoryInfo(
+    'Propiedades',
+    Icons.home_work_rounded,
+    'propiedades casas alquiler',
+  ),
+  _CategoryInfo(
+    'Vehiculos',
+    Icons.directions_car_rounded,
+    'vehiculos autos motos renta',
+  ),
+  _CategoryInfo(
+    'Gastronomia',
+    Icons.restaurant_rounded,
+    'gastronomia restaurante cafeteria bar menu',
+  ),
 ];
 
 const _fallbackBusinesses = [

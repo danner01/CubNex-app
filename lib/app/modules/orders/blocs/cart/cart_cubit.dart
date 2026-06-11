@@ -26,7 +26,10 @@ class CartCubit extends Cubit<CartState> {
 
     emit(
       state.copyWith(
-        items: [...state.items, CartItemModel(product: product)],
+        items: [
+          ...state.items,
+          CartItemModel(product: product),
+        ],
         status: CartStatus.initial,
       ),
     );
@@ -68,6 +71,8 @@ class CartCubit extends Cubit<CartState> {
     String? phone,
     String? email,
     String? message,
+    String? deliveryAddress,
+    bool requestDelivery = false,
   }) async {
     if (state.items.isEmpty) {
       emit(
@@ -80,7 +85,8 @@ class CartCubit extends Cubit<CartState> {
     }
 
     final invalid = state.items.where(
-      (item) => item.product.businessId == null || item.product.businessId!.isEmpty,
+      (item) =>
+          item.product.businessId == null || item.product.businessId!.isEmpty,
     );
     if (invalid.isNotEmpty) {
       emit(
@@ -112,6 +118,8 @@ class CartCubit extends Cubit<CartState> {
           'metadata': {
             'producto_nombre': item.product.name,
             'marca': item.product.brand,
+            'solicita_delivery': requestDelivery,
+            'direccion_entrega': deliveryAddress,
           },
         },
         parser: (_) => true,

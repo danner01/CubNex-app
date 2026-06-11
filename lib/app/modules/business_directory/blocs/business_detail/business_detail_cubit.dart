@@ -40,7 +40,10 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         return const [];
@@ -53,7 +56,9 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ReviewModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) => ReviewModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         return const [];
@@ -70,7 +75,9 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
           );
         }
         if (json is Map && json.isNotEmpty) {
-          return StoreCustomizationModel.fromJson(Map<String, dynamic>.from(json));
+          return StoreCustomizationModel.fromJson(
+            Map<String, dynamic>.from(json),
+          );
         }
         return null;
       },
@@ -101,7 +108,8 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
     emit(
       state.copyWith(
         status: BusinessDetailStatus.failure,
-        errorMessage: businessResult.error?.message ?? 'No se pudo cargar la tienda.',
+        errorMessage:
+            businessResult.error?.message ?? 'No se pudo cargar la tienda.',
       ),
     );
   }
@@ -125,7 +133,7 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
     if (!result.isSuccess) {
       emit(
         state.copyWith(
-          status: BusinessDetailStatus.failure,
+          status: BusinessDetailStatus.success,
           message: result.error?.message ?? 'No se pudo publicar la resena.',
         ),
       );
@@ -136,6 +144,40 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
       state.copyWith(
         status: BusinessDetailStatus.success,
         message: 'Resena publicada.',
+      ),
+    );
+    await load(businessId);
+  }
+
+  Future<void> updateReview({
+    required String reviewId,
+    required int rating,
+    String? comment,
+  }) async {
+    final businessId = _businessId ?? state.business?.id;
+    if (businessId == null) return;
+
+    emit(state.copyWith(status: BusinessDetailStatus.saving));
+    final result = await _apiClient.put<void>(
+      '/resenas/$reviewId',
+      data: {'calificacion': rating, 'comentario': comment, 'activo': true},
+      parser: (_) {},
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: BusinessDetailStatus.success,
+          message: result.error?.message ?? 'No se pudo editar la resena.',
+        ),
+      );
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        status: BusinessDetailStatus.success,
+        message: 'Resena actualizada.',
       ),
     );
     await load(businessId);

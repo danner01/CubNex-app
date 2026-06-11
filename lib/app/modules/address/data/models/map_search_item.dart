@@ -1,8 +1,4 @@
-enum MapSearchType {
-  business,
-  property,
-  transport,
-}
+enum MapSearchType { business, property, transport }
 
 class MapSearchItem {
   const MapSearchItem({
@@ -16,8 +12,15 @@ class MapSearchItem {
     this.municipality,
     this.address,
     this.logoUrl,
+    this.bannerUrl,
+    this.themeColor,
+    this.typeIcon,
     this.phone,
     this.whatsapp,
+    this.availableNow = true,
+    this.requiresElectricity = false,
+    this.hasElectricService = true,
+    this.hasElectricBackup = false,
     this.price,
     this.currency,
   });
@@ -30,8 +33,15 @@ class MapSearchItem {
   final String? municipality;
   final String? address;
   final String? logoUrl;
+  final String? bannerUrl;
+  final String? themeColor;
+  final String? typeIcon;
   final String? phone;
   final String? whatsapp;
+  final bool availableNow;
+  final bool requiresElectricity;
+  final bool hasElectricService;
+  final bool hasElectricBackup;
   final double? price;
   final String? currency;
   final double latitude;
@@ -60,8 +70,15 @@ class MapSearchItem {
       municipality: json['municipio']?.toString(),
       address: json['direccion']?.toString(),
       logoUrl: json['logo_url']?.toString(),
+      bannerUrl: json['banner_url']?.toString(),
+      themeColor: _parseThemeColor(json['colores']),
+      typeIcon: json['icono']?.toString() ?? json['tipo_icono']?.toString(),
       phone: json['telefono']?.toString(),
       whatsapp: json['whatsapp']?.toString(),
+      availableNow: json['disponible_ahora'] != false,
+      requiresElectricity: json['requiere_electricidad'] == true,
+      hasElectricService: json['tiene_fluido_electrico'] != false,
+      hasElectricBackup: json['tiene_respaldo_electrico'] == true,
       price: double.tryParse(
         '${json['precio'] ?? json['precio_base'] ?? json['precio_por_km'] ?? ''}',
       ),
@@ -71,13 +88,30 @@ class MapSearchItem {
     );
   }
 
+  String? get imageUrl {
+    final banner = bannerUrl?.trim();
+    if (banner != null && banner.isNotEmpty) return banner;
+    final logo = logoUrl?.trim();
+    if (logo != null && logo.isNotEmpty) return logo;
+    return null;
+  }
+
   static MapSearchType _parseType(dynamic value, MapSearchType fallback) {
     return switch (value?.toString()) {
       'propiedad' || 'property' => MapSearchType.property,
-      'transporte' || 'transport' || 'servicio_transporte' => MapSearchType.transport,
+      'transporte' ||
+      'transport' ||
+      'servicio_transporte' => MapSearchType.transport,
       'negocio' || 'business' => MapSearchType.business,
       _ => fallback,
     };
+  }
+
+  static String? _parseThemeColor(dynamic raw) {
+    if (raw is! Map) return null;
+    final colors = Map<Object?, Object?>.from(raw);
+    return (colors['primario'] ?? colors['acento'] ?? colors['primary'])
+        ?.toString();
   }
 
   static _Coordinates _extractCoordinates(dynamic raw) {

@@ -26,6 +26,26 @@ class EngagementCubit extends Cubit<EngagementState> {
     return _favorite(tipoEntidad: 'servicio', entidadId: transportId);
   }
 
+  Future<void> loadBusinessFollowState(String businessId) async {
+    final result = await _apiClient.get<List<dynamic>>(
+      '/suscripciones',
+      queryParameters: {'negocio_id': businessId, 'limit': 1},
+      parser: (json) => json is List ? json : const [],
+    );
+
+    if (!result.isSuccess) {
+      emit(state.copyWith(isFollowing: false, message: null));
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        isFollowing: (result.data ?? const []).isNotEmpty,
+        message: null,
+      ),
+    );
+  }
+
   Future<void> followBusiness(String businessId) async {
     emit(state.copyWith(status: EngagementStatus.loading));
     final result = await _apiClient.post<bool>(
@@ -39,6 +59,7 @@ class EngagementCubit extends Cubit<EngagementState> {
         state.copyWith(
           status: EngagementStatus.success,
           message: 'Te suscribiste a este negocio.',
+          isFollowing: true,
         ),
       );
       return;
@@ -59,10 +80,7 @@ class EngagementCubit extends Cubit<EngagementState> {
     emit(state.copyWith(status: EngagementStatus.loading));
     final result = await _apiClient.post<bool>(
       '/favoritos',
-      data: {
-        'tipo_entidad': tipoEntidad,
-        'entidad_id': entidadId,
-      },
+      data: {'tipo_entidad': tipoEntidad, 'entidad_id': entidadId},
       parser: (_) => true,
     );
 

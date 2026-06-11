@@ -13,22 +13,27 @@ class HomeCubit extends Cubit<HomeState> {
       super(const HomeState());
 
   final ApiClient _apiClient;
+  static const _pageSize = 10;
 
   Future<void> loadHome() async {
+    if (isClosed) return;
     emit(state.copyWith(status: HomeStatus.loading, errorMessage: null));
 
-    final results = await Future.wait([
-      _loadBanners(),
-      _loadBusinesses(),
-      _loadProducts(),
-    ]).timeout(
-      const Duration(seconds: 7),
-      onTimeout: () => [
-        _HomeLoadResult<List<BannerModel>>.fallback(const []),
-        _HomeLoadResult<List<BusinessModel>>.fallback(const []),
-        _HomeLoadResult<List<ProductModel>>.fallback(const []),
-      ],
-    );
+    final results =
+        await Future.wait([
+          _loadBanners(),
+          _loadBusinesses(),
+          _loadProducts(),
+        ]).timeout(
+          const Duration(seconds: 7),
+          onTimeout: () => [
+            _HomeLoadResult<List<BannerModel>>.fallback(const []),
+            _HomeLoadResult<List<BusinessModel>>.fallback(const []),
+            _HomeLoadResult<List<ProductModel>>.fallback(const []),
+          ],
+        );
+
+    if (isClosed) return;
 
     final bannersResult = results[0] as _HomeLoadResult<List<BannerModel>>;
     final businessesResult = results[1] as _HomeLoadResult<List<BusinessModel>>;
@@ -46,7 +51,57 @@ class HomeCubit extends Cubit<HomeState> {
         banners: bannersResult.data,
         businesses: businessesResult.data,
         products: productsResult.data,
+        businessOffset: businessesResult.data.length,
+        productOffset: productsResult.data.length,
+        hasMoreBusinesses: businessesResult.data.length >= _pageSize,
+        hasMoreProducts: productsResult.data.length >= _pageSize,
+        loadingMoreBusinesses: false,
+        loadingMoreProducts: false,
         errorMessage: warning,
+      ),
+    );
+  }
+
+  Future<void> loadMoreBusinesses() async {
+    if (isClosed || state.loadingMoreBusinesses || !state.hasMoreBusinesses) {
+      return;
+    }
+
+    final offset = state.businessOffset;
+    emit(state.copyWith(loadingMoreBusinesses: true, errorMessage: null));
+    final result = await _loadBusinesses(offset: offset);
+    if (isClosed) return;
+
+    final next = result.data;
+    emit(
+      state.copyWith(
+        loadingMoreBusinesses: false,
+        businesses: [...state.businesses, ...next],
+        businessOffset: state.businessOffset + next.length,
+        hasMoreBusinesses: next.length >= _pageSize,
+        errorMessage: result.message,
+      ),
+    );
+  }
+
+  Future<void> loadMoreProducts() async {
+    if (isClosed || state.loadingMoreProducts || !state.hasMoreProducts) {
+      return;
+    }
+
+    final offset = state.productOffset;
+    emit(state.copyWith(loadingMoreProducts: true, errorMessage: null));
+    final result = await _loadProducts(offset: offset);
+    if (isClosed) return;
+
+    final next = result.data;
+    emit(
+      state.copyWith(
+        loadingMoreProducts: false,
+        products: [...state.products, ...next],
+        productOffset: state.productOffset + next.length,
+        hasMoreProducts: next.length >= _pageSize,
+        errorMessage: result.message,
       ),
     );
   }
@@ -61,20 +116,28 @@ class HomeCubit extends Cubit<HomeState> {
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }
 
-  Future<_HomeLoadResult<List<BusinessModel>>> _loadBusinesses() async {
+  Future<_HomeLoadResult<List<BusinessModel>>> _loadBusinesses({
+    int offset = 0,
+  }) async {
     final result = await _apiClient.get<List<BusinessModel>>(
       '/negocios',
-      queryParameters: {'limit': 10, 'order': 'created_at.desc'},
+      queryParameters: {
+        'limit': _pageSize,
+        'offset': offset,
+        'order': 'created_at.desc',
+      },
       parser: (json) =>
           _asList(json).map((item) => BusinessModel.fromJson(item)).toList(),
     );
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }
 
-  Future<_HomeLoadResult<List<ProductModel>>> _loadProducts() async {
+  Future<_HomeLoadResult<List<ProductModel>>> _loadProducts({
+    int offset = 0,
+  }) async {
     final result = await _apiClient.get<List<ProductModel>>(
       '/productos/destacados',
-      queryParameters: {'limit': 10},
+      queryParameters: {'limit': _pageSize, 'offset': offset},
       parser: (json) =>
           _asList(json).map((item) => ProductModel.fromJson(item)).toList(),
     );
@@ -97,10 +160,7 @@ class _HomeLoadResult<T> {
     : message =
           'La conexion esta lenta. Te mostramos contenido base mientras cargan los datos reales.';
 
-  factory _HomeLoadResult.fromApi(
-    ApiResult<T> result, {
-    required T fallback,
-  }) {
+  factory _HomeLoadResult.fromApi(ApiResult<T> result, {required T fallback}) {
     if (result.isSuccess && result.data != null) {
       return _HomeLoadResult(data: result.data as T);
     }

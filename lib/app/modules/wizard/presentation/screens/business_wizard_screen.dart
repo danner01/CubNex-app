@@ -41,11 +41,21 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   final _provinceController = TextEditingController();
   final _municipalityController = TextEditingController();
   final _addressController = TextEditingController();
+  final _openingTimeController = TextEditingController(text: '08:00');
+  final _closingTimeController = TextEditingController(text: '18:00');
+  final _electricBlockController = TextEditingController();
+  final _electricCircuitController = TextEditingController();
   int _step = 0;
   String? _selectedTypeId;
+  String? _electricBackupType;
   double? _latitude;
   double? _longitude;
   bool _resolvingAddress = false;
+  bool _availableNow = true;
+  bool _hasPhysicalLocation = true;
+  bool _requiresElectricity = false;
+  bool _hasElectricService = true;
+  bool _hasElectricBackup = false;
 
   @override
   void dispose() {
@@ -57,6 +67,10 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     _provinceController.dispose();
     _municipalityController.dispose();
     _addressController.dispose();
+    _openingTimeController.dispose();
+    _closingTimeController.dispose();
+    _electricBlockController.dispose();
+    _electricCircuitController.dispose();
     super.dispose();
   }
 
@@ -72,7 +86,8 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
         }
       },
       builder: (context, state) {
-        final loading = state.status == BusinessWizardStatus.loading ||
+        final loading =
+            state.status == BusinessWizardStatus.loading ||
             state.status == BusinessWizardStatus.saving;
 
         return Scaffold(
@@ -159,13 +174,17 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                       TextFormField(
                         controller: _phoneController,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'Telefono'),
+                        decoration: const InputDecoration(
+                          labelText: 'Telefono',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _whatsappController,
                         keyboardType: TextInputType.phone,
-                        decoration: const InputDecoration(labelText: 'WhatsApp'),
+                        decoration: const InputDecoration(
+                          labelText: 'WhatsApp',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
@@ -183,18 +202,24 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                     children: [
                       TextFormField(
                         controller: _provinceController,
-                        decoration: const InputDecoration(labelText: 'Provincia'),
+                        decoration: const InputDecoration(
+                          labelText: 'Provincia',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _municipalityController,
-                        decoration: const InputDecoration(labelText: 'Municipio'),
+                        decoration: const InputDecoration(
+                          labelText: 'Municipio',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: _addressController,
                         maxLines: 2,
-                        decoration: const InputDecoration(labelText: 'Direccion'),
+                        decoration: const InputDecoration(
+                          labelText: 'Direccion',
+                        ),
                       ),
                       const SizedBox(height: 12),
                       Card(
@@ -257,6 +282,145 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                           ),
                         ),
                       ),
+                      const SizedBox(height: 12),
+                      Card(
+                        child: Padding(
+                          padding: const EdgeInsets.all(14),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Horario y disponibilidad',
+                                style: Theme.of(context).textTheme.titleMedium,
+                              ),
+                              const SizedBox(height: 12),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _openingTimeController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Apertura',
+                                        hintText: '08:00',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: TextFormField(
+                                      controller: _closingTimeController,
+                                      decoration: const InputDecoration(
+                                        labelText: 'Cierre',
+                                        hintText: '18:00',
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: _availableNow,
+                                title: const Text('Disponible ahora'),
+                                onChanged: (value) =>
+                                    setState(() => _availableNow = value),
+                              ),
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: _hasPhysicalLocation,
+                                title: const Text('Tiene local fisico'),
+                                subtitle: const Text(
+                                  'Tiendas, bares, restaurantes, salones u oficinas.',
+                                ),
+                                onChanged: (value) => setState(
+                                  () => _hasPhysicalLocation = value,
+                                ),
+                              ),
+                              SwitchListTile(
+                                contentPadding: EdgeInsets.zero,
+                                value: _requiresElectricity,
+                                title: const Text('Requiere electricidad'),
+                                subtitle: const Text(
+                                  'Permite registrar bloque, circuito y estado electrico.',
+                                ),
+                                onChanged: (value) => setState(
+                                  () => _requiresElectricity = value,
+                                ),
+                              ),
+                              if (_requiresElectricity) ...[
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _hasElectricService,
+                                  title: const Text('Tiene fluido electrico'),
+                                  onChanged: (value) => setState(
+                                    () => _hasElectricService = value,
+                                  ),
+                                ),
+                                SwitchListTile(
+                                  contentPadding: EdgeInsets.zero,
+                                  value: _hasElectricBackup,
+                                  title: const Text('Tiene respaldo electrico'),
+                                  onChanged: (value) => setState(
+                                    () => _hasElectricBackup = value,
+                                  ),
+                                ),
+                                if (_hasElectricBackup) ...[
+                                  const SizedBox(height: 8),
+                                  DropdownButtonFormField<String>(
+                                    initialValue: _electricBackupType,
+                                    decoration: const InputDecoration(
+                                      labelText: 'Tipo de respaldo',
+                                    ),
+                                    items: const [
+                                      DropdownMenuItem(
+                                        value: 'paneles_solares',
+                                        child: Text('Paneles solares'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'planta_electrica',
+                                        child: Text('Planta electrica'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'baterias_inversor',
+                                        child: Text('Baterias / inversor'),
+                                      ),
+                                      DropdownMenuItem(
+                                        value: 'otra_via',
+                                        child: Text('Otra via'),
+                                      ),
+                                    ],
+                                    onChanged: (value) => setState(
+                                      () => _electricBackupType = value,
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _electricBlockController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Bloque electrico',
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: TextFormField(
+                                        controller: _electricCircuitController,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Circuito',
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
                     ],
                   ),
                 ),
@@ -300,6 +464,24 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
       address: _addressController.text.trim().isEmpty
           ? null
           : _addressController.text.trim(),
+      openingTime: _openingTimeController.text.trim().isEmpty
+          ? null
+          : _openingTimeController.text.trim(),
+      closingTime: _closingTimeController.text.trim().isEmpty
+          ? null
+          : _closingTimeController.text.trim(),
+      availableNow: _availableNow,
+      hasPhysicalLocation: _hasPhysicalLocation,
+      requiresElectricity: _requiresElectricity,
+      hasElectricService: _hasElectricService,
+      hasElectricBackup: _hasElectricBackup,
+      electricBackupType: _hasElectricBackup ? _electricBackupType : null,
+      electricBlock: _electricBlockController.text.trim().isEmpty
+          ? null
+          : _electricBlockController.text.trim(),
+      electricCircuit: _electricCircuitController.text.trim().isEmpty
+          ? null
+          : _electricCircuitController.text.trim(),
       latitude: _latitude,
       longitude: _longitude,
     );
@@ -345,7 +527,10 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
         data['nombre'] ??
         data['address'];
     final province =
-        data['provincia'] ?? data['region'] ?? data['state'] ?? data['province'];
+        data['provincia'] ??
+        data['region'] ??
+        data['state'] ??
+        data['province'];
     final municipality =
         data['municipio'] ?? data['localidad'] ?? data['place'] ?? data['city'];
 
@@ -447,8 +632,7 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                               _mapboxMap = mapboxMap;
                               mapboxMap.addInteraction(
                                 TapInteraction.onMap((gesture) {
-                                  final coordinates =
-                                      gesture.point.coordinates;
+                                  final coordinates = gesture.point.coordinates;
                                   setState(() {
                                     _longitude = coordinates.lng.toDouble();
                                     _latitude = coordinates.lat.toDouble();

@@ -11,8 +11,8 @@ class ApiClient {
           Dio(
             BaseOptions(
               baseUrl: '${AppEnvironment.apiBaseUrl}/api/v1',
-              connectTimeout: const Duration(seconds: 8),
-              receiveTimeout: const Duration(seconds: 10),
+              connectTimeout: const Duration(seconds: 15),
+              receiveTimeout: const Duration(seconds: 35),
               headers: const {'accept': 'application/json'},
             ),
           ),
@@ -47,10 +47,7 @@ class ApiClient {
               },
               responseType: requestOptions.responseType,
               contentType: requestOptions.contentType,
-              extra: {
-                ...requestOptions.extra,
-                _skipAuthRefreshExtra: true,
-              },
+              extra: {...requestOptions.extra, _skipAuthRefreshExtra: true},
             );
 
             try {
@@ -255,8 +252,7 @@ class ApiClient {
       return ApiResult.failure(
         _normalizeFailure(
           code: '${apiError?['codigo'] ?? 'ERROR_RED'}',
-          message:
-              '${apiError?['mensaje'] ?? _friendlyNetworkMessage(error)}',
+          message: '${apiError?['mensaje'] ?? _friendlyNetworkMessage(error)}',
           statusCode: error.response?.statusCode,
           details: apiError?['detalles'] is Map
               ? Map<String, dynamic>.from(apiError?['detalles'] as Map)

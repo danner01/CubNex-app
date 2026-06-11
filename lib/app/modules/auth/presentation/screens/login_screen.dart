@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -75,7 +73,10 @@ class _LoginViewState extends State<_LoginView> {
             state.session != null &&
             !_navigatingAfterAuth) {
           _navigatingAfterAuth = true;
-          unawaited(context.read<AppSessionCubit>().setSession(state.session!));
+          await context
+              .read<AppSessionCubit>()
+              .setSession(state.session!)
+              .timeout(const Duration(seconds: 5), onTimeout: () {});
           if (!context.mounted) return;
           context.go(
             state.session!.role.name == 'businessAdmin'
@@ -87,6 +88,7 @@ class _LoginViewState extends State<_LoginView> {
         if ((state.status == AuthStatus.failure ||
                 state.status == AuthStatus.recoverySent) &&
             state.errorMessage != null) {
+          _navigatingAfterAuth = false;
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text(state.errorMessage!)));
@@ -331,7 +333,8 @@ class _AuthCard extends StatelessWidget {
                     labelText: 'Nombre completo',
                     prefixIcon: Icon(Icons.badge_outlined),
                   ),
-                  validator: (value) => mode == _AuthMode.register &&
+                  validator: (value) =>
+                      mode == _AuthMode.register &&
                           (value == null || value.trim().isEmpty)
                       ? 'Escribe tu nombre completo'
                       : null,

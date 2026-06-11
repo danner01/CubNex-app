@@ -31,7 +31,15 @@ class _SearchView extends StatefulWidget {
 
 class _SearchViewState extends State<_SearchView> {
   final _controller = TextEditingController();
+  final _scrollController = ScrollController();
   bool _initialQueryApplied = false;
+  String? _selectedCategoryId;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
 
   @override
   void didChangeDependencies() {
@@ -52,7 +60,15 @@ class _SearchViewState extends State<_SearchView> {
   @override
   void dispose() {
     _controller.dispose();
+    _scrollController.dispose();
     super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_scrollController.hasClients) return;
+    final position = _scrollController.position;
+    if (position.pixels < position.maxScrollExtent - 380) return;
+    context.read<SearchCubit>().loadMore();
   }
 
   @override
@@ -61,6 +77,7 @@ class _SearchViewState extends State<_SearchView> {
       body: BlocBuilder<SearchCubit, SearchState>(
         builder: (context, state) {
           return ListView(
+            controller: _scrollController,
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             children: [
               SearchBar(
@@ -83,82 +100,12 @@ class _SearchViewState extends State<_SearchView> {
                 onSubmitted: context.read<SearchCubit>().search,
               ),
               const SizedBox(height: 18),
-              const SectionHeader(title: 'Buscar por tipo'),
+              const SectionHeader(title: 'Categorias'),
               const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  CategoryChipCard(
-                    label: 'Productos',
-                    icon: Icons.inventory_2_rounded,
-                    onTap: () => _searchPreset(context, 'productos'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Servicios',
-                    icon: Icons.handyman_rounded,
-                    onTap: () => _searchPreset(context, 'servicios'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Negocios',
-                    icon: Icons.storefront_rounded,
-                    onTap: () => _searchPreset(context, 'negocios'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Gastronomia',
-                    icon: Icons.restaurant_rounded,
-                    onTap: () => _searchPreset(context, 'gastronomia'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Propiedades',
-                    icon: Icons.home_work_rounded,
-                    onTap: () => context.go(AppRoutes.properties),
-                  ),
-                  CategoryChipCard(
-                    label: 'Transporte',
-                    icon: Icons.local_shipping_rounded,
-                    onTap: () => context.go(AppRoutes.transport),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              const SectionHeader(title: 'Gastronomia'),
-              const SizedBox(height: 12),
-              Wrap(
-                spacing: 10,
-                runSpacing: 10,
-                children: [
-                  CategoryChipCard(
-                    label: 'Restaurantes',
-                    icon: Icons.restaurant_menu_rounded,
-                    onTap: () => _searchPreset(context, 'restaurante'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Bares',
-                    icon: Icons.local_bar_rounded,
-                    onTap: () => _searchPreset(context, 'bar'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Discotecas',
-                    icon: Icons.nightlife_rounded,
-                    onTap: () => _searchPreset(context, 'discoteca'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Cafeterias',
-                    icon: Icons.local_cafe_rounded,
-                    onTap: () => _searchPreset(context, 'cafeteria'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Pizzerias',
-                    icon: Icons.local_pizza_rounded,
-                    onTap: () => _searchPreset(context, 'pizzeria'),
-                  ),
-                  CategoryChipCard(
-                    label: 'Food trucks',
-                    icon: Icons.ramen_dining_rounded,
-                    onTap: () => _searchPreset(context, 'food truck'),
-                  ),
-                ],
+              _HierarchicalCategoryFilters(
+                selectedId: _selectedCategoryId,
+                onParent: _selectParentCategory,
+                onSubcategory: (query) => _searchPreset(context, query),
               ),
               const SizedBox(height: 20),
               QuickActionCard(
@@ -180,6 +127,18 @@ class _SearchViewState extends State<_SearchView> {
     _controller.text = query;
     context.read<SearchCubit>().search(query);
   }
+
+  void _selectParentCategory(_SearchCategory category) {
+    setState(() {
+      _selectedCategoryId = _selectedCategoryId == category.id
+          ? null
+          : category.id;
+    });
+
+    if (_selectedCategoryId != null) {
+      _searchPreset(context, category.query);
+    }
+  }
 }
 
 class _SearchResults extends StatelessWidget {
@@ -191,7 +150,8 @@ class _SearchResults extends StatelessWidget {
   Widget build(BuildContext context) {
     if (state.status == SearchStatus.initial) {
       return const _EmptySearchState(
-        message: 'Escribe una busqueda para encontrar negocios, productos y servicios.',
+        message:
+            'Escribe una busqueda para encontrar negocios, productos y servicios.',
       );
     }
 
@@ -226,7 +186,7 @@ class _SearchResults extends StatelessWidget {
           const _MiniSectionTitle('Negocios'),
           const SizedBox(height: 10),
           SizedBox(
-            height: 178,
+            height: 226,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               itemCount: state.results.businesses.length,
@@ -238,7 +198,11 @@ class _SearchResults extends StatelessWidget {
                   province: business.province,
                   description: business.description,
                   logoUrl: business.logoUrl,
+                  bannerUrl: business.bannerUrl,
                   rating: business.rating,
+                  availableNow: business.availableNow,
+                  requiresElectricity: business.requiresElectricity,
+                  hasElectricService: business.hasElectricService,
                   onTap: () => context.go(AppRoutes.store(business.id)),
                 );
               },
@@ -273,18 +237,325 @@ class _SearchResults extends StatelessWidget {
         if (state.results.properties.isNotEmpty) ...[
           const _MiniSectionTitle('Propiedades'),
           const SizedBox(height: 10),
-          ...state.results.properties.map(_AssetResultTile.new),
+          ..._spacedAssetTiles(state.results.properties),
           const SizedBox(height: 18),
         ],
         if (state.results.transport.isNotEmpty) ...[
           const _MiniSectionTitle('Transporte'),
           const SizedBox(height: 10),
-          ...state.results.transport.map(_AssetResultTile.new),
+          ..._spacedAssetTiles(state.results.transport),
+        ],
+        if (state.loadingMore)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 18),
+            child: Center(child: CircularProgressIndicator()),
+          ),
+      ],
+    );
+  }
+
+  List<Widget> _spacedAssetTiles(List<SearchAssetModel> assets) {
+    return [
+      for (var index = 0; index < assets.length; index++) ...[
+        _AssetResultTile(assets[index]),
+        if (index < assets.length - 1) const SizedBox(height: 8),
+      ],
+    ];
+  }
+}
+
+class _HierarchicalCategoryFilters extends StatelessWidget {
+  const _HierarchicalCategoryFilters({
+    required this.selectedId,
+    required this.onParent,
+    required this.onSubcategory,
+  });
+
+  final String? selectedId;
+  final ValueChanged<_SearchCategory> onParent;
+  final ValueChanged<String> onSubcategory;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = _selectedCategory;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          physics: const BouncingScrollPhysics(),
+          child: Row(
+            children: [
+              for (final category in _searchCategories) ...[
+                ChoiceChip(
+                  selected: category.id == selectedId,
+                  avatar: Icon(category.icon, size: 18),
+                  label: Text(category.label),
+                  onSelected: (_) => onParent(category),
+                  labelStyle: const TextStyle(fontWeight: FontWeight.w900),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                ),
+                const SizedBox(width: 8),
+              ],
+            ],
+          ),
+        ),
+        if (selected != null && selected.children.isNotEmpty) ...[
+          const SizedBox(height: 10),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            physics: const BouncingScrollPhysics(),
+            child: Row(
+              children: [
+                for (final child in selected.children) ...[
+                  CategoryChipCard(
+                    label: child.label,
+                    icon: child.icon,
+                    onTap: () => onSubcategory(child.query),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+              ],
+            ),
+          ),
         ],
       ],
     );
   }
+
+  _SearchCategory? get _selectedCategory {
+    for (final category in _searchCategories) {
+      if (category.id == selectedId) return category;
+    }
+    return null;
+  }
 }
+
+class _SearchCategory {
+  const _SearchCategory({
+    required this.id,
+    required this.label,
+    required this.icon,
+    required this.query,
+    this.children = const [],
+  });
+
+  final String id;
+  final String label;
+  final IconData icon;
+  final String query;
+  final List<_SearchCategory> children;
+}
+
+const _searchCategories = [
+  _SearchCategory(
+    id: 'negocios-servicios',
+    label: 'Negocios y servicios',
+    icon: Icons.storefront_rounded,
+    query: 'servicio',
+    children: [
+      _SearchCategory(
+        id: 'barberia',
+        label: 'Barberias',
+        icon: Icons.content_cut_rounded,
+        query: 'barberia',
+      ),
+      _SearchCategory(
+        id: 'plomeria',
+        label: 'Plomeria',
+        icon: Icons.plumbing_rounded,
+        query: 'plomeria',
+      ),
+      _SearchCategory(
+        id: 'electricista',
+        label: 'Electricistas',
+        icon: Icons.electrical_services_rounded,
+        query: 'electricista',
+      ),
+      _SearchCategory(
+        id: 'reparacion',
+        label: 'Reparaciones',
+        icon: Icons.build_rounded,
+        query: 'reparacion',
+      ),
+    ],
+  ),
+  _SearchCategory(
+    id: 'productos',
+    label: 'Productos',
+    icon: Icons.inventory_2_rounded,
+    query: 'producto',
+    children: [
+      _SearchCategory(
+        id: 'alimentos',
+        label: 'Alimentos',
+        icon: Icons.shopping_basket_rounded,
+        query: 'alimentos',
+      ),
+      _SearchCategory(
+        id: 'electronica',
+        label: 'Electronica',
+        icon: Icons.devices_rounded,
+        query: 'electronica',
+      ),
+      _SearchCategory(
+        id: 'ropa',
+        label: 'Ropa',
+        icon: Icons.checkroom_rounded,
+        query: 'ropa',
+      ),
+      _SearchCategory(
+        id: 'ferreteria',
+        label: 'Ferreteria',
+        icon: Icons.hardware_rounded,
+        query: 'ferreteria',
+      ),
+    ],
+  ),
+  _SearchCategory(
+    id: 'propiedades',
+    label: 'Propiedades',
+    icon: Icons.home_work_rounded,
+    query: 'propiedad',
+    children: [
+      _SearchCategory(
+        id: 'casa',
+        label: 'Casas',
+        icon: Icons.house_rounded,
+        query: 'casa',
+      ),
+      _SearchCategory(
+        id: 'apartamento',
+        label: 'Apartamentos',
+        icon: Icons.apartment_rounded,
+        query: 'apartamento',
+      ),
+      _SearchCategory(
+        id: 'alquiler',
+        label: 'Alquileres',
+        icon: Icons.key_rounded,
+        query: 'alquiler',
+      ),
+      _SearchCategory(
+        id: 'terreno',
+        label: 'Terrenos',
+        icon: Icons.terrain_rounded,
+        query: 'terreno',
+      ),
+    ],
+  ),
+  _SearchCategory(
+    id: 'gastronomia',
+    label: 'Gastronomia',
+    icon: Icons.restaurant_rounded,
+    query: 'gastronomia',
+    children: [
+      _SearchCategory(
+        id: 'restaurante',
+        label: 'Restaurantes',
+        icon: Icons.restaurant_menu_rounded,
+        query: 'restaurante',
+      ),
+      _SearchCategory(
+        id: 'bar',
+        label: 'Bares',
+        icon: Icons.local_bar_rounded,
+        query: 'bar',
+      ),
+      _SearchCategory(
+        id: 'discoteca',
+        label: 'Discotecas',
+        icon: Icons.nightlife_rounded,
+        query: 'discoteca',
+      ),
+      _SearchCategory(
+        id: 'cafeteria',
+        label: 'Cafeterias',
+        icon: Icons.local_cafe_rounded,
+        query: 'cafeteria',
+      ),
+      _SearchCategory(
+        id: 'pizzeria',
+        label: 'Pizzerias',
+        icon: Icons.local_pizza_rounded,
+        query: 'pizzeria',
+      ),
+    ],
+  ),
+  _SearchCategory(
+    id: 'vehiculos',
+    label: 'Vehiculos',
+    icon: Icons.directions_car_rounded,
+    query: 'auto moto',
+    children: [
+      _SearchCategory(
+        id: 'auto',
+        label: 'Autos',
+        icon: Icons.directions_car_rounded,
+        query: 'auto',
+      ),
+      _SearchCategory(
+        id: 'moto',
+        label: 'Motos',
+        icon: Icons.two_wheeler_rounded,
+        query: 'moto',
+      ),
+      _SearchCategory(
+        id: 'moto-electrica',
+        label: 'Motos electricas',
+        icon: Icons.electric_moped_rounded,
+        query: 'moto electrica',
+      ),
+      _SearchCategory(
+        id: 'triciclo',
+        label: 'Triciclos',
+        icon: Icons.pedal_bike_rounded,
+        query: 'triciclo',
+      ),
+      _SearchCategory(
+        id: 'camion',
+        label: 'Camiones',
+        icon: Icons.local_shipping_rounded,
+        query: 'camion',
+      ),
+    ],
+  ),
+  _SearchCategory(
+    id: 'transporte',
+    label: 'Transporte',
+    icon: Icons.local_shipping_rounded,
+    query: 'transporte',
+    children: [
+      _SearchCategory(
+        id: 'delivery',
+        label: 'Delivery',
+        icon: Icons.delivery_dining_rounded,
+        query: 'delivery',
+      ),
+      _SearchCategory(
+        id: 'taxi',
+        label: 'Taxi',
+        icon: Icons.local_taxi_rounded,
+        query: 'taxi',
+      ),
+      _SearchCategory(
+        id: 'carga',
+        label: 'Carga',
+        icon: Icons.local_shipping_rounded,
+        query: 'carga',
+      ),
+      _SearchCategory(
+        id: 'mudanza',
+        label: 'Mudanzas',
+        icon: Icons.move_up_rounded,
+        query: 'mudanza',
+      ),
+    ],
+  ),
+];
 
 class _AssetResultTile extends StatelessWidget {
   const _AssetResultTile(this.asset);
@@ -310,9 +581,11 @@ class _AssetResultTile extends StatelessWidget {
         ),
         title: Text(asset.title),
         subtitle: Text(
-          [asset.type, location, asset.description]
-              .where((value) => value != null && value.isNotEmpty)
-              .join(' - '),
+          [
+            asset.type,
+            location,
+            asset.description,
+          ].where((value) => value != null && value.isNotEmpty).join(' - '),
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),

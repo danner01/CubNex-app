@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
@@ -14,6 +15,7 @@ import '../../../../config/theme/store_brand_theme.dart';
 import '../../../business/data/models/store_customization_model.dart';
 import '../../../favorites/blocs/engagement/engagement_cubit.dart';
 import '../../../favorites/blocs/engagement/engagement_state.dart';
+import '../../../home/data/models/business_model.dart';
 import '../../../review_rating/data/models/review_model.dart';
 import '../../blocs/business_detail/business_detail_cubit.dart';
 import '../../blocs/business_detail/business_detail_state.dart';
@@ -27,8 +29,13 @@ class BusinessDetailScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return MultiBlocProvider(
       providers: [
-        BlocProvider(create: (_) => sl<BusinessDetailCubit>()..load(businessId)),
-        BlocProvider(create: (_) => sl<EngagementCubit>()),
+        BlocProvider(
+          create: (_) => sl<BusinessDetailCubit>()..load(businessId),
+        ),
+        BlocProvider(
+          create: (_) =>
+              sl<EngagementCubit>()..loadBusinessFollowState(businessId),
+        ),
       ],
       child: const _EngagementListener(child: _BusinessDetailView()),
     );
@@ -59,7 +66,12 @@ class _BusinessDetailView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocBuilder<BusinessDetailCubit, BusinessDetailState>(
+    return BlocConsumer<BusinessDetailCubit, BusinessDetailState>(
+      listener: (context, state) {
+        if (state.message != null && state.message!.isNotEmpty) {
+          showSnackOrAuthDialog(context, state.message);
+        }
+      },
       builder: (context, state) {
         if (state.status == BusinessDetailStatus.loading) {
           return const Scaffold(
@@ -82,6 +94,7 @@ class _BusinessDetailView extends StatelessWidget {
           );
         }
 
+        final session = context.watch<AppSessionCubit>().state;
         final business = state.business!;
         final customization =
             state.customization ??
@@ -93,6 +106,11 @@ class _BusinessDetailView extends StatelessWidget {
           customization,
           Theme.of(context).brightness,
         );
+        final catalogTitle = business.isFoodBusiness
+            ? 'Menu y ofertas'
+            : business.isServiceLike
+            ? 'Servicios'
+            : 'Productos de la tienda';
 
         return Theme(
           data: brand.applyTo(Theme.of(context)),
@@ -110,10 +128,9 @@ class _BusinessDetailView extends StatelessWidget {
                       bannerUrl: business.bannerUrl,
                       rating: business.rating,
                       brand: brand,
-                      location: [
-                        business.municipality,
-                        business.province,
-                      ].where((value) => value != null && value.isNotEmpty).join(', '),
+                      location: [business.municipality, business.province]
+                          .where((value) => value != null && value.isNotEmpty)
+                          .join(', '),
                     ),
                     const SizedBox(height: 14),
                     Row(
@@ -127,12 +144,32 @@ class _BusinessDetailView extends StatelessWidget {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: OutlinedButton.icon(
-                            onPressed: () => context
-                                .read<EngagementCubit>()
-                                .followBusiness(business.id),
-                            icon: const Icon(Icons.favorite_border_rounded),
-                            label: const Text('Seguir'),
+                          child: BlocBuilder<EngagementCubit, EngagementState>(
+                            builder: (context, engagement) {
+                              return OutlinedButton.icon(
+                                onPressed: engagement.isFollowing
+                                    ? () => showSnackOrAuthDialog(
+                                        context,
+                                        'Ya sigues este negocio.',
+                                      )
+                                    : () => context
+                                          .read<EngagementCubit>()
+                                          .followBusiness(business.id),
+                                icon: Icon(
+                                  engagement.isFollowing
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  color: engagement.isFollowing
+                                      ? AppColors.goldDark
+                                      : null,
+                                ),
+                                label: Text(
+                                  engagement.isFollowing
+                                      ? 'Siguiendo'
+                                      : 'Seguir',
+                                ),
+                              );
+                            },
                           ),
                         ),
                         const SizedBox(width: 10),
@@ -144,9 +181,14 @@ class _BusinessDetailView extends StatelessWidget {
                       ],
                     ),
                     const SizedBox(height: 18),
-                    _ContactCard(phone: business.phone, whatsapp: business.whatsapp),
+                    _ContactCard(
+                      phone: business.phone,
+                      whatsapp: business.whatsapp,
+                    ),
+                    const SizedBox(height: 12),
+                    _OperationalInfoCard(business: business),
                     const SizedBox(height: 22),
-                    SectionHeader(title: 'Productos de la tienda'),
+                    SectionHeader(title: catalogTitle),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () => context
@@ -157,14 +199,15 @@ class _BusinessDetailView extends StatelessWidget {
                     ),
                     const SizedBox(height: 12),
                     if (state.products.isEmpty)
-                      const _EmptyProducts()
+                      _EmptyProducts(label: catalogTitle)
                     else
                       SizedBox(
                         height: 238,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
                           itemCount: state.products.length,
-                          separatorBuilder: (_, __) => const SizedBox(width: 12),
+                          separatorBuilder: (_, __) =>
+                              const SizedBox(width: 12),
                           itemBuilder: (context, index) {
                             final product = state.products[index];
                             return ProductPreviewCard(
@@ -173,7 +216,8 @@ class _BusinessDetailView extends StatelessWidget {
                               imageUrl: product.imageUrl,
                               price: product.currentPrice,
                               currency: product.currency,
-                              onTap: () => context.go(AppRoutes.product(product.id)),
+                              onTap: () =>
+                                  context.go(AppRoutes.product(product.id)),
                             );
                           },
                         ),
@@ -197,7 +241,14 @@ class _BusinessDetailView extends StatelessWidget {
                     if (state.reviews.isEmpty)
                       const _EmptyReviews()
                     else
-                      ...state.reviews.map((review) => _ReviewCard(review: review)),
+                      ...state.reviews.map(
+                        (review) => _ReviewCard(
+                          review: review,
+                          isOwnReview:
+                              review.userId != null &&
+                              review.userId == session.userId,
+                        ),
+                      ),
                   ],
                 ),
               );
@@ -226,7 +277,9 @@ class _BusinessDetailView extends StatelessWidget {
     final business = context.read<BusinessDetailCubit>().state.business;
     if (business == null) return;
     final message = await sl<ContactService>().openWhatsApp(
-      business.whatsapp?.isNotEmpty == true ? business.whatsapp : business.phone,
+      business.whatsapp?.isNotEmpty == true
+          ? business.whatsapp
+          : business.phone,
       message: 'Hola, vi ${business.name} en CubNex.',
     );
     if (message != null && context.mounted) {
@@ -236,73 +289,100 @@ class _BusinessDetailView extends StatelessWidget {
 }
 
 class _ReviewCard extends StatelessWidget {
-  const _ReviewCard({required this.review});
+  const _ReviewCard({required this.review, required this.isOwnReview});
 
   final ReviewModel review;
+  final bool isOwnReview;
 
   @override
   Widget build(BuildContext context) {
     return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                ...List.generate(
-                  5,
-                  (index) => Icon(
-                    index < review.rating
-                        ? Icons.star_rounded
-                        : Icons.star_border_rounded,
-                    color: AppColors.goldDark,
-                    size: 20,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: isOwnReview ? () => _openEditSheet(context) : null,
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  ...List.generate(
+                    5,
+                    (index) => Icon(
+                      index < review.rating
+                          ? Icons.star_rounded
+                          : Icons.star_border_rounded,
+                      color: AppColors.goldDark,
+                      size: 20,
+                    ),
                   ),
-                ),
-                const Spacer(),
-                Text(
-                  '${review.usefulCount} utiles',
-                  style: Theme.of(context).textTheme.bodySmall,
+                  const Spacer(),
+                  if (isOwnReview)
+                    TextButton.icon(
+                      onPressed: () => _openEditSheet(context),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Editar'),
+                    )
+                  else
+                    Text(
+                      '${review.usefulCount} utiles',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                ],
+              ),
+              if (review.comment != null && review.comment!.isNotEmpty) ...[
+                const SizedBox(height: 8),
+                Text(review.comment!),
+              ],
+              if (review.businessResponse != null &&
+                  review.businessResponse!.isNotEmpty) ...[
+                const SizedBox(height: 10),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(
+                      context,
+                    ).colorScheme.surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text('Respuesta: ${review.businessResponse!}'),
                 ),
               ],
-            ),
-            if (review.comment != null && review.comment!.isNotEmpty) ...[
               const SizedBox(height: 8),
-              Text(review.comment!),
-            ],
-            if (review.businessResponse != null &&
-                review.businessResponse!.isNotEmpty) ...[
-              const SizedBox(height: 10),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                  borderRadius: BorderRadius.circular(12),
+              Align(
+                alignment: Alignment.centerRight,
+                child: TextButton.icon(
+                  onPressed: () =>
+                      context.read<BusinessDetailCubit>().markUseful(review.id),
+                  icon: const Icon(Icons.thumb_up_alt_outlined),
+                  label: const Text('Util'),
                 ),
-                child: Text('Respuesta: ${review.businessResponse!}'),
               ),
             ],
-            const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerRight,
-              child: TextButton.icon(
-                onPressed: () =>
-                    context.read<BusinessDetailCubit>().markUseful(review.id),
-                icon: const Icon(Icons.thumb_up_alt_outlined),
-                label: const Text('Util'),
-              ),
-            ),
-          ],
+          ),
         ),
+      ),
+    );
+  }
+
+  void _openEditSheet(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BlocProvider.value(
+        value: context.read<BusinessDetailCubit>(),
+        child: _ReviewFormSheet(review: review),
       ),
     );
   }
 }
 
 class _ReviewFormSheet extends StatefulWidget {
-  const _ReviewFormSheet();
+  const _ReviewFormSheet({this.review});
+
+  final ReviewModel? review;
 
   @override
   State<_ReviewFormSheet> createState() => _ReviewFormSheetState();
@@ -311,6 +391,16 @@ class _ReviewFormSheet extends StatefulWidget {
 class _ReviewFormSheetState extends State<_ReviewFormSheet> {
   final _commentController = TextEditingController();
   int _rating = 5;
+
+  @override
+  void initState() {
+    super.initState();
+    final review = widget.review;
+    if (review != null) {
+      _rating = review.rating == 0 ? 5 : review.rating;
+      _commentController.text = review.comment ?? '';
+    }
+  }
 
   @override
   void dispose() {
@@ -329,7 +419,7 @@ class _ReviewFormSheetState extends State<_ReviewFormSheet> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Escribir resena',
+              widget.review == null ? 'Escribir resena' : 'Editar resena',
               style: Theme.of(
                 context,
               ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -362,16 +452,28 @@ class _ReviewFormSheetState extends State<_ReviewFormSheet> {
             const SizedBox(height: 16),
             FilledButton.icon(
               onPressed: () {
-                context.read<BusinessDetailCubit>().createReview(
-                  rating: _rating,
-                  comment: _commentController.text.trim().isEmpty
-                      ? null
-                      : _commentController.text.trim(),
-                );
+                final comment = _commentController.text.trim().isEmpty
+                    ? null
+                    : _commentController.text.trim();
+                final cubit = context.read<BusinessDetailCubit>();
+                final review = widget.review;
+                if (review == null) {
+                  cubit.createReview(rating: _rating, comment: comment);
+                } else {
+                  cubit.updateReview(
+                    reviewId: review.id,
+                    rating: _rating,
+                    comment: comment,
+                  );
+                }
                 Navigator.of(context).pop();
               },
-              icon: const Icon(Icons.send_outlined),
-              label: const Text('Publicar'),
+              icon: Icon(
+                widget.review == null
+                    ? Icons.send_outlined
+                    : Icons.save_outlined,
+              ),
+              label: Text(widget.review == null ? 'Publicar' : 'Guardar'),
             ),
           ],
         ),
@@ -473,7 +575,9 @@ class _BusinessHero extends StatelessWidget {
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                                 style: TextStyle(
-                                  color: brand.onSurface.withValues(alpha: 0.72),
+                                  color: brand.onSurface.withValues(
+                                    alpha: 0.72,
+                                  ),
                                 ),
                               ),
                             ),
@@ -523,7 +627,9 @@ class _ContactCard extends StatelessWidget {
               color: Theme.of(context).colorScheme.secondary,
             ),
             title: const Text('Telefono'),
-            subtitle: Text(phone?.isNotEmpty == true ? phone! : 'No configurado'),
+            subtitle: Text(
+              phone?.isNotEmpty == true ? phone! : 'No configurado',
+            ),
             trailing: phone?.isNotEmpty == true
                 ? const Icon(Icons.call_outlined)
                 : null,
@@ -564,8 +670,141 @@ class _ContactCard extends StatelessWidget {
   }
 }
 
+class _OperationalInfoCard extends StatelessWidget {
+  const _OperationalInfoCard({required this.business});
+
+  final BusinessModel business;
+
+  @override
+  Widget build(BuildContext context) {
+    final schedule = [
+      business.openingTime,
+      business.closingTime,
+    ].where((value) => value != null && value.isNotEmpty).join(' - ');
+    final location = [
+      business.address,
+      business.municipality,
+      business.province,
+    ].where((value) => value != null && value.isNotEmpty).join(', ');
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              business.isServiceLike
+                  ? 'Disponibilidad y cobertura'
+                  : 'Horario y disponibilidad',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            _InfoRow(
+              icon: Icons.schedule_rounded,
+              label: 'Horario',
+              value: schedule.isEmpty ? 'No configurado' : schedule,
+            ),
+            _InfoRow(
+              icon: business.availableNow
+                  ? Icons.check_circle_outline_rounded
+                  : Icons.pause_circle_outline_rounded,
+              label: 'Estado',
+              value: business.availableNow
+                  ? 'Disponible ahora'
+                  : 'No disponible en este momento',
+            ),
+            if (location.isNotEmpty)
+              _InfoRow(
+                icon: Icons.location_on_outlined,
+                label: 'Ubicacion',
+                value: location,
+              ),
+            if (business.requiresElectricity) ...[
+              _InfoRow(
+                icon: Icons.electric_bolt_outlined,
+                label: 'Red electrica',
+                value: business.hasElectricService
+                    ? 'Con corriente de la red'
+                    : 'Sin corriente de la red',
+              ),
+              _InfoRow(
+                icon: Icons.battery_charging_full_rounded,
+                label: 'Respaldo',
+                value: business.hasElectricBackup
+                    ? 'Tiene respaldo${business.electricBackupType?.isNotEmpty == true ? ' (${business.electricBackupType})' : ''}'
+                    : 'Sin respaldo configurado',
+              ),
+              if (business.electricBlock?.isNotEmpty == true ||
+                  business.electricCircuit?.isNotEmpty == true)
+                _InfoRow(
+                  icon: Icons.grid_4x4_rounded,
+                  label: 'Bloque / circuito',
+                  value: [business.electricBlock, business.electricCircuit]
+                      .where((value) => value != null && value.isNotEmpty)
+                      .join(' / '),
+                ),
+            ],
+            if (business.businessTypeName?.isNotEmpty == true)
+              _InfoRow(
+                icon: Icons.storefront_rounded,
+                label: 'Tipo',
+                value: business.businessTypeName!,
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+  });
+
+  final IconData icon;
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(icon, size: 20, color: Theme.of(context).colorScheme.secondary),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(value),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 class _EmptyProducts extends StatelessWidget {
-  const _EmptyProducts();
+  const _EmptyProducts({required this.label});
+
+  final String label;
 
   @override
   Widget build(BuildContext context) {
@@ -580,8 +819,8 @@ class _EmptyProducts extends StatelessWidget {
               color: Theme.of(context).colorScheme.secondary,
             ),
             const SizedBox(height: 10),
-            const Text(
-              'Esta tienda todavia no tiene productos publicados.',
+            Text(
+              'Aun no hay ${label.toLowerCase()} publicados.',
               textAlign: TextAlign.center,
             ),
           ],

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../modules/orders/blocs/cart/cart_cubit.dart';
 import 'cubnex_logo.dart';
 
 class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
@@ -15,6 +17,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = colorScheme.brightness == Brightness.dark;
+    final cartCount = context.watch<CartCubit>().state.totalItems;
 
     return SafeArea(
       bottom: false,
@@ -51,6 +54,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
             _HeaderButton(
               tooltip: 'Carrito',
               icon: Icons.shopping_cart_outlined,
+              badgeCount: cartCount,
               onPressed: () => context.go(AppRoutes.cart),
             ),
           ],
@@ -72,7 +76,9 @@ class _BrandWordmark extends StatelessWidget {
       height: 0.98,
       shadows: [
         Shadow(
-          color: (isDark ? AppColors.gold : AppColors.ink).withValues(alpha: 0.22),
+          color: (isDark ? AppColors.gold : AppColors.ink).withValues(
+            alpha: 0.22,
+          ),
           blurRadius: 10,
         ),
       ],
@@ -97,7 +103,9 @@ class _BrandWordmark extends StatelessWidget {
           ),
           TextSpan(
             text: 'ex',
-            style: TextStyle(color: isDark ? AppColors.greenLight : AppColors.green),
+            style: TextStyle(
+              color: isDark ? AppColors.greenLight : AppColors.green,
+            ),
           ),
         ],
       ),
@@ -110,11 +118,13 @@ class _HeaderButton extends StatelessWidget {
     required this.tooltip,
     required this.icon,
     required this.onPressed,
+    this.badgeCount = 0,
   });
 
   final String tooltip;
   final IconData icon;
   final VoidCallback onPressed;
+  final int badgeCount;
 
   @override
   Widget build(BuildContext context) {
@@ -129,7 +139,35 @@ class _HeaderButton extends StatelessWidget {
           child: SizedBox(
             width: 54,
             height: 54,
-            child: Icon(icon, size: 28),
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                Icon(icon, size: 28),
+                if (badgeCount > 0)
+                  Positioned(
+                    top: 8,
+                    right: 8,
+                    child: DecoratedBox(
+                      decoration: BoxDecoration(
+                        color: Theme.of(context).colorScheme.primary,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(5),
+                        child: Text(
+                          badgeCount > 99 ? '99+' : '$badgeCount',
+                          style: TextStyle(
+                            color: Theme.of(context).colorScheme.onPrimary,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w900,
+                            height: 1,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

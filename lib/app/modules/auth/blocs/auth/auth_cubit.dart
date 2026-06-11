@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../domain/usecases/login_with_email.dart';
@@ -22,27 +25,46 @@ class AuthCubit extends Cubit<AuthState> {
   final LoginWithGoogle _loginWithGoogle;
   final RegisterAccount _registerAccount;
   final RecoverPassword _recoverPassword;
+  static const _requestTimeout = Duration(seconds: 40);
 
   Future<void> loginWithEmail({
     required String email,
     required String password,
   }) async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    _debugAuth('login_email:start $email');
     try {
-      final result = await _loginWithEmail(email: email, password: password);
+      final result = await _loginWithEmail(
+        email: email,
+        password: password,
+      ).timeout(_requestTimeout);
 
       if (result.isSuccess && result.data != null) {
+        _debugAuth('login_email:success role=${result.data!.role.name}');
         emit(state.copyWith(status: AuthStatus.success, session: result.data));
         return;
       }
 
+      _debugAuth(
+        'login_email:failure ${result.error?.code} ${result.error?.message}',
+      );
       emit(
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: result.error?.message ?? 'No se pudo iniciar sesion.',
         ),
       );
-    } catch (_) {
+    } on TimeoutException {
+      _debugAuth('login_email:timeout');
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage:
+              'La autenticacion esta tardando demasiado. Verifica tu conexion e intenta de nuevo.',
+        ),
+      );
+    } catch (error) {
+      _debugAuth('login_email:unexpected $error');
       emit(
         state.copyWith(
           status: AuthStatus.failure,
@@ -52,10 +74,16 @@ class AuthCubit extends Cubit<AuthState> {
     }
   }
 
+  void _debugAuth(String message) {
+    if (kDebugMode) {
+      debugPrint('[AUTH] $message');
+    }
+  }
+
   Future<void> loginWithGoogle() async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
     try {
-      final result = await _loginWithGoogle();
+      final result = await _loginWithGoogle().timeout(_requestTimeout);
 
       if (result.isSuccess && result.data != null) {
         emit(state.copyWith(status: AuthStatus.success, session: result.data));
@@ -67,6 +95,14 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.failure,
           errorMessage:
               result.error?.message ?? 'No se pudo iniciar con Google.',
+        ),
+      );
+    } on TimeoutException {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage:
+              'Google Sign-In esta tardando demasiado. Intenta nuevamente en unos segundos.',
         ),
       );
     } catch (_) {
@@ -94,7 +130,7 @@ class AuthCubit extends Cubit<AuthState> {
         password: password,
         phone: phone,
         role: role,
-      );
+      ).timeout(_requestTimeout);
 
       if (result.isSuccess && result.data != null) {
         emit(state.copyWith(status: AuthStatus.success, session: result.data));
@@ -105,6 +141,14 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: result.error?.message ?? 'No se pudo crear la cuenta.',
+        ),
+      );
+    } on TimeoutException {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
+          errorMessage:
+              'El registro esta tardando demasiado. Revisa la conexion e intenta de nuevo.',
         ),
       );
     } catch (_) {
@@ -120,7 +164,9 @@ class AuthCubit extends Cubit<AuthState> {
   Future<void> recoverPassword({required String email}) async {
     emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
     try {
-      final result = await _recoverPassword(email: email);
+      final result = await _recoverPassword(
+        email: email,
+      ).timeout(_requestTimeout);
 
       if (result.isSuccess) {
         emit(
@@ -135,8 +181,15 @@ class AuthCubit extends Cubit<AuthState> {
       emit(
         state.copyWith(
           status: AuthStatus.failure,
+          errorMessage: result.error?.message ?? 'No se pudo enviar el enlace.',
+        ),
+      );
+    } on TimeoutException {
+      emit(
+        state.copyWith(
+          status: AuthStatus.failure,
           errorMessage:
-              result.error?.message ?? 'No se pudo enviar el enlace.',
+              'La recuperacion de acceso esta tardando demasiado. Intenta nuevamente.',
         ),
       );
     } catch (_) {

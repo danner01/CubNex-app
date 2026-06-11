@@ -46,7 +46,9 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
           );
         }
         if (json is Map && json.isNotEmpty) {
-          return StoreCustomizationModel.fromJson(Map<String, dynamic>.from(json));
+          return StoreCustomizationModel.fromJson(
+            Map<String, dynamic>.from(json),
+          );
         }
         return null;
       },
@@ -87,6 +89,40 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
     );
   }
 
+  void updateBusinessOperations({
+    String? openingTime,
+    String? closingTime,
+    bool? availableNow,
+    bool? hasPhysicalLocation,
+    bool? requiresElectricity,
+    bool? hasElectricService,
+    bool? hasElectricBackup,
+    String? electricBackupType,
+    String? electricBlock,
+    String? electricCircuit,
+  }) {
+    final business = state.business;
+    if (business == null) return;
+
+    emit(
+      state.copyWith(
+        status: BusinessSettingsStatus.ready,
+        business: business.copyWith(
+          openingTime: openingTime,
+          closingTime: closingTime,
+          availableNow: availableNow,
+          hasPhysicalLocation: hasPhysicalLocation,
+          requiresElectricity: requiresElectricity,
+          hasElectricService: hasElectricService,
+          hasElectricBackup: hasElectricBackup,
+          electricBackupType: electricBackupType,
+          electricBlock: electricBlock,
+          electricCircuit: electricCircuit,
+        ),
+      ),
+    );
+  }
+
   Future<void> save() async {
     final customization = state.customization;
     if (customization == null) return;
@@ -121,6 +157,22 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
         data: {
           'logo_url': business.logoUrl,
           'banner_url': business.bannerUrl,
+          'horario_apertura': _blankToNull(business.openingTime),
+          'horario_cierre': _blankToNull(business.closingTime),
+          'disponible_ahora': business.availableNow,
+          'tiene_local_fisico': business.hasPhysicalLocation,
+          'requiere_electricidad': business.requiresElectricity,
+          'tiene_fluido_electrico': business.hasElectricService,
+          'tiene_respaldo_electrico': business.hasElectricBackup,
+          'tipo_respaldo_electrico': business.hasElectricBackup
+              ? _blankToNull(business.electricBackupType)
+              : null,
+          'bloque_electrico': business.requiresElectricity
+              ? _blankToNull(business.electricBlock)
+              : null,
+          'circuito_electrico': business.requiresElectricity
+              ? _blankToNull(business.electricCircuit)
+              : null,
           'colores': {
             'primario': customization.primaryColor,
             'secundario': customization.secondaryColor,
@@ -152,5 +204,10 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
       ),
     );
     await load();
+  }
+
+  String? _blankToNull(String? value) {
+    final trimmed = value?.trim();
+    return trimmed == null || trimmed.isEmpty ? null : trimmed;
   }
 }

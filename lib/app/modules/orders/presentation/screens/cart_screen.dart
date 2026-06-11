@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../blocs/cart/cart_cubit.dart';
 import '../../blocs/cart/cart_state.dart';
@@ -28,6 +29,9 @@ class _CartViewState extends State<_CartView> {
   final _phoneController = TextEditingController();
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
+  final _deliveryAddressController = TextEditingController();
+  bool _requestDelivery = false;
+  bool _prefilled = false;
 
   @override
   void dispose() {
@@ -35,7 +39,20 @@ class _CartViewState extends State<_CartView> {
     _phoneController.dispose();
     _emailController.dispose();
     _messageController.dispose();
+    _deliveryAddressController.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_prefilled) return;
+    final session = context.read<AppSessionCubit>().state;
+    if (session.status == AppSessionStatus.authenticated &&
+        session.email?.isNotEmpty == true) {
+      _emailController.text = session.email!;
+      _prefilled = true;
+    }
   }
 
   @override
@@ -72,6 +89,10 @@ class _CartViewState extends State<_CartView> {
                   phoneController: _phoneController,
                   emailController: _emailController,
                   messageController: _messageController,
+                  deliveryAddressController: _deliveryAddressController,
+                  requestDelivery: _requestDelivery,
+                  onRequestDeliveryChanged: (value) =>
+                      setState(() => _requestDelivery = value),
                 ),
                 const SizedBox(height: 18),
                 Card(
@@ -133,6 +154,10 @@ class _CartViewState extends State<_CartView> {
       message: _messageController.text.trim().isEmpty
           ? null
           : _messageController.text.trim(),
+      deliveryAddress: _deliveryAddressController.text.trim().isEmpty
+          ? null
+          : _deliveryAddressController.text.trim(),
+      requestDelivery: _requestDelivery,
     );
   }
 }
@@ -174,16 +199,21 @@ class _CartItemTile extends StatelessWidget {
               ),
             ),
             IconButton(
-              onPressed: () => context
-                  .read<CartCubit>()
-                  .updateQuantity(item.product.id, item.quantity - 1),
+              onPressed: () => context.read<CartCubit>().updateQuantity(
+                item.product.id,
+                item.quantity - 1,
+              ),
               icon: const Icon(Icons.remove_circle_outline),
             ),
-            Text('${item.quantity}', style: const TextStyle(fontWeight: FontWeight.w900)),
+            Text(
+              '${item.quantity}',
+              style: const TextStyle(fontWeight: FontWeight.w900),
+            ),
             IconButton(
-              onPressed: () => context
-                  .read<CartCubit>()
-                  .updateQuantity(item.product.id, item.quantity + 1),
+              onPressed: () => context.read<CartCubit>().updateQuantity(
+                item.product.id,
+                item.quantity + 1,
+              ),
               icon: const Icon(Icons.add_circle_outline),
             ),
           ],
@@ -200,6 +230,9 @@ class _ContactForm extends StatelessWidget {
     required this.phoneController,
     required this.emailController,
     required this.messageController,
+    required this.deliveryAddressController,
+    required this.requestDelivery,
+    required this.onRequestDeliveryChanged,
   });
 
   final GlobalKey<FormState> formKey;
@@ -207,6 +240,9 @@ class _ContactForm extends StatelessWidget {
   final TextEditingController phoneController;
   final TextEditingController emailController;
   final TextEditingController messageController;
+  final TextEditingController deliveryAddressController;
+  final bool requestDelivery;
+  final ValueChanged<bool> onRequestDeliveryChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -220,9 +256,9 @@ class _ContactForm extends StatelessWidget {
             children: [
               Text(
                 'Datos de contacto',
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 14),
               TextFormField(
@@ -252,6 +288,40 @@ class _ContactForm extends StatelessWidget {
                   labelText: 'Mensaje para el negocio',
                 ),
               ),
+              const SizedBox(height: 12),
+              SwitchListTile.adaptive(
+                contentPadding: EdgeInsets.zero,
+                value: requestDelivery,
+                onChanged: onRequestDeliveryChanged,
+                title: const Text('Solicitar delivery o transporte'),
+                subtitle: const Text(
+                  'El negocio recibira la direccion y podra coordinar entrega.',
+                ),
+              ),
+              if (requestDelivery) ...[
+                const SizedBox(height: 8),
+                TextFormField(
+                  controller: deliveryAddressController,
+                  minLines: 2,
+                  maxLines: 3,
+                  decoration: const InputDecoration(
+                    labelText: 'Direccion de entrega',
+                    hintText: 'Escribe tu direccion o una referencia cercana',
+                    prefixIcon: Icon(Icons.location_on_outlined),
+                  ),
+                  validator: (value) {
+                    if (!requestDelivery) return null;
+                    return value == null || value.trim().isEmpty
+                        ? 'Agrega la direccion de entrega'
+                        : null;
+                  },
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'Pendiente: selector de mapa y transportistas disponibles.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
             ],
           ),
         ),

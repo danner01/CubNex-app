@@ -64,7 +64,9 @@ class _ProductDetailView extends StatelessWidget {
 
           if (state.status == ProductDetailStatus.failure ||
               state.product == null) {
-            return _ErrorView(message: state.errorMessage ?? 'Producto no disponible.');
+            return _ErrorView(
+              message: state.errorMessage ?? 'Producto no disponible.',
+            );
           }
 
           final product = state.product!;
@@ -84,10 +86,11 @@ class _ProductDetailView extends StatelessWidget {
                       Expanded(
                         child: Text(
                           price,
-                          style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            color: Theme.of(context).colorScheme.secondary,
-                            fontWeight: FontWeight.w900,
-                          ),
+                          style: Theme.of(context).textTheme.headlineSmall
+                              ?.copyWith(
+                                color: Theme.of(context).colorScheme.secondary,
+                                fontWeight: FontWeight.w900,
+                              ),
                         ),
                       ),
                       IconButton.filledTonal(
@@ -122,19 +125,48 @@ class _ProductDetailView extends StatelessWidget {
                     ),
                   ],
                   const SizedBox(height: 18),
+                  Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _ProductBadge(
+                        icon: Icons.inventory_2_outlined,
+                        label: product.stock == null
+                            ? 'Stock a confirmar'
+                            : '${product.stock} disponibles',
+                      ),
+                      _ProductBadge(
+                        icon: product.canBuy
+                            ? Icons.check_circle_outline_rounded
+                            : Icons.pause_circle_outline_rounded,
+                        label: product.canBuy
+                            ? 'Disponible para compra'
+                            : 'No disponible para compra',
+                      ),
+                      if (product.sku?.isNotEmpty == true)
+                        _ProductBadge(
+                          icon: Icons.tag_rounded,
+                          label: 'SKU ${product.sku}',
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 18),
                   _InfoCard(
                     icon: Icons.local_shipping_outlined,
                     title: 'Entrega y cobertura',
-                    subtitle: 'Consulta disponibilidad, entrega o recogida con el negocio.',
+                    subtitle:
+                        'Consulta disponibilidad, entrega o recogida con el negocio.',
                   ),
                   const SizedBox(height: 12),
                   _InfoCard(
                     icon: Icons.verified_outlined,
                     title: 'Vendedor verificado',
-                    subtitle: 'Abre la tienda para ver mas productos, reseñas y contacto.',
+                    subtitle:
+                        'Abre la tienda para ver mas productos, reseñas y contacto.',
                     onTap: product.businessId == null
                         ? null
-                        : () => context.go(AppRoutes.store(product.businessId!)),
+                        : () =>
+                              context.go(AppRoutes.store(product.businessId!)),
                   ),
                   const SizedBox(height: 20),
                   Text(
@@ -148,7 +180,9 @@ class _ProductDetailView extends StatelessWidget {
                     product.description?.isNotEmpty == true
                         ? product.description!
                         : 'Este producto esta disponible en CubNex. Contacta al negocio para confirmar detalles, stock y entrega.',
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(height: 1.5),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.bodyMedium?.copyWith(height: 1.5),
                   ),
                 ],
               ),
@@ -161,10 +195,12 @@ class _ProductDetailView extends StatelessWidget {
                   child: Row(
                     children: [
                       Expanded(
-                        child: OutlinedButton.icon(
+                        child: FilledButton.tonalIcon(
                           onPressed: product.businessId == null
                               ? null
-                              : () => context.go(AppRoutes.store(product.businessId!)),
+                              : () => context.go(
+                                  AppRoutes.store(product.businessId!),
+                                ),
                           icon: const Icon(Icons.storefront_rounded),
                           label: const Text('Tienda'),
                         ),
@@ -172,14 +208,18 @@ class _ProductDetailView extends StatelessWidget {
                       const SizedBox(width: 10),
                       Expanded(
                         child: FilledButton.icon(
-                          onPressed: () {
-                            context.read<CartCubit>().addProduct(product);
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
-                                content: Text('Producto agregado al carrito.'),
-                              ),
-                            );
-                          },
+                          onPressed: product.canBuy
+                              ? () {
+                                  context.read<CartCubit>().addProduct(product);
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    const SnackBar(
+                                      content: Text(
+                                        'Producto agregado al carrito.',
+                                      ),
+                                    ),
+                                  );
+                                }
+                              : null,
                           icon: const Icon(Icons.shopping_cart_outlined),
                           label: const Text('Agregar'),
                         ),
@@ -239,6 +279,41 @@ class _ProductImage extends StatelessWidget {
   }
 }
 
+class _ProductBadge extends StatelessWidget {
+  const _ProductBadge({required this.icon, required this.label});
+
+  final IconData icon;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Theme.of(context).colorScheme.outline.withValues(alpha: 0.22),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              icon,
+              size: 16,
+              color: Theme.of(context).colorScheme.secondary,
+            ),
+            const SizedBox(width: 6),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w800)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoCard extends StatelessWidget {
   const _InfoCard({
     required this.icon,
@@ -259,7 +334,9 @@ class _InfoCard extends StatelessWidget {
         leading: Icon(icon, color: Theme.of(context).colorScheme.secondary),
         title: Text(title, style: const TextStyle(fontWeight: FontWeight.w900)),
         subtitle: Text(subtitle),
-        trailing: onTap == null ? null : const Icon(Icons.chevron_right_rounded),
+        trailing: onTap == null
+            ? null
+            : const Icon(Icons.chevron_right_rounded),
         onTap: onTap,
       ),
     );

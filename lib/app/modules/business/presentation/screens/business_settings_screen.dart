@@ -70,6 +70,8 @@ class _BusinessSettingsView extends StatelessWidget {
                 const SizedBox(height: 12),
                 _BrandAssetsSection(business: state.business, saving: saving),
                 const SizedBox(height: 12),
+                _OperationsSection(business: state.business, saving: saving),
+                const SizedBox(height: 12),
                 _PaletteSection(customization: customization),
                 const SizedBox(height: 12),
                 _ColorFineTuneSection(
@@ -164,7 +166,9 @@ class _StorePreview extends StatelessWidget {
                 borderRadius: BorderRadius.circular(
                   customization.cardRadius.toDouble(),
                 ),
-                border: Border.all(color: brand.primary.withValues(alpha: 0.45)),
+                border: Border.all(
+                  color: brand.primary.withValues(alpha: 0.45),
+                ),
               ),
               child: Center(
                 child: Text(
@@ -180,6 +184,211 @@ class _StorePreview extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class _OperationsSection extends StatelessWidget {
+  const _OperationsSection({required this.business, required this.saving});
+
+  final BusinessModel? business;
+  final bool saving;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = !saving && business != null;
+    final item = business;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Operacion y electricidad',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Actualiza disponibilidad, horario y estado electrico visible para clientes en tiempo real.',
+            ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: TextFormField(
+                    initialValue: item?.openingTime ?? '',
+                    enabled: enabled,
+                    decoration: const InputDecoration(
+                      labelText: 'Apertura',
+                      hintText: '08:00',
+                      prefixIcon: Icon(Icons.schedule_outlined),
+                    ),
+                    onChanged: (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(openingTime: value.trim()),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: TextFormField(
+                    initialValue: item?.closingTime ?? '',
+                    enabled: enabled,
+                    decoration: const InputDecoration(
+                      labelText: 'Cierre',
+                      hintText: '18:00',
+                      prefixIcon: Icon(Icons.schedule),
+                    ),
+                    onChanged: (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(closingTime: value.trim()),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: item?.availableNow ?? true,
+              title: const Text('Disponible ahora'),
+              subtitle: const Text('Aparece abierto o atendiendo en la app.'),
+              onChanged: enabled
+                  ? (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(availableNow: value)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: item?.hasPhysicalLocation ?? true,
+              title: const Text('Tiene local fisico'),
+              subtitle: const Text(
+                'Tiendas, salones, restaurantes y oficinas.',
+              ),
+              onChanged: enabled
+                  ? (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(hasPhysicalLocation: value)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: item?.requiresElectricity ?? false,
+              title: const Text('Requiere electricidad para operar'),
+              subtitle: const Text(
+                'Activa datos de circuito y estado electrico.',
+              ),
+              onChanged: enabled
+                  ? (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(requiresElectricity: value)
+                  : null,
+            ),
+            if (item?.requiresElectricity ?? false) ...[
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: item?.hasElectricService ?? true,
+                title: const Text('Tiene fluido electrico'),
+                subtitle: const Text('Interruptor rapido para apagones.'),
+                onChanged: enabled
+                    ? (value) => context
+                          .read<BusinessSettingsCubit>()
+                          .updateBusinessOperations(hasElectricService: value)
+                    : null,
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: item?.hasElectricBackup ?? false,
+                title: const Text('Tiene respaldo electrico'),
+                subtitle: const Text('Paneles, planta, baterias u otra via.'),
+                onChanged: enabled
+                    ? (value) => context
+                          .read<BusinessSettingsCubit>()
+                          .updateBusinessOperations(hasElectricBackup: value)
+                    : null,
+              ),
+              if (item?.hasElectricBackup ?? false) ...[
+                const SizedBox(height: 8),
+                DropdownButtonFormField<String>(
+                  initialValue: _validBackupType(item?.electricBackupType),
+                  decoration: const InputDecoration(
+                    labelText: 'Tipo de respaldo',
+                    prefixIcon: Icon(Icons.bolt_outlined),
+                  ),
+                  items: const [
+                    DropdownMenuItem(
+                      value: 'paneles_solares',
+                      child: Text('Paneles solares'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'planta_electrica',
+                      child: Text('Planta electrica'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'baterias_inversor',
+                      child: Text('Baterias / inversor'),
+                    ),
+                    DropdownMenuItem(
+                      value: 'otra_via',
+                      child: Text('Otra via'),
+                    ),
+                  ],
+                  onChanged: enabled
+                      ? (value) => context
+                            .read<BusinessSettingsCubit>()
+                            .updateBusinessOperations(electricBackupType: value)
+                      : null,
+                ),
+              ],
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: item?.electricBlock ?? '',
+                      enabled: enabled,
+                      decoration: const InputDecoration(
+                        labelText: 'Bloque electrico',
+                      ),
+                      onChanged: (value) => context
+                          .read<BusinessSettingsCubit>()
+                          .updateBusinessOperations(
+                            electricBlock: value.trim(),
+                          ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: TextFormField(
+                      initialValue: item?.electricCircuit ?? '',
+                      enabled: enabled,
+                      decoration: const InputDecoration(labelText: 'Circuito'),
+                      onChanged: (value) => context
+                          .read<BusinessSettingsCubit>()
+                          .updateBusinessOperations(
+                            electricCircuit: value.trim(),
+                          ),
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  String? _validBackupType(String? value) {
+    const valid = {
+      'paneles_solares',
+      'planta_electrica',
+      'baterias_inversor',
+      'otra_via',
+    };
+    return valid.contains(value) ? value : null;
   }
 }
 
@@ -199,9 +408,9 @@ class _BrandAssetsSection extends StatelessWidget {
           children: [
             Text(
               'Identidad visual',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -255,9 +464,9 @@ class _PaletteSection extends StatelessWidget {
           children: [
             Text(
               'Paletas rapidas',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -336,9 +545,9 @@ class _ColorFineTuneSection extends StatelessWidget {
           children: [
             Text(
               'Colores editables',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             const Text(
@@ -349,10 +558,8 @@ class _ColorFineTuneSection extends StatelessWidget {
               label: 'Principal',
               value: customization.primaryColor,
               enabled: !saving,
-              onChanged: (value) => _update(
-                context,
-                customization.copyWith(primaryColor: value),
-              ),
+              onChanged: (value) =>
+                  _update(context, customization.copyWith(primaryColor: value)),
             ),
             _HexColorField(
               label: 'Secundario',
@@ -367,10 +574,8 @@ class _ColorFineTuneSection extends StatelessWidget {
               label: 'Acento',
               value: customization.accentColor,
               enabled: !saving,
-              onChanged: (value) => _update(
-                context,
-                customization.copyWith(accentColor: value),
-              ),
+              onChanged: (value) =>
+                  _update(context, customization.copyWith(accentColor: value)),
             ),
             _HexColorField(
               label: 'Fondo',
@@ -508,9 +713,9 @@ class _LayoutSection extends StatelessWidget {
           children: [
             Text(
               'Tarjetas y layout',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(

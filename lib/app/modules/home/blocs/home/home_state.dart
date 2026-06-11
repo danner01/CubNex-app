@@ -13,6 +13,12 @@ class HomeState extends Equatable {
     this.businesses = const [],
     this.products = const [],
     this.errorMessage,
+    this.loadingMoreBusinesses = false,
+    this.loadingMoreProducts = false,
+    this.hasMoreBusinesses = true,
+    this.hasMoreProducts = true,
+    this.businessOffset = 0,
+    this.productOffset = 0,
   });
 
   final HomeStatus status;
@@ -20,6 +26,12 @@ class HomeState extends Equatable {
   final List<BusinessModel> businesses;
   final List<ProductModel> products;
   final String? errorMessage;
+  final bool loadingMoreBusinesses;
+  final bool loadingMoreProducts;
+  final bool hasMoreBusinesses;
+  final bool hasMoreProducts;
+  final int businessOffset;
+  final int productOffset;
 
   HomeState copyWith({
     HomeStatus? status,
@@ -27,6 +39,12 @@ class HomeState extends Equatable {
     List<BusinessModel>? businesses,
     List<ProductModel>? products,
     String? errorMessage,
+    bool? loadingMoreBusinesses,
+    bool? loadingMoreProducts,
+    bool? hasMoreBusinesses,
+    bool? hasMoreProducts,
+    int? businessOffset,
+    int? productOffset,
   }) {
     return HomeState(
       status: status ?? this.status,
@@ -34,6 +52,13 @@ class HomeState extends Equatable {
       businesses: businesses ?? this.businesses,
       products: products ?? this.products,
       errorMessage: errorMessage,
+      loadingMoreBusinesses:
+          loadingMoreBusinesses ?? this.loadingMoreBusinesses,
+      loadingMoreProducts: loadingMoreProducts ?? this.loadingMoreProducts,
+      hasMoreBusinesses: hasMoreBusinesses ?? this.hasMoreBusinesses,
+      hasMoreProducts: hasMoreProducts ?? this.hasMoreProducts,
+      businessOffset: businessOffset ?? this.businessOffset,
+      productOffset: productOffset ?? this.productOffset,
     );
   }
 
@@ -44,5 +69,11 @@ class HomeState extends Equatable {
     businesses,
     products,
     errorMessage,
+    loadingMoreBusinesses,
+    loadingMoreProducts,
+    hasMoreBusinesses,
+    hasMoreProducts,
+    businessOffset,
+    productOffset,
   ];
 }
