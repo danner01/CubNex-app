@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../common/blocs/app_session/app_session_cubit.dart';
 import '../../common/blocs/app_theme/app_theme_cubit.dart';
+import '../../common/blocs/active_business/active_business_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/push_notification_service.dart';
@@ -98,6 +99,9 @@ Future<void> configureDependencies() async {
     )
     ..registerLazySingleton(
       () => RoleModeCubit(sharedPreferences: sl()),
+    )
+    ..registerLazySingleton(
+      () => ActiveBusinessCubit(apiClient: sl(), sharedPreferences: sl()),
     )
     ..registerFactory(() => MapCubit(apiClient: sl()))
     ..registerFactory(() => HomeCubit(apiClient: sl()))
