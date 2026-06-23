@@ -61,8 +61,23 @@ class _EngagementListener extends StatelessWidget {
   }
 }
 
-class _BusinessDetailView extends StatelessWidget {
+class _BusinessDetailView extends StatefulWidget {
   const _BusinessDetailView();
+
+  @override
+  State<_BusinessDetailView> createState() => _BusinessDetailViewState();
+}
+
+class _BusinessDetailViewState extends State<_BusinessDetailView> {
+  final _searchController = TextEditingController();
+  String _query = '';
+  String _category = 'todas';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -111,6 +126,22 @@ class _BusinessDetailView extends StatelessWidget {
             : business.isServiceLike
             ? 'Servicios'
             : 'Productos de la tienda';
+        final categories = _productCategories(state.products);
+        final filteredProducts = state.products.where((product) {
+          final text = [
+            product.name,
+            product.brand,
+            product.description,
+            product.features['categoria'],
+            product.features['categoria_sugerida'],
+          ].whereType<Object>().join(' ').toLowerCase();
+          final matchesQuery = _query.trim().isEmpty ||
+              text.contains(_query.trim().toLowerCase());
+          final categoryValue = _categoryForProduct(product);
+          final matchesCategory =
+              _category == 'todas' || categoryValue == _category;
+          return matchesQuery && matchesCategory;
+        }).toList();
 
         return Theme(
           data: brand.applyTo(Theme.of(context)),
@@ -190,6 +221,50 @@ class _BusinessDetailView extends StatelessWidget {
                     const SizedBox(height: 22),
                     SectionHeader(title: catalogTitle),
                     const SizedBox(height: 10),
+                    TextField(
+                      controller: _searchController,
+                      onChanged: (value) => setState(() => _query = value),
+                      decoration: InputDecoration(
+                        hintText: business.isServiceLike
+                            ? 'Buscar servicios dentro del negocio'
+                            : 'Buscar productos dentro de la tienda',
+                        prefixIcon: const Icon(Icons.search_rounded),
+                        suffixIcon: _query.isEmpty
+                            ? null
+                            : IconButton(
+                                tooltip: 'Limpiar',
+                                onPressed: () {
+                                  _searchController.clear();
+                                  setState(() => _query = '');
+                                },
+                                icon: const Icon(Icons.close_rounded),
+                              ),
+                      ),
+                    ),
+                    if (categories.length > 1) ...[
+                      const SizedBox(height: 10),
+                      SingleChildScrollView(
+                        scrollDirection: Axis.horizontal,
+                        child: Row(
+                          children: categories
+                              .map(
+                                (category) => Padding(
+                                  padding: const EdgeInsets.only(right: 8),
+                                  child: ChoiceChip(
+                                    label: Text(category == 'todas'
+                                        ? 'Todas'
+                                        : category),
+                                    selected: _category == category,
+                                    onSelected: (_) =>
+                                        setState(() => _category = category),
+                                  ),
+                                ),
+                              )
+                              .toList(),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () => context
                           .read<EngagementCubit>()
@@ -200,16 +275,18 @@ class _BusinessDetailView extends StatelessWidget {
                     const SizedBox(height: 12),
                     if (state.products.isEmpty)
                       _EmptyProducts(label: catalogTitle)
+                    else if (filteredProducts.isEmpty)
+                      _EmptyProducts(label: 'No hay resultados para ese filtro')
                     else
                       SizedBox(
                         height: 238,
                         child: ListView.separated(
                           scrollDirection: Axis.horizontal,
-                          itemCount: state.products.length,
+                          itemCount: filteredProducts.length,
                           separatorBuilder: (_, __) =>
                               const SizedBox(width: 12),
                           itemBuilder: (context, index) {
-                            final product = state.products[index];
+                            final product = filteredProducts[index];
                             return ProductPreviewCard(
                               name: product.name,
                               brand: product.brand,
@@ -257,6 +334,24 @@ class _BusinessDetailView extends StatelessWidget {
         );
       },
     );
+  }
+
+  List<String> _productCategories(List<dynamic> products) {
+    final values = <String>{'todas'};
+    for (final product in products) {
+      final category = _categoryForProduct(product);
+      if (category.isNotEmpty) values.add(category);
+    }
+    return values.toList();
+  }
+
+  String _categoryForProduct(dynamic product) {
+    final features = product.features as Map<String, dynamic>;
+    final raw = features['categoria'] ??
+        features['categoria_sugerida'] ??
+        features['departamento'] ??
+        product.brand;
+    return raw?.toString().trim() ?? '';
   }
 
   Future<void> _shareBusiness(BuildContext context) async {
@@ -678,8 +773,8 @@ class _OperationalInfoCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final schedule = [
-      business.openingTime,
-      business.closingTime,
+      _formatTime(business.openingTime),
+      _formatTime(business.closingTime),
     ].where((value) => value != null && value.isNotEmpty).join(' - ');
     final location = [
       business.address,
@@ -757,6 +852,14 @@ class _OperationalInfoCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  String? _formatTime(String? value) {
+    if (value == null || value.trim().isEmpty) return null;
+    final trimmed = value.trim();
+    final match = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?$').firstMatch(trimmed);
+    if (match == null) return trimmed;
+    return '${match.group(1)!.padLeft(2, '0')}:${match.group(2)}';
   }
 }
 

@@ -24,7 +24,13 @@ class ProductDetailScreen extends StatelessWidget {
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => sl<ProductDetailCubit>()..load(productId)),
-        BlocProvider(create: (_) => sl<EngagementCubit>()),
+        BlocProvider(
+          create: (_) => sl<EngagementCubit>()
+            ..loadFavoriteState(
+              tipoEntidad: 'producto',
+              entidadId: productId,
+            ),
+        ),
       ],
       child: const _EngagementListener(child: _ProductDetailView()),
     );
@@ -79,7 +85,14 @@ class _ProductDetailView extends StatelessWidget {
               ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 112),
                 children: [
-                  _ProductImage(imageUrl: product.imageUrl),
+                  _ProductImageCarousel(
+                    imageUrls: product.imageUrls.isNotEmpty
+                        ? product.imageUrls
+                        : [
+                            if (product.imageUrl?.isNotEmpty == true)
+                              product.imageUrl!,
+                          ],
+                  ),
                   const SizedBox(height: 18),
                   Row(
                     children: [
@@ -93,11 +106,22 @@ class _ProductDetailView extends StatelessWidget {
                               ),
                         ),
                       ),
-                      IconButton.filledTonal(
-                        onPressed: () => context
-                            .read<EngagementCubit>()
-                            .favoriteProduct(product.id),
-                        icon: const Icon(Icons.favorite_border_rounded),
+                      BlocBuilder<EngagementCubit, EngagementState>(
+                        builder: (context, engagement) {
+                          return IconButton.filledTonal(
+                            onPressed: () => context
+                                .read<EngagementCubit>()
+                                .favoriteProduct(product.id),
+                            icon: Icon(
+                              engagement.isFavorite
+                                  ? Icons.favorite_rounded
+                                  : Icons.favorite_border_rounded,
+                              color: engagement.isFavorite
+                                  ? AppColors.goldDark
+                                  : null,
+                            ),
+                          );
+                        },
                       ),
                       const SizedBox(width: 8),
                       IconButton.filledTonal(
@@ -250,31 +274,71 @@ class _ProductDetailView extends StatelessWidget {
   }
 }
 
-class _ProductImage extends StatelessWidget {
-  const _ProductImage({this.imageUrl});
+class _ProductImageCarousel extends StatefulWidget {
+  const _ProductImageCarousel({required this.imageUrls});
 
-  final String? imageUrl;
+  final List<String> imageUrls;
+
+  @override
+  State<_ProductImageCarousel> createState() => _ProductImageCarouselState();
+}
+
+class _ProductImageCarouselState extends State<_ProductImageCarousel> {
+  int _index = 0;
 
   @override
   Widget build(BuildContext context) {
+    final images = widget.imageUrls;
     return AspectRatio(
       aspectRatio: 1,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(28),
-        child: Container(
-          color: Theme.of(context).brightness == Brightness.dark
-              ? AppColors.darkSurfaceVariant
-              : AppColors.lightSurfaceVariant,
-          child: imageUrl != null && imageUrl!.isNotEmpty
-              ? CachedNetworkImage(
-                  imageUrl: imageUrl!,
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) =>
-                      const Icon(Icons.inventory_2_outlined, size: 56),
-                )
-              : const Icon(Icons.inventory_2_outlined, size: 56),
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(28),
+            child: Container(
+              color: Theme.of(context).brightness == Brightness.dark
+                  ? AppColors.darkSurfaceVariant
+                  : AppColors.lightSurfaceVariant,
+              child: images.isNotEmpty
+                  ? PageView.builder(
+                      itemCount: images.length,
+                      onPageChanged: (index) => setState(() => _index = index),
+                      itemBuilder: (context, index) => CachedNetworkImage(
+                        imageUrl: images[index],
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            const Icon(Icons.inventory_2_outlined, size: 56),
+                      ),
+                    )
+                  : const Center(child: Icon(Icons.inventory_2_outlined, size: 56)),
+            ),
+          ),
+          if (images.length > 1)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 14,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: List.generate(
+                  images.length,
+                  (index) => AnimatedContainer(
+                    duration: const Duration(milliseconds: 180),
+                    width: index == _index ? 18 : 7,
+                    height: 7,
+                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                    decoration: BoxDecoration(
+                      color: index == _index
+                          ? Theme.of(context).colorScheme.secondary
+                          : Colors.white70,
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
         ),
-      ),
     );
   }
 }

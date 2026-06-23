@@ -16,6 +16,7 @@ class CartCubit extends Cubit<CartState> {
   final ApiClient _apiClient;
   final Box<dynamic> _cartBox;
   bool _restored = false;
+  static const _deliveryModesKey = '__delivery_modes__';
 
   void restore() {
     if (_restored) return;
@@ -26,9 +27,21 @@ class CartCubit extends Cubit<CartState> {
         .map((item) => CartItemModel.fromJson(Map<String, dynamic>.from(item)))
         .where((item) => item.product.id.isNotEmpty)
         .toList();
+    final deliveryModesRaw = _cartBox.get(_deliveryModesKey);
+    final deliveryModes = deliveryModesRaw is Map
+        ? deliveryModesRaw.map(
+            (key, value) => MapEntry(key.toString(), value == true),
+          )
+        : <String, bool>{};
 
     if (items.isNotEmpty) {
-      emit(state.copyWith(items: items, status: CartStatus.initial));
+      emit(
+        state.copyWith(
+          items: items,
+          deliveryByBusiness: deliveryModes,
+          status: CartStatus.initial,
+        ),
+      );
     }
   }
 
@@ -45,10 +58,7 @@ class CartCubit extends Cubit<CartState> {
       return;
     }
 
-    final next = [
-      ...state.items,
-      CartItemModel(product: product),
-    ];
+    final next = [...state.items, CartItemModel(product: product)];
     emit(state.copyWith(items: next, status: CartStatus.initial));
     _persist(next);
   }
@@ -57,12 +67,7 @@ class CartCubit extends Cubit<CartState> {
     final next = state.items
         .where((item) => item.product.id != productId)
         .toList();
-    emit(
-      state.copyWith(
-        items: next,
-        status: CartStatus.initial,
-      ),
-    );
+    emit(state.copyWith(items: next, status: CartStatus.initial));
     _persist(next);
   }
 
@@ -83,13 +88,19 @@ class CartCubit extends Cubit<CartState> {
     _persist(next);
   }
 
+  void setDeliveryForBusiness(String businessId, bool requestDelivery) {
+    final next = {...state.deliveryByBusiness, businessId: requestDelivery};
+    emit(state.copyWith(deliveryByBusiness: next, status: CartStatus.initial));
+    _persist(state.items, deliveryByBusiness: next);
+  }
+
   Future<void> submit({
     required String contactName,
     String? phone,
     String? email,
     String? message,
     String? deliveryAddress,
-    bool requestDelivery = false,
+    String? discountCode,
   }) async {
     if (state.items.isEmpty) {
       emit(
@@ -131,7 +142,8 @@ class CartCubit extends Cubit<CartState> {
         email: email,
         message: message,
         deliveryAddress: deliveryAddress,
-        requestDelivery: requestDelivery,
+        discountCode: discountCode,
+        requestDelivery: state.deliveryByBusiness[entry.key] ?? false,
       );
 
       if (!result.isSuccess) {
@@ -143,7 +155,8 @@ class CartCubit extends Cubit<CartState> {
             email: email,
             message: message,
             deliveryAddress: deliveryAddress,
-            requestDelivery: requestDelivery,
+            discountCode: discountCode,
+            requestDelivery: state.deliveryByBusiness[entry.key] ?? false,
           );
           if (fallback) continue;
         }
@@ -180,6 +193,7 @@ class CartCubit extends Cubit<CartState> {
     String? email,
     String? message,
     String? deliveryAddress,
+    String? discountCode,
     required bool requestDelivery,
   }) {
     final total = items.fold<double>(0, (sum, item) => sum + item.subtotal);
@@ -200,6 +214,10 @@ class CartCubit extends Cubit<CartState> {
         'solicita_delivery': requestDelivery,
         'direccion_entrega': deliveryAddress,
         'origen': 'apk',
+        'metadata': {
+          if (discountCode?.trim().isNotEmpty == true)
+            'codigo_descuento': discountCode!.trim(),
+        },
         'items': items
             .map(
               (item) => {
@@ -226,6 +244,7 @@ class CartCubit extends Cubit<CartState> {
     String? email,
     String? message,
     String? deliveryAddress,
+    String? discountCode,
     required bool requestDelivery,
   }) async {
     for (final item in items) {
@@ -235,7 +254,9 @@ class CartCubit extends Cubit<CartState> {
           'negocio_id': item.product.businessId,
           'producto_id': item.product.id,
           'tipo': 'producto',
-          'estado': requestDelivery ? 'reservado_delivery' : 'reservado_recogida',
+          'estado': requestDelivery
+              ? 'reservado_delivery'
+              : 'reservado_recogida',
           'nombre_contacto': contactName,
           'telefono': phone,
           'email': email,
@@ -249,6 +270,8 @@ class CartCubit extends Cubit<CartState> {
             'marca': item.product.brand,
             'solicita_delivery': requestDelivery,
             'direccion_entrega': deliveryAddress,
+            if (discountCode?.trim().isNotEmpty == true)
+              'codigo_descuento': discountCode!.trim(),
           },
         },
         parser: (_) => true,
@@ -262,10 +285,17 @@ class CartCubit extends Cubit<CartState> {
     return statusCode == 404 || statusCode == 501 || statusCode == 400;
   }
 
-  Future<void> _persist(List<CartItemModel> items) async {
+  Future<void> _persist(
+    List<CartItemModel> items, {
+    Map<String, bool>? deliveryByBusiness,
+  }) async {
     await _cartBox.clear();
     for (final item in items) {
       await _cartBox.put(item.product.id, item.toJson());
+    }
+    final modes = deliveryByBusiness ?? state.deliveryByBusiness;
+    if (modes.isNotEmpty) {
+      await _cartBox.put(_deliveryModesKey, modes);
     }
   }
 }

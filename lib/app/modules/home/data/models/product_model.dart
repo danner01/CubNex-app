@@ -6,6 +6,7 @@ class ProductModel {
     this.description,
     this.businessId,
     this.imageUrl,
+    this.imageUrls = const [],
     this.price,
     this.offerPrice,
     this.currency,
@@ -24,6 +25,7 @@ class ProductModel {
   final String? description;
   final String? businessId;
   final String? imageUrl;
+  final List<String> imageUrls;
   final double? price;
   final double? offerPrice;
   final String? currency;
@@ -53,6 +55,9 @@ class ProductModel {
       description: json['descripcion']?.toString(),
       businessId: json['negocio_id']?.toString(),
       imageUrl: firstImage,
+      imageUrls: images is List
+          ? images.map((item) => item?.toString() ?? '').where((item) => item.isNotEmpty).toList()
+          : const [],
       price: double.tryParse('${json['precio'] ?? ''}'),
       offerPrice: double.tryParse('${json['precio_oferta'] ?? ''}'),
       currency: json['moneda']?.toString(),
@@ -73,7 +78,11 @@ class ProductModel {
       'marca': brand,
       'descripcion': description,
       'negocio_id': businessId,
-      'imagenes': imageUrl == null ? <String>[] : [imageUrl],
+      'imagenes': imageUrls.isNotEmpty
+          ? imageUrls
+          : imageUrl == null
+              ? <String>[]
+              : [imageUrl],
       'precio': price,
       'precio_oferta': offerPrice,
       'moneda': currency,

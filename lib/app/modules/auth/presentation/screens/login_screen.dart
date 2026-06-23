@@ -608,6 +608,7 @@ class _DeliveryProfileFields extends StatelessWidget {
                 DropdownMenuItem(value: 'bicicleta', child: Text('Bicicleta')),
                 DropdownMenuItem(value: 'motorina', child: Text('Motorina')),
                 DropdownMenuItem(value: 'moto', child: Text('Moto')),
+                DropdownMenuItem(value: 'triciclo', child: Text('Triciclo')),
                 DropdownMenuItem(value: 'auto', child: Text('Auto')),
                 DropdownMenuItem(value: 'camioneta', child: Text('Camioneta')),
                 DropdownMenuItem(value: 'camion', child: Text('Camion')),

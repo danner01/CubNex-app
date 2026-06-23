@@ -45,7 +45,10 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         return const [];
@@ -57,7 +60,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         state.copyWith(
           status: BusinessInventoryStatus.failure,
           business: business,
-          message: productsResult.error?.message ?? 'No se pudo cargar inventario.',
+          message:
+              productsResult.error?.message ?? 'No se pudo cargar inventario.',
         ),
       );
       return;
@@ -79,6 +83,10 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     required double price,
     String currency = 'CUP',
     int? stock,
+    String? category,
+    List<String> imageUrls = const [],
+    bool inInventory = true,
+    bool purchasable = true,
   }) async {
     final business = state.business;
     if (business == null) {
@@ -103,13 +111,23 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         'precio': price,
         'moneda': currency,
         'stock': stock,
-        'disponible': true,
+        'imagenes': imageUrls.take(3).toList(),
+        'caracteristicas': {
+          if (category?.trim().isNotEmpty == true)
+            'categoria': category!.trim(),
+        },
+        'en_inventario': inInventory,
+        'comprable': purchasable,
+        'disponible': purchasable,
       },
       parser: (json) {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         return const [];
@@ -135,6 +153,94 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     );
   }
 
+  Future<void> updateProduct({
+    required ProductModel product,
+    required String name,
+    String? brand,
+    String? description,
+    required double price,
+    String currency = 'CUP',
+    int? stock,
+    String? category,
+    List<String> imageUrls = const [],
+    bool inInventory = true,
+    bool purchasable = true,
+  }) async {
+    emit(state.copyWith(status: BusinessInventoryStatus.saving));
+    final result = await _apiClient.put<List<ProductModel>>(
+      '/productos/${product.id}',
+      data: {
+        'nombre': name,
+        'marca': brand,
+        'descripcion': description,
+        'precio': price,
+        'moneda': currency,
+        'stock': stock,
+        'imagenes': imageUrls.take(3).toList(),
+        'caracteristicas': {
+          ...product.features,
+          if (category?.trim().isNotEmpty == true)
+            'categoria': category!.trim(),
+        },
+        'en_inventario': inInventory,
+        'comprable': purchasable,
+        'disponible': purchasable,
+      },
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList();
+        }
+        return const [];
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: BusinessInventoryStatus.failure,
+          message: result.error?.message ?? 'No se pudo editar el producto.',
+        ),
+      );
+      return;
+    }
+
+    await load();
+    emit(
+      state.copyWith(
+        status: BusinessInventoryStatus.success,
+        message: 'Producto actualizado.',
+      ),
+    );
+  }
+
+  Future<void> deleteProduct(ProductModel product) async {
+    emit(state.copyWith(status: BusinessInventoryStatus.saving));
+    final result = await _apiClient.delete<dynamic>('/productos/${product.id}');
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: BusinessInventoryStatus.failure,
+          message: result.error?.message ?? 'No se pudo eliminar el producto.',
+        ),
+      );
+      return;
+    }
+
+    await load();
+    emit(
+      state.copyWith(
+        status: BusinessInventoryStatus.success,
+        message: 'Producto eliminado.',
+      ),
+    );
+  }
+
   Future<ProductLabelDetection?> detectLabel(String imageBase64) async {
     emit(state.copyWith(status: BusinessInventoryStatus.saving));
     final result = await _apiClient.post<ProductLabelDetection>(
@@ -142,7 +248,9 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       data: {'imagen_base64': imageBase64, 'tipo_deteccion': 'ambos'},
       parser: (json) {
         if (json is Map) {
-          return ProductLabelDetection.fromJson(Map<String, dynamic>.from(json));
+          return ProductLabelDetection.fromJson(
+            Map<String, dynamic>.from(json),
+          );
         }
         return const ProductLabelDetection();
       },

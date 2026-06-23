@@ -105,6 +105,7 @@ class FavoritesCubit extends Cubit<FavoritesState> {
     return favorite.copyWith(
       title: _titleFrom(data),
       subtitle: _subtitleFrom(favorite.entityType, data),
+      imageUrl: _imageFrom(favorite.entityType, data),
     );
   }
 
@@ -152,5 +153,18 @@ class FavoritesCubit extends Cubit<FavoritesState> {
         ].where((value) => value != null && '$value'.isNotEmpty).join(' - '),
       _ => null,
     };
+  }
+
+  String? _imageFrom(String entityType, Map<String, dynamic> data) {
+    final images = data['imagenes'];
+    if (entityType == 'negocio') {
+      return data['banner_url']?.toString().isNotEmpty == true
+          ? data['banner_url']?.toString()
+          : data['logo_url']?.toString();
+    }
+    if (images is List && images.isNotEmpty) {
+      return images.first?.toString();
+    }
+    return data['imagen_url']?.toString() ?? data['logo_url']?.toString();
   }
 }

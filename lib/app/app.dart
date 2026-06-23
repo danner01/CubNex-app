@@ -29,6 +29,9 @@ class CubNexApp extends StatelessWidget {
         listenWhen: (previous, current) => previous.role != current.role,
         listener: (context, session) {
           context.read<RoleModeCubit>().syncWithRole(session.role);
+          if (session.status == AppSessionStatus.authenticated) {
+            sl<PushNotificationService>().init();
+          }
           if (session.role == UserRole.businessAdmin ||
               session.role == UserRole.superadmin) {
             context.read<ActiveBusinessCubit>().load();

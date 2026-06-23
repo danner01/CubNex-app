@@ -1,3 +1,4 @@
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -21,8 +22,15 @@ class FavoritesScreen extends StatelessWidget {
   }
 }
 
-class _FavoritesView extends StatelessWidget {
+class _FavoritesView extends StatefulWidget {
   const _FavoritesView();
+
+  @override
+  State<_FavoritesView> createState() => _FavoritesViewState();
+}
+
+class _FavoritesViewState extends State<_FavoritesView> {
+  String _filter = 'todos';
 
   @override
   Widget build(BuildContext context) {
@@ -53,6 +61,13 @@ class _FavoritesView extends StatelessWidget {
                 const SizedBox(height: 6),
                 const Text('Productos, negocios y servicios guardados.'),
                 const SizedBox(height: 18),
+                if (state.items.isNotEmpty) ...[
+                  _FavoriteFilters(
+                    selected: _filter,
+                    onChanged: (value) => setState(() => _filter = value),
+                  ),
+                  const SizedBox(height: 14),
+                ],
                 if (state.status == FavoritesStatus.failure)
                   _MessageCard(
                     icon: Icons.error_outline_rounded,
@@ -64,7 +79,7 @@ class _FavoritesView extends StatelessWidget {
                     message: 'Todavia no tienes favoritos guardados.',
                   )
                 else
-                  ...state.items.map(
+                  ...state.items.where(_matchesFilter).map(
                     (favorite) => _FavoriteTile(
                       favorite,
                       onDelete: () => context
@@ -76,6 +91,46 @@ class _FavoritesView extends StatelessWidget {
             ),
           );
         },
+      ),
+    );
+  }
+
+  bool _matchesFilter(FavoriteModel favorite) {
+    return _filter == 'todos' || favorite.entityType == _filter;
+  }
+}
+
+class _FavoriteFilters extends StatelessWidget {
+  const _FavoriteFilters({required this.selected, required this.onChanged});
+
+  final String selected;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    const options = [
+      ('todos', 'Todos'),
+      ('negocio', 'Negocios'),
+      ('producto', 'Productos'),
+      ('servicio', 'Delivery/servicios'),
+      ('propiedad', 'Propiedades'),
+    ];
+
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: Row(
+        children: options
+            .map(
+              (option) => Padding(
+                padding: const EdgeInsets.only(right: 8),
+                child: ChoiceChip(
+                  label: Text(option.$2),
+                  selected: selected == option.$1,
+                  onSelected: (_) => onChanged(option.$1),
+                ),
+              ),
+            )
+            .toList(),
       ),
     );
   }
@@ -106,27 +161,56 @@ class _FavoriteTile extends StatelessWidget {
       ),
       onDismissed: (_) => onDelete(),
       child: Card(
-        child: ListTile(
+        clipBehavior: Clip.antiAlias,
+        margin: const EdgeInsets.only(bottom: 12),
+        child: InkWell(
           onTap: () => _openFavorite(context),
-          leading: Icon(
-            _iconFor(favorite.entityType),
-            color: Theme.of(context).colorScheme.secondary,
-          ),
-          title: Text(
-            favorite.title?.isNotEmpty == true ? favorite.title! : favorite.label,
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-          subtitle: Text(
-            favorite.subtitle?.isNotEmpty == true
-                ? '${favorite.label} - ${favorite.subtitle}'
-                : '${favorite.label} - ID: ${favorite.entityId}',
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: IconButton(
-            tooltip: 'Eliminar',
-            onPressed: onDelete,
-            icon: const Icon(Icons.delete_outline_rounded),
+          child: Row(
+            children: [
+              SizedBox(
+                width: 112,
+                height: 104,
+                child: favorite.imageUrl?.isNotEmpty == true
+                    ? CachedNetworkImage(
+                        imageUrl: favorite.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            _FallbackFavoriteIcon(favorite.entityType),
+                      )
+                    : _FallbackFavoriteIcon(favorite.entityType),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        favorite.title?.isNotEmpty == true
+                            ? favorite.title!
+                            : favorite.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        favorite.subtitle?.isNotEmpty == true
+                            ? '${favorite.label} - ${favorite.subtitle}'
+                            : favorite.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              IconButton(
+                tooltip: 'Eliminar',
+                onPressed: onDelete,
+                icon: const Icon(Icons.delete_outline_rounded),
+              ),
+            ],
           ),
         ),
       ),
@@ -146,6 +230,24 @@ class _FavoriteTile extends StatelessWidget {
       default:
         return;
     }
+  }
+
+}
+
+class _FallbackFavoriteIcon extends StatelessWidget {
+  const _FallbackFavoriteIcon(this.type);
+
+  final String type;
+
+  @override
+  Widget build(BuildContext context) {
+    return ColoredBox(
+      color: Theme.of(context).colorScheme.secondaryContainer,
+      child: Icon(
+        _iconFor(type),
+        color: Theme.of(context).colorScheme.onSecondaryContainer,
+      ),
+    );
   }
 
   IconData _iconFor(String type) {

@@ -14,6 +14,33 @@ class EngagementCubit extends Cubit<EngagementState> {
     return _favorite(tipoEntidad: 'producto', entidadId: productId);
   }
 
+  Future<void> loadFavoriteState({
+    required String tipoEntidad,
+    required String entidadId,
+  }) async {
+    final result = await _apiClient.get<List<dynamic>>(
+      '/favoritos',
+      queryParameters: {
+        'tipo_entidad': 'eq.$tipoEntidad',
+        'entidad_id': 'eq.$entidadId',
+        'limit': 1,
+      },
+      parser: (json) => json is List ? json : const [],
+    );
+
+    if (!result.isSuccess) {
+      emit(state.copyWith(isFavorite: false, message: null));
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        isFavorite: (result.data ?? const []).isNotEmpty,
+        message: null,
+      ),
+    );
+  }
+
   Future<void> favoriteBusiness(String businessId) {
     return _favorite(tipoEntidad: 'negocio', entidadId: businessId);
   }
@@ -89,6 +116,7 @@ class EngagementCubit extends Cubit<EngagementState> {
         state.copyWith(
           status: EngagementStatus.success,
           message: 'Guardado en favoritos.',
+          isFavorite: true,
         ),
       );
       return;

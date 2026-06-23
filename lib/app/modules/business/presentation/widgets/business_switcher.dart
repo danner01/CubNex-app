@@ -45,7 +45,7 @@ class BusinessSwitcher extends StatelessWidget {
         return Padding(
           padding: const EdgeInsets.only(top: 10),
           child: DropdownButtonFormField<String>(
-            value: active?.id,
+            initialValue: active?.id,
             isExpanded: true,
             decoration: const InputDecoration(
               labelText: 'Negocio activo',

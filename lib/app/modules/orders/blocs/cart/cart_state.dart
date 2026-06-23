@@ -7,11 +7,13 @@ enum CartStatus { initial, submitting, success, failure }
 class CartState extends Equatable {
   const CartState({
     this.items = const [],
+    this.deliveryByBusiness = const {},
     this.status = CartStatus.initial,
     this.message,
   });
 
   final List<CartItemModel> items;
+  final Map<String, bool> deliveryByBusiness;
   final CartStatus status;
   final String? message;
 
@@ -21,16 +23,18 @@ class CartState extends Equatable {
 
   CartState copyWith({
     List<CartItemModel>? items,
+    Map<String, bool>? deliveryByBusiness,
     CartStatus? status,
     String? message,
   }) {
     return CartState(
       items: items ?? this.items,
+      deliveryByBusiness: deliveryByBusiness ?? this.deliveryByBusiness,
       status: status ?? this.status,
       message: message,
     );
   }
 
   @override
-  List<Object?> get props => [items, status, message];
+  List<Object?> get props => [items, deliveryByBusiness, status, message];
 }

@@ -5,6 +5,7 @@ class FavoriteModel {
     required this.entityId,
     this.title,
     this.subtitle,
+    this.imageUrl,
     this.createdAt,
   });
 
@@ -13,6 +14,7 @@ class FavoriteModel {
   final String entityId;
   final String? title;
   final String? subtitle;
+  final String? imageUrl;
   final DateTime? createdAt;
 
   String get label {
@@ -28,6 +30,7 @@ class FavoriteModel {
   FavoriteModel copyWith({
     String? title,
     String? subtitle,
+    String? imageUrl,
   }) {
     return FavoriteModel(
       id: id,
@@ -35,6 +38,7 @@ class FavoriteModel {
       entityId: entityId,
       title: title ?? this.title,
       subtitle: subtitle ?? this.subtitle,
+      imageUrl: imageUrl ?? this.imageUrl,
       createdAt: createdAt,
     );
   }
@@ -46,6 +50,7 @@ class FavoriteModel {
       entityId: '${json['entidad_id'] ?? ''}',
       title: json['titulo']?.toString() ?? json['nombre']?.toString(),
       subtitle: json['descripcion']?.toString(),
+      imageUrl: json['imagen_url']?.toString() ?? json['logo_url']?.toString(),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     );
   }

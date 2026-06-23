@@ -148,8 +148,8 @@ class BusinessModel {
       municipality: json['municipio']?.toString(),
       phone: json['telefono']?.toString(),
       whatsapp: json['whatsapp']?.toString(),
-      openingTime: json['horario_apertura']?.toString(),
-      closingTime: json['horario_cierre']?.toString(),
+      openingTime: _parseTime(json['horario_apertura']),
+      closingTime: _parseTime(json['horario_cierre']),
       availableNow: json['disponible_ahora'] != false,
       hasPhysicalLocation: json['tiene_local_fisico'] != false,
       requiresElectricity: json['requiere_electricidad'] == true,
@@ -178,5 +178,14 @@ class BusinessModel {
   static Map<String, dynamic> _parseMap(Object? value) {
     if (value is! Map) return const {};
     return value.map((key, item) => MapEntry(key.toString(), item));
+  }
+
+  static String? _parseTime(Object? value) {
+    if (value == null) return null;
+    final text = value.toString().trim();
+    if (text.isEmpty) return null;
+    final match = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?$').firstMatch(text);
+    if (match == null) return text;
+    return '${match.group(1)!.padLeft(2, '0')}:${match.group(2)}';
   }
 }

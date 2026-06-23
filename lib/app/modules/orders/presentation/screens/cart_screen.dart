@@ -30,7 +30,7 @@ class _CartViewState extends State<_CartView> {
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
   final _deliveryAddressController = TextEditingController();
-  bool _requestDelivery = false;
+  final _discountController = TextEditingController();
   bool _prefilled = false;
 
   @override
@@ -40,6 +40,7 @@ class _CartViewState extends State<_CartView> {
     _emailController.dispose();
     _messageController.dispose();
     _deliveryAddressController.dispose();
+    _discountController.dispose();
     super.dispose();
   }
 
@@ -81,7 +82,17 @@ class _CartViewState extends State<_CartView> {
               if (state.items.isEmpty)
                 const _EmptyCart()
               else ...[
-                ...state.items.map(_CartItemTile.new),
+                ..._groupItems(state.items).entries.map(
+                  (entry) => _BusinessCartGroup(
+                    businessId: entry.key,
+                    items: entry.value,
+                    requestDelivery:
+                        state.deliveryByBusiness[entry.key] ?? false,
+                    onRequestDeliveryChanged: (value) => context
+                        .read<CartCubit>()
+                        .setDeliveryForBusiness(entry.key, value),
+                  ),
+                ),
                 const SizedBox(height: 18),
                 _ContactForm(
                   formKey: _formKey,
@@ -90,9 +101,10 @@ class _CartViewState extends State<_CartView> {
                   emailController: _emailController,
                   messageController: _messageController,
                   deliveryAddressController: _deliveryAddressController,
-                  requestDelivery: _requestDelivery,
-                  onRequestDeliveryChanged: (value) =>
-                      setState(() => _requestDelivery = value),
+                  discountController: _discountController,
+                  requiresDelivery: state.deliveryByBusiness.values.any(
+                    (value) => value,
+                  ),
                 ),
                 const SizedBox(height: 18),
                 Card(
@@ -157,7 +169,92 @@ class _CartViewState extends State<_CartView> {
       deliveryAddress: _deliveryAddressController.text.trim().isEmpty
           ? null
           : _deliveryAddressController.text.trim(),
-      requestDelivery: _requestDelivery,
+      discountCode: _discountController.text.trim().isEmpty
+          ? null
+          : _discountController.text.trim(),
+    );
+  }
+
+  Map<String, List<CartItemModel>> _groupItems(List<CartItemModel> items) {
+    final grouped = <String, List<CartItemModel>>{};
+    for (final item in items) {
+      final key = item.product.businessId ?? 'sin-negocio';
+      grouped.putIfAbsent(key, () => []).add(item);
+    }
+    return grouped;
+  }
+}
+
+class _BusinessCartGroup extends StatelessWidget {
+  const _BusinessCartGroup({
+    required this.businessId,
+    required this.items,
+    required this.requestDelivery,
+    required this.onRequestDeliveryChanged,
+  });
+
+  final String businessId;
+  final List<CartItemModel> items;
+  final bool requestDelivery;
+  final ValueChanged<bool> onRequestDeliveryChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final subtotal = items.fold<double>(0, (sum, item) => sum + item.subtotal);
+    final shortBusinessId = businessId.length > 8
+        ? businessId.substring(0, 8)
+        : businessId;
+    return Card(
+      margin: const EdgeInsets.only(bottom: 12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Text(
+                    businessId == 'sin-negocio'
+                        ? 'Productos sin negocio'
+                        : 'Negocio $shortBusinessId',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+                Text(
+                  '${subtotal.toStringAsFixed(0)} CUP',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.secondary,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SegmentedButton<bool>(
+              segments: const [
+                ButtonSegment(
+                  value: false,
+                  icon: Icon(Icons.storefront_outlined),
+                  label: Text('Recoger'),
+                ),
+                ButtonSegment(
+                  value: true,
+                  icon: Icon(Icons.delivery_dining_outlined),
+                  label: Text('Delivery'),
+                ),
+              ],
+              selected: {requestDelivery},
+              onSelectionChanged: (selection) =>
+                  onRequestDeliveryChanged(selection.first),
+            ),
+            const SizedBox(height: 10),
+            ...items.map(_CartItemTile.new),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -231,8 +328,8 @@ class _ContactForm extends StatelessWidget {
     required this.emailController,
     required this.messageController,
     required this.deliveryAddressController,
-    required this.requestDelivery,
-    required this.onRequestDeliveryChanged,
+    required this.discountController,
+    required this.requiresDelivery,
   });
 
   final GlobalKey<FormState> formKey;
@@ -241,8 +338,8 @@ class _ContactForm extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController messageController;
   final TextEditingController deliveryAddressController;
-  final bool requestDelivery;
-  final ValueChanged<bool> onRequestDeliveryChanged;
+  final TextEditingController discountController;
+  final bool requiresDelivery;
 
   @override
   Widget build(BuildContext context) {
@@ -289,16 +386,23 @@ class _ContactForm extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 12),
-              SwitchListTile.adaptive(
-                contentPadding: EdgeInsets.zero,
-                value: requestDelivery,
-                onChanged: onRequestDeliveryChanged,
-                title: const Text('Solicitar delivery o transporte'),
-                subtitle: const Text(
-                  'El negocio recibira la direccion y podra coordinar entrega.',
+              TextFormField(
+                controller: discountController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Codigo de descuento',
+                  hintText: 'Opcional si tienes promocion de la tienda',
+                  prefixIcon: Icon(Icons.local_offer_outlined),
                 ),
               ),
-              if (requestDelivery) ...[
+              const SizedBox(height: 12),
+              if (requiresDelivery) ...[
+                Text(
+                  'Direccion para delivery',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+                ),
                 const SizedBox(height: 8),
                 TextFormField(
                   controller: deliveryAddressController,
@@ -310,7 +414,7 @@ class _ContactForm extends StatelessWidget {
                     prefixIcon: Icon(Icons.location_on_outlined),
                   ),
                   validator: (value) {
-                    if (!requestDelivery) return null;
+                    if (!requiresDelivery) return null;
                     return value == null || value.trim().isEmpty
                         ? 'Agrega la direccion de entrega'
                         : null;
