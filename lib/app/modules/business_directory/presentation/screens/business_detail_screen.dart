@@ -135,7 +135,8 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
             product.features['categoria'],
             product.features['categoria_sugerida'],
           ].whereType<Object>().join(' ').toLowerCase();
-          final matchesQuery = _query.trim().isEmpty ||
+          final matchesQuery =
+              _query.trim().isEmpty ||
               text.contains(_query.trim().toLowerCase());
           final categoryValue = _categoryForProduct(product);
           final matchesCategory =
@@ -251,9 +252,9 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                                 (category) => Padding(
                                   padding: const EdgeInsets.only(right: 8),
                                   child: ChoiceChip(
-                                    label: Text(category == 'todas'
-                                        ? 'Todas'
-                                        : category),
+                                    label: Text(
+                                      category == 'todas' ? 'Todas' : category,
+                                    ),
                                     selected: _category == category,
                                     onSelected: (_) =>
                                         setState(() => _category = category),
@@ -347,7 +348,8 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
 
   String _categoryForProduct(dynamic product) {
     final features = product.features as Map<String, dynamic>;
-    final raw = features['categoria'] ??
+    final raw =
+        features['categoria'] ??
         features['categoria_sugerida'] ??
         features['departamento'] ??
         product.brand;
@@ -810,6 +812,15 @@ class _OperationalInfoCard extends StatelessWidget {
               value: business.availableNow
                   ? 'Disponible ahora'
                   : 'No disponible en este momento',
+            ),
+            _InfoRow(
+              icon: business.acceptsTransfer
+                  ? Icons.account_balance_outlined
+                  : Icons.payments_outlined,
+              label: 'Pagos',
+              value: business.acceptsTransfer
+                  ? 'Acepta pagos por transferencia'
+                  : 'Pago presencial o coordinado con el negocio',
             ),
             if (location.isNotEmpty)
               _InfoRow(

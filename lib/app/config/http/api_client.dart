@@ -1,4 +1,5 @@
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 
 import '../environment/app_environment.dart';
@@ -20,6 +21,8 @@ class ApiClient {
     _dio.interceptors.add(
       QueuedInterceptorsWrapper(
         onRequest: (options, handler) async {
+          options.extra[_requestStartedAtExtra] =
+              DateTime.now().millisecondsSinceEpoch;
           if (!_skipsAuthRefresh(options)) {
             await refreshSession(force: false);
           }
@@ -28,9 +31,28 @@ class ApiClient {
           if (token != null && token.isNotEmpty && !_skipsAuth(options)) {
             options.headers['authorization'] = 'Bearer $token';
           }
+          _debugApi(
+            '--> ${options.method} ${options.path}'
+            '${options.queryParameters.isEmpty ? '' : ' query=${options.queryParameters}'}'
+            '${options.data == null ? '' : ' body=${_safePayload(options.data)}'}',
+          );
           handler.next(options);
         },
+        onResponse: (response, handler) {
+          _debugApi(
+            '<-- ${response.statusCode} ${response.requestOptions.method} '
+            '${response.requestOptions.path} ${_elapsed(response.requestOptions)}ms '
+            'data=${_safePayload(response.data)}',
+          );
+          handler.next(response);
+        },
         onError: (error, handler) async {
+          _debugApi(
+            '<-- ERROR ${error.response?.statusCode ?? error.type.name} '
+            '${error.requestOptions.method} ${error.requestOptions.path} '
+            '${_elapsed(error.requestOptions)}ms '
+            'data=${_safePayload(error.response?.data ?? error.message)}',
+          );
           final requestOptions = error.requestOptions;
           final canRefresh =
               error.response?.statusCode == 401 &&
@@ -78,6 +100,7 @@ class ApiClient {
   static const _refreshTokenKey = 'auth.refresh_token';
   static const _tokenExpiresAtKey = 'auth.expires_at';
   static const _skipAuthRefreshExtra = 'skip_auth_refresh';
+  static const _requestStartedAtExtra = 'request_started_at';
   static const _refreshLeeway = Duration(minutes: 5);
 
   final Dio _dio;
@@ -341,5 +364,44 @@ class ApiClient {
 
   bool _skipsAuthRefresh(RequestOptions options) {
     return options.extra[_skipAuthRefreshExtra] == true || _skipsAuth(options);
+  }
+
+  int _elapsed(RequestOptions options) {
+    final startedAt = options.extra[_requestStartedAtExtra];
+    if (startedAt is! int) return 0;
+    return DateTime.now().millisecondsSinceEpoch - startedAt;
+  }
+
+  void _debugApi(String message) {
+    if (kDebugMode) {
+      debugPrint('[API] $message', wrapWidth: 1024);
+    }
+  }
+
+  String _safePayload(Object? value) {
+    final sanitized = _sanitizePayload(value);
+    final raw = sanitized.toString();
+    if (raw.length <= 900) return raw;
+    return '${raw.substring(0, 900)}...';
+  }
+
+  Object? _sanitizePayload(Object? value) {
+    if (value is Map) {
+      return value.map((key, item) {
+        final keyText = key.toString().toLowerCase();
+        if (keyText.contains('password') ||
+            keyText.contains('token') ||
+            keyText == 'authorization') {
+          return MapEntry(key, '***');
+        }
+        return MapEntry(key, _sanitizePayload(item));
+      });
+    }
+
+    if (value is List) {
+      return value.map(_sanitizePayload).toList();
+    }
+
+    return value;
   }
 }

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/store_brand_theme.dart';
@@ -8,6 +9,7 @@ import '../../../home/data/models/business_model.dart';
 import '../../blocs/settings/business_settings_cubit.dart';
 import '../../blocs/settings/business_settings_state.dart';
 import '../../data/models/store_customization_model.dart';
+import '../widgets/business_switcher.dart';
 
 class BusinessSettingsScreen extends StatelessWidget {
   const BusinessSettingsScreen({super.key});
@@ -15,7 +17,13 @@ class BusinessSettingsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<BusinessSettingsCubit>()..load(),
+      create: (_) => sl<BusinessSettingsCubit>()
+        ..load(
+          selectedBusiness: context
+              .read<ActiveBusinessCubit>()
+              .state
+              .activeBusiness,
+        ),
       child: const _BusinessSettingsView(),
     );
   }
@@ -41,7 +49,7 @@ class _BusinessSettingsView extends StatelessWidget {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
               Text(
-                'Apariencia de tienda',
+                'Apariencia del negocio',
                 style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                   fontWeight: FontWeight.w900,
                 ),
@@ -51,6 +59,15 @@ class _BusinessSettingsView extends StatelessWidget {
                 state.business == null
                     ? 'Carga tu negocio para personalizarlo.'
                     : 'Personalizando: ${state.business!.name}',
+              ),
+              const SizedBox(height: 10),
+              BusinessSwitcher(
+                onChanged: () => context.read<BusinessSettingsCubit>().load(
+                  selectedBusiness: context
+                      .read<ActiveBusinessCubit>()
+                      .state
+                      .activeBusiness,
+                ),
               ),
               const SizedBox(height: 18),
               if (state.status == BusinessSettingsStatus.loading)
@@ -148,7 +165,7 @@ class _StorePreview extends StatelessWidget {
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    business?.name ?? 'Vista previa de tienda',
+                    business?.name ?? 'Vista previa del negocio',
                     style: TextStyle(
                       color: brand.onBackground,
                       fontSize: 18,
@@ -258,6 +275,19 @@ class _OperationsSection extends StatelessWidget {
                   ? (value) => context
                         .read<BusinessSettingsCubit>()
                         .updateBusinessOperations(availableNow: value)
+                  : null,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: item?.acceptsTransfer ?? false,
+              title: const Text('Acepta pagos por transferencia'),
+              subtitle: const Text(
+                'Se muestra en el negocio para que clientes sepan si pueden pagar por transferencia bancaria.',
+              ),
+              onChanged: enabled
+                  ? (value) => context
+                        .read<BusinessSettingsCubit>()
+                        .updateBusinessOperations(acceptsTransfer: value)
                   : null,
             ),
             SwitchListTile(
@@ -421,7 +451,7 @@ class _BrandAssetsSection extends StatelessWidget {
               initialValue: business?.logoUrl ?? '',
               enabled: !saving && business != null,
               decoration: const InputDecoration(
-                labelText: 'Logo de la tienda',
+                labelText: 'Logo del negocio',
                 prefixIcon: Icon(Icons.image_outlined),
                 hintText: 'https://.../logo.png',
               ),
@@ -551,17 +581,17 @@ class _ColorFineTuneSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Puedes ajustar cada color en formato HEX. La app corrige el contraste para que textos y botones se lean bien.',
+              'Toca una muestra para ajustar cada color. La app corrige el contraste para que textos y botones se lean bien.',
             ),
             const SizedBox(height: 14),
-            _HexColorField(
+            _PaletteColorField(
               label: 'Principal',
               value: customization.primaryColor,
               enabled: !saving,
               onChanged: (value) =>
                   _update(context, customization.copyWith(primaryColor: value)),
             ),
-            _HexColorField(
+            _PaletteColorField(
               label: 'Secundario',
               value: customization.secondaryColor,
               enabled: !saving,
@@ -570,14 +600,14 @@ class _ColorFineTuneSection extends StatelessWidget {
                 customization.copyWith(secondaryColor: value),
               ),
             ),
-            _HexColorField(
+            _PaletteColorField(
               label: 'Acento',
               value: customization.accentColor,
               enabled: !saving,
               onChanged: (value) =>
                   _update(context, customization.copyWith(accentColor: value)),
             ),
-            _HexColorField(
+            _PaletteColorField(
               label: 'Fondo',
               value: customization.backgroundColor,
               enabled: !saving,
@@ -586,7 +616,7 @@ class _ColorFineTuneSection extends StatelessWidget {
                 customization.copyWith(backgroundColor: value),
               ),
             ),
-            _HexColorField(
+            _PaletteColorField(
               label: 'Texto sugerido',
               value: customization.textColor,
               enabled: !saving,
@@ -605,7 +635,7 @@ class _ColorFineTuneSection extends StatelessWidget {
                     ),
             ),
             if (customization.gradientEnabled) ...[
-              _HexColorField(
+              _PaletteColorField(
                 label: 'Gradiente inicio',
                 value: customization.gradientStart,
                 enabled: !saving,
@@ -614,7 +644,7 @@ class _ColorFineTuneSection extends StatelessWidget {
                   customization.copyWith(gradientStart: value),
                 ),
               ),
-              _HexColorField(
+              _PaletteColorField(
                 label: 'Gradiente fin',
                 value: customization.gradientEnd,
                 enabled: !saving,
@@ -658,8 +688,8 @@ class _ColorFineTuneSection extends StatelessWidget {
   }
 }
 
-class _HexColorField extends StatelessWidget {
-  const _HexColorField({
+class _PaletteColorField extends StatelessWidget {
+  const _PaletteColorField({
     required this.label,
     required this.value,
     required this.enabled,
@@ -673,27 +703,87 @@ class _HexColorField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final normalized = normalizeHexColor(value, fallback: value);
+    final normalized = normalizeHexColor(value, fallback: '#D4AF37');
     return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: TextFormField(
-        initialValue: normalized,
-        enabled: enabled,
-        textCapitalization: TextCapitalization.characters,
-        decoration: InputDecoration(
-          labelText: label,
-          prefixIcon: Padding(
-            padding: const EdgeInsets.all(12),
-            child: _Swatch(color: normalized),
+      padding: const EdgeInsets.only(bottom: 14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              _Swatch(color: normalized),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  label,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+              ),
+            ],
           ),
-          hintText: '#D4AF37',
-        ),
-        onChanged: (text) {
-          final fallback = normalized.startsWith('#') ? normalized : '#D4AF37';
-          onChanged(normalizeHexColor(text, fallback: fallback));
-        },
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 10,
+            runSpacing: 10,
+            children: _brandColorOptions.map((color) {
+              final selected =
+                  normalizeHexColor(color, fallback: color).toUpperCase() ==
+                  normalized.toUpperCase();
+              return Tooltip(
+                message: color,
+                child: InkWell(
+                  onTap: enabled
+                      ? () =>
+                            onChanged(normalizeHexColor(color, fallback: color))
+                      : null,
+                  borderRadius: BorderRadius.circular(999),
+                  child: AnimatedContainer(
+                    duration: const Duration(milliseconds: 160),
+                    width: selected ? 38 : 34,
+                    height: selected ? 38 : 34,
+                    decoration: BoxDecoration(
+                      color: parseStoreColor(color, fallback: Colors.black),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        width: selected ? 3 : 1,
+                        color: selected
+                            ? Theme.of(context).colorScheme.secondary
+                            : Theme.of(context).colorScheme.outlineVariant,
+                      ),
+                      boxShadow: selected
+                          ? [
+                              BoxShadow(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.secondary.withValues(alpha: 0.28),
+                                blurRadius: 12,
+                                spreadRadius: 1,
+                              ),
+                            ]
+                          : null,
+                    ),
+                    child: selected
+                        ? Icon(
+                            Icons.check,
+                            size: 18,
+                            color: _onSwatchColor(color),
+                          )
+                        : null,
+                  ),
+                ),
+              );
+            }).toList(),
+          ),
+        ],
       ),
     );
+  }
+
+  Color _onSwatchColor(String color) {
+    final parsed = parseStoreColor(color, fallback: Colors.black);
+    return parsed.computeLuminance() > 0.45 ? Colors.black : Colors.white;
   }
 }
 
@@ -863,4 +953,25 @@ const _palettes = [
     background: '#09090B',
     text: '#FFFFFF',
   ),
+];
+
+const _brandColorOptions = [
+  '#D4AF37',
+  '#F59E0B',
+  '#F97316',
+  '#EF4444',
+  '#EC4899',
+  '#8B5CF6',
+  '#3B82F6',
+  '#0EA5E9',
+  '#14B8A6',
+  '#22C55E',
+  '#12806A',
+  '#84CC16',
+  '#F9FAFB',
+  '#E5E7EB',
+  '#9CA3AF',
+  '#374151',
+  '#111827',
+  '#0D0D0D',
 ];

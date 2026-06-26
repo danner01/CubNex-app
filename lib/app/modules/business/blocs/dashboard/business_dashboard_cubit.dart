@@ -12,26 +12,16 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
 
   final ApiClient _apiClient;
 
-  Future<void> load() async {
+  Future<void> load({BusinessModel? selectedBusiness}) async {
     emit(state.copyWith(status: BusinessDashboardStatus.loading));
-    final businessResult = await _apiClient.get<BusinessModel?>(
-      '/negocios/mi-negocio',
-      parser: (json) {
-        if (json is List && json.isNotEmpty) {
-          return BusinessModel.fromJson(
-            Map<String, dynamic>.from(json.first as Map),
-          );
-        }
-        return null;
-      },
-    );
-
-    final business = businessResult.data;
-    if (!businessResult.isSuccess || business == null) {
+    final business = selectedBusiness ?? await _loadFallbackBusiness();
+    if (business == null) {
+      final noBusiness = selectedBusiness == null;
       emit(
         state.copyWith(
           status: BusinessDashboardStatus.failure,
-          message: businessResult.error?.message ?? 'No tienes negocio creado.',
+          message: 'No tienes negocio creado.',
+          needsWizard: noBusiness,
         ),
       );
       return;
@@ -65,6 +55,7 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
     emit(
       state.copyWith(
         status: BusinessDashboardStatus.success,
+        needsWizard: false,
         summary: BusinessDashboardSummary(
           business: business,
           products: products,
@@ -81,16 +72,30 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
     );
   }
 
+  Future<BusinessModel?> _loadFallbackBusiness() async {
+    final businessResult = await _apiClient.get<BusinessModel?>(
+      '/negocios/mi-negocio',
+      parser: (json) {
+        if (json is List && json.isNotEmpty) {
+          return BusinessModel.fromJson(
+            Map<String, dynamic>.from(json.first as Map),
+          );
+        }
+        return null;
+      },
+    );
+
+    if (!businessResult.isSuccess) return null;
+    return businessResult.data;
+  }
+
   Future<int> _count(
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
     final result = await _apiClient.get<int>(
       path,
-      queryParameters: {
-        'limit': 100,
-        ...?queryParameters,
-      },
+      queryParameters: {'limit': 100, ...?queryParameters},
       parser: (json) => json is List ? json.length : 0,
     );
     return result.data ?? 0;

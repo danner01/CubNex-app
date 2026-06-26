@@ -14,6 +14,7 @@ class BusinessModel {
     this.whatsapp,
     this.openingTime,
     this.closingTime,
+    this.acceptsTransfer = false,
     this.availableNow = true,
     this.hasPhysicalLocation = true,
     this.requiresElectricity = false,
@@ -45,6 +46,7 @@ class BusinessModel {
   final String? whatsapp;
   final String? openingTime;
   final String? closingTime;
+  final bool acceptsTransfer;
   final bool availableNow;
   final bool hasPhysicalLocation;
   final bool requiresElectricity;
@@ -82,6 +84,7 @@ class BusinessModel {
     String? whatsapp,
     String? openingTime,
     String? closingTime,
+    bool? acceptsTransfer,
     bool? availableNow,
     bool? hasPhysicalLocation,
     bool? requiresElectricity,
@@ -113,6 +116,7 @@ class BusinessModel {
       whatsapp: whatsapp ?? this.whatsapp,
       openingTime: openingTime ?? this.openingTime,
       closingTime: closingTime ?? this.closingTime,
+      acceptsTransfer: acceptsTransfer ?? this.acceptsTransfer,
       availableNow: availableNow ?? this.availableNow,
       hasPhysicalLocation: hasPhysicalLocation ?? this.hasPhysicalLocation,
       requiresElectricity: requiresElectricity ?? this.requiresElectricity,
@@ -150,6 +154,7 @@ class BusinessModel {
       whatsapp: json['whatsapp']?.toString(),
       openingTime: _parseTime(json['horario_apertura']),
       closingTime: _parseTime(json['horario_cierre']),
+      acceptsTransfer: json['acepta_transferencia'] == true,
       availableNow: json['disponible_ahora'] != false,
       hasPhysicalLocation: json['tiene_local_fisico'] != false,
       requiresElectricity: json['requiere_electricidad'] == true,

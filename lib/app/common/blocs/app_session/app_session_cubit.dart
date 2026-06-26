@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -47,18 +45,15 @@ class AppSessionCubit extends Cubit<AppSessionState> {
   }
 
   Future<void> setSession(AuthSession session) async {
+    await _apiClient
+        .saveSession(
+          accessToken: session.accessToken,
+          refreshToken: session.refreshToken,
+          expiresAt: session.expiresAt,
+          expiresIn: session.expiresIn,
+        )
+        .timeout(_sessionSaveTimeout);
     _emitAuthenticated(session);
-    unawaited(
-      _apiClient
-          .saveSession(
-            accessToken: session.accessToken,
-            refreshToken: session.refreshToken,
-            expiresAt: session.expiresAt,
-            expiresIn: session.expiresIn,
-          )
-          .timeout(_sessionSaveTimeout)
-          .catchError((_) {}),
-    );
   }
 
   Future<void> logout() async {

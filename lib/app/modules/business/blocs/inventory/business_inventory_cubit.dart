@@ -13,8 +13,23 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
 
   final ApiClient _apiClient;
 
-  Future<void> load() async {
+  Future<void> load({BusinessModel? selectedBusiness}) async {
     emit(state.copyWith(status: BusinessInventoryStatus.loading));
+    final business = selectedBusiness ?? await _loadFallbackBusiness();
+    if (business == null) {
+      emit(
+        state.copyWith(
+          status: BusinessInventoryStatus.failure,
+          message: 'No tienes negocio creado.',
+        ),
+      );
+      return;
+    }
+
+    await _loadProductsForBusiness(business);
+  }
+
+  Future<BusinessModel?> _loadFallbackBusiness() async {
     final businessResult = await _apiClient.get<BusinessModel?>(
       '/negocios/mi-negocio',
       parser: (json) {
@@ -28,16 +43,13 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     );
 
     if (!businessResult.isSuccess || businessResult.data == null) {
-      emit(
-        state.copyWith(
-          status: BusinessInventoryStatus.failure,
-          message: businessResult.error?.message ?? 'No tienes negocio creado.',
-        ),
-      );
-      return;
+      return null;
     }
 
-    final business = businessResult.data!;
+    return businessResult.data;
+  }
+
+  Future<void> _loadProductsForBusiness(BusinessModel business) async {
     final productsResult = await _apiClient.get<List<ProductModel>>(
       '/negocios/${business.id}/productos',
       queryParameters: {'limit': 50, 'order': 'created_at.desc'},
@@ -81,10 +93,13 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     String? brand,
     String? description,
     required double price,
+    double? transferPrice,
+    double? transferPercent,
     String currency = 'CUP',
     int? stock,
     String? category,
     List<String> imageUrls = const [],
+    Map<String, dynamic> detectedFeatures = const {},
     bool inInventory = true,
     bool purchasable = true,
   }) async {
@@ -109,12 +124,15 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         'marca': brand,
         'descripcion': description,
         'precio': price,
+        'precio_transferencia': transferPrice,
+        'porciento_transferencia': transferPercent,
         'moneda': currency,
         'stock': stock,
         'imagenes': imageUrls.take(3).toList(),
         'caracteristicas': {
           if (category?.trim().isNotEmpty == true)
             'categoria': category!.trim(),
+          ...detectedFeatures,
         },
         'en_inventario': inInventory,
         'comprable': purchasable,
@@ -144,7 +162,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       return;
     }
 
-    await load();
+    await load(selectedBusiness: business);
     emit(
       state.copyWith(
         status: BusinessInventoryStatus.success,
@@ -159,10 +177,13 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     String? brand,
     String? description,
     required double price,
+    double? transferPrice,
+    double? transferPercent,
     String currency = 'CUP',
     int? stock,
     String? category,
     List<String> imageUrls = const [],
+    Map<String, dynamic> detectedFeatures = const {},
     bool inInventory = true,
     bool purchasable = true,
   }) async {
@@ -174,6 +195,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         'marca': brand,
         'descripcion': description,
         'precio': price,
+        'precio_transferencia': transferPrice,
+        'porciento_transferencia': transferPercent,
         'moneda': currency,
         'stock': stock,
         'imagenes': imageUrls.take(3).toList(),
@@ -181,6 +204,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
           ...product.features,
           if (category?.trim().isNotEmpty == true)
             'categoria': category!.trim(),
+          ...detectedFeatures,
         },
         'en_inventario': inInventory,
         'comprable': purchasable,
@@ -210,7 +234,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       return;
     }
 
-    await load();
+    final business = state.business;
+    await load(selectedBusiness: business);
     emit(
       state.copyWith(
         status: BusinessInventoryStatus.success,
@@ -232,7 +257,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       return;
     }
 
-    await load();
+    final business = state.business;
+    await load(selectedBusiness: business);
     emit(
       state.copyWith(
         status: BusinessInventoryStatus.success,
@@ -242,10 +268,25 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
   }
 
   Future<ProductLabelDetection?> detectLabel(String imageBase64) async {
+    return detectProductImages(frontImageBase64: imageBase64);
+  }
+
+  Future<ProductLabelDetection?> detectProductImages({
+    String? frontImageBase64,
+    String? backImageBase64,
+    bool saveImages = true,
+  }) async {
     emit(state.copyWith(status: BusinessInventoryStatus.saving));
+    final business = state.business;
     final result = await _apiClient.post<ProductLabelDetection>(
       '/vision-ia/detectar-etiqueta',
-      data: {'imagen_base64': imageBase64, 'tipo_deteccion': 'ambos'},
+      data: {
+        if (frontImageBase64 != null) 'imagen_frente_base64': frontImageBase64,
+        if (backImageBase64 != null) 'imagen_reverso_base64': backImageBase64,
+        if (business != null) 'negocio_id': business.id,
+        'guardar_imagenes': saveImages,
+        'tipo_deteccion': 'ambos',
+      },
       parser: (json) {
         if (json is Map) {
           return ProductLabelDetection.fromJson(

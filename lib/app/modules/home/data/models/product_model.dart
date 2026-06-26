@@ -9,6 +9,8 @@ class ProductModel {
     this.imageUrls = const [],
     this.price,
     this.offerPrice,
+    this.transferPrice,
+    this.transferPercent,
     this.currency,
     this.sku,
     this.barcode,
@@ -28,6 +30,8 @@ class ProductModel {
   final List<String> imageUrls;
   final double? price;
   final double? offerPrice;
+  final double? transferPrice;
+  final double? transferPercent;
   final String? currency;
   final String? sku;
   final String? barcode;
@@ -38,6 +42,13 @@ class ProductModel {
   final Map<String, dynamic> features;
 
   double? get currentPrice => offerPrice ?? price;
+  double? get calculatedTransferPrice {
+    if (transferPrice != null) return transferPrice;
+    final basePrice = currentPrice;
+    if (basePrice == null || transferPercent == null) return null;
+    return basePrice * (1 + (transferPercent! / 100));
+  }
+
   bool get canBuy =>
       available && inInventory && purchasable && (stock ?? 1) > 0;
 
@@ -56,10 +67,17 @@ class ProductModel {
       businessId: json['negocio_id']?.toString(),
       imageUrl: firstImage,
       imageUrls: images is List
-          ? images.map((item) => item?.toString() ?? '').where((item) => item.isNotEmpty).toList()
+          ? images
+                .map((item) => item?.toString() ?? '')
+                .where((item) => item.isNotEmpty)
+                .toList()
           : const [],
       price: double.tryParse('${json['precio'] ?? ''}'),
       offerPrice: double.tryParse('${json['precio_oferta'] ?? ''}'),
+      transferPrice: double.tryParse('${json['precio_transferencia'] ?? ''}'),
+      transferPercent: double.tryParse(
+        '${json['porciento_transferencia'] ?? ''}',
+      ),
       currency: json['moneda']?.toString(),
       sku: json['sku']?.toString(),
       barcode: json['codigo_barras']?.toString(),
@@ -81,10 +99,12 @@ class ProductModel {
       'imagenes': imageUrls.isNotEmpty
           ? imageUrls
           : imageUrl == null
-              ? <String>[]
-              : [imageUrl],
+          ? <String>[]
+          : [imageUrl],
       'precio': price,
       'precio_oferta': offerPrice,
+      'precio_transferencia': transferPrice,
+      'porciento_transferencia': transferPercent,
       'moneda': currency,
       'sku': sku,
       'codigo_barras': barcode,

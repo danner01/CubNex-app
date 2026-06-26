@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
 import '../../data/models/business_dashboard_summary.dart';
+import '../widgets/business_switcher.dart';
 
 class BusinessDashboardScreen extends StatelessWidget {
   const BusinessDashboardScreen({super.key});
@@ -14,7 +16,13 @@ class BusinessDashboardScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
-      create: (_) => sl<BusinessDashboardCubit>()..load(),
+      create: (_) => sl<BusinessDashboardCubit>()
+        ..load(
+          selectedBusiness: context
+              .read<ActiveBusinessCubit>()
+              .state
+              .activeBusiness,
+        ),
       child: const _BusinessDashboardView(),
     );
   }
@@ -26,10 +34,25 @@ class _BusinessDashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BlocBuilder<BusinessDashboardCubit, BusinessDashboardState>(
+      body: BlocConsumer<BusinessDashboardCubit, BusinessDashboardState>(
+        listenWhen: (previous, current) =>
+            previous.needsWizard != current.needsWizard,
+        listener: (context, state) {
+          if (!state.needsWizard) return;
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (context.mounted) {
+              context.go(AppRoutes.businessWizard);
+            }
+          });
+        },
         builder: (context, state) {
           return RefreshIndicator(
-            onRefresh: () => context.read<BusinessDashboardCubit>().load(),
+            onRefresh: () => context.read<BusinessDashboardCubit>().load(
+              selectedBusiness: context
+                  .read<ActiveBusinessCubit>()
+                  .state
+                  .activeBusiness,
+            ),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
@@ -40,6 +63,15 @@ class _BusinessDashboardView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
+                BusinessSwitcher(
+                  onChanged: () => context.read<BusinessDashboardCubit>().load(
+                    selectedBusiness: context
+                        .read<ActiveBusinessCubit>()
+                        .state
+                        .activeBusiness,
+                  ),
+                ),
+                const SizedBox(height: 14),
                 if (state.status == BusinessDashboardStatus.loading)
                   const Padding(
                     padding: EdgeInsets.only(top: 32),
@@ -50,7 +82,8 @@ class _BusinessDashboardView extends StatelessWidget {
                     child: Padding(
                       padding: const EdgeInsets.all(18),
                       child: Text(
-                        state.message ?? 'Crea tu negocio para ver estadisticas.',
+                        state.message ??
+                            'Crea tu negocio para ver estadisticas.',
                       ),
                     ),
                   )
@@ -66,7 +99,7 @@ class _BusinessDashboardView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  _ActionsGrid(),
+                  _ActionsGrid(summary: state.summary!),
                 ],
               ],
             ),
@@ -192,17 +225,14 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 class _ActionsGrid extends StatelessWidget {
+  const _ActionsGrid({required this.summary});
+
+  final BusinessDashboardSummary summary;
+
   @override
   Widget build(BuildContext context) {
-    final actions = [
-      ('Inventario', Icons.inventory_2_outlined, AppRoutes.businessInventory),
-      ('Tienda', Icons.palette_outlined, AppRoutes.businessSettings),
-      ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
-      ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
-      ('Propiedades', Icons.home_work_outlined, AppRoutes.businessProperties),
-      ('Transporte', Icons.local_shipping_outlined, AppRoutes.businessTransport),
-      ('Menus QR', Icons.restaurant_menu_outlined, AppRoutes.businessMenus),
-    ];
+    final business = summary.business;
+    final actions = _actionsForBusiness(business.businessParentCategory);
 
     return GridView.builder(
       shrinkWrap: true,
@@ -218,14 +248,17 @@ class _ActionsGrid extends StatelessWidget {
         final action = actions[index];
         return Card(
           child: InkWell(
-            onTap: () => context.go(action.$3),
+            onTap: () => context.go(action.route),
             borderRadius: BorderRadius.circular(16),
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(action.$2, size: 32),
+                Icon(action.icon, size: 32),
                 const SizedBox(height: 8),
-                Text(action.$1, style: Theme.of(context).textTheme.titleMedium),
+                Text(
+                  action.label,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
               ],
             ),
           ),
@@ -233,4 +266,46 @@ class _ActionsGrid extends StatelessWidget {
       },
     );
   }
+
+  List<_BusinessAction> _actionsForBusiness(String? parentCategory) {
+    final common = [
+      ('Inventario', Icons.inventory_2_outlined, AppRoutes.businessInventory),
+      ('Negocio', Icons.palette_outlined, AppRoutes.businessSettings),
+      ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
+      ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
+    ];
+
+    final categorySpecific = switch (parentCategory) {
+      'gastronomia' => [
+        ('Menus QR', Icons.restaurant_menu_outlined, AppRoutes.businessMenus),
+      ],
+      'inmobiliaria' => [
+        ('Propiedades', Icons.home_work_outlined, AppRoutes.businessProperties),
+      ],
+      'transporte' => [
+        (
+          'Transporte',
+          Icons.local_shipping_outlined,
+          AppRoutes.businessTransport,
+        ),
+      ],
+      'servicio' => [
+        ('Reservas', Icons.event_available_outlined, AppRoutes.businessOrders),
+      ],
+      _ => <(String, IconData, String)>[],
+    };
+
+    return [
+      ...common,
+      ...categorySpecific,
+    ].map((item) => _BusinessAction(item.$1, item.$2, item.$3)).toList();
+  }
+}
+
+class _BusinessAction {
+  const _BusinessAction(this.label, this.icon, this.route);
+
+  final String label;
+  final IconData icon;
+  final String route;
 }

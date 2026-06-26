@@ -26,10 +26,7 @@ class ProductDetailScreen extends StatelessWidget {
         BlocProvider(create: (_) => sl<ProductDetailCubit>()..load(productId)),
         BlocProvider(
           create: (_) => sl<EngagementCubit>()
-            ..loadFavoriteState(
-              tipoEntidad: 'producto',
-              entidadId: productId,
-            ),
+            ..loadFavoriteState(tipoEntidad: 'producto', entidadId: productId),
         ),
       ],
       child: const _EngagementListener(child: _ProductDetailView()),
@@ -130,6 +127,15 @@ class _ProductDetailView extends StatelessWidget {
                       ),
                     ],
                   ),
+                  if (product.calculatedTransferPrice != null) ...[
+                    const SizedBox(height: 8),
+                    _InfoCard(
+                      icon: Icons.account_balance_outlined,
+                      title: 'Pago por transferencia',
+                      subtitle:
+                          'Precio por transferencia: ${product.calculatedTransferPrice!.toStringAsFixed(0)} ${product.currency ?? 'CUP'}. Confirma los datos bancarios con el negocio antes de pagar.',
+                    ),
+                  ],
                   const SizedBox(height: 8),
                   Text(
                     product.name,
@@ -310,7 +316,9 @@ class _ProductImageCarouselState extends State<_ProductImageCarousel> {
                             const Icon(Icons.inventory_2_outlined, size: 56),
                       ),
                     )
-                  : const Center(child: Icon(Icons.inventory_2_outlined, size: 56)),
+                  : const Center(
+                      child: Icon(Icons.inventory_2_outlined, size: 56),
+                    ),
             ),
           ),
           if (images.length > 1)
@@ -338,7 +346,7 @@ class _ProductImageCarouselState extends State<_ProductImageCarousel> {
               ),
             ),
         ],
-        ),
+      ),
     );
   }
 }

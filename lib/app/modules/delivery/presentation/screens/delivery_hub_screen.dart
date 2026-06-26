@@ -75,6 +75,12 @@ class DeliveryHubScreen extends StatelessWidget {
                   'Configura tipo de vehiculo, tarifa base, precio por km y radio de operacion.',
             ),
             _ActionCard(
+              icon: Icons.account_balance_outlined,
+              title: 'Pagos por transferencia',
+              subtitle:
+                  'Activa si aceptas cobros por transferencia para entregas, paquetes o liquidaciones coordinadas.',
+            ),
+            _ActionCard(
               icon: Icons.verified_user_outlined,
               title: 'Verificacion',
               subtitle:

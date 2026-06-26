@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/cubnex_logo.dart';
 import '../../../../config/injection/injection.dart';
@@ -58,6 +59,7 @@ class _LoginViewState extends State<_LoginView> {
   _AuthMode _mode = _AuthMode.login;
   _RegisterRole _role = _RegisterRole.client;
   String _deliveryVehicleType = 'motorina';
+  bool _deliveryAcceptsTransfer = false;
   bool _showPassword = false;
   bool _navigatingAfterAuth = false;
 
@@ -84,17 +86,56 @@ class _LoginViewState extends State<_LoginView> {
             state.session != null &&
             !_navigatingAfterAuth) {
           _navigatingAfterAuth = true;
-          await context
-              .read<AppSessionCubit>()
-              .setSession(state.session!)
-              .timeout(const Duration(seconds: 5), onTimeout: () {});
+          try {
+            await context
+                .read<AppSessionCubit>()
+                .setSession(state.session!)
+                .timeout(const Duration(seconds: 5));
+          } catch (_) {
+            _navigatingAfterAuth = false;
+            if (!context.mounted) return;
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text(
+                  'No se pudo guardar la sesion. Intenta iniciar sesion nuevamente.',
+                ),
+              ),
+            );
+            return;
+          }
           if (!context.mounted) return;
+          final isNewBusinessRegistration =
+              _mode == _AuthMode.register && _role == _RegisterRole.business;
+          final role = state.session!.role;
+
+          if (role.name == 'businessAdmin' || role.name == 'superadmin') {
+            if (isNewBusinessRegistration) {
+              await context.read<ActiveBusinessCubit>().clear();
+              if (!context.mounted) return;
+              context.go(AppRoutes.businessWizard);
+              return;
+            }
+
+            final activeBusinessCubit = context.read<ActiveBusinessCubit>();
+            await activeBusinessCubit.load().timeout(
+              const Duration(seconds: 8),
+              onTimeout: () {},
+            );
+            if (!context.mounted) return;
+            final hasNoBusiness =
+                activeBusinessCubit.state.status == ActiveBusinessStatus.empty;
+            context.go(
+              hasNoBusiness
+                  ? AppRoutes.businessWizard
+                  : AppRoutes.businessDashboard,
+            );
+            return;
+          }
+
           context.go(
-            switch (state.session!.role.name) {
-              'businessAdmin' => AppRoutes.businessDashboard,
-              'delivery' => AppRoutes.deliveryDashboard,
-              _ => AppRoutes.home,
-            },
+            role.name == 'delivery'
+                ? AppRoutes.deliveryDashboard
+                : AppRoutes.home,
           );
         }
 
@@ -133,12 +174,15 @@ class _LoginViewState extends State<_LoginView> {
                   deliveryBaseFareController: _deliveryBaseFareController,
                   deliveryKmFareController: _deliveryKmFareController,
                   deliveryRadiusController: _deliveryRadiusController,
+                  deliveryAcceptsTransfer: _deliveryAcceptsTransfer,
                   showPassword: _showPassword,
                   isLoading: isLoading,
                   onModeChanged: (mode) => setState(() => _mode = mode),
                   onRoleChanged: (role) => setState(() => _role = role),
                   onDeliveryVehicleChanged: (value) =>
                       setState(() => _deliveryVehicleType = value),
+                  onDeliveryAcceptsTransferChanged: (value) =>
+                      setState(() => _deliveryAcceptsTransfer = value),
                   onTogglePassword: () =>
                       setState(() => _showPassword = !_showPassword),
                   onSubmit: () => _submit(context),
@@ -200,6 +244,7 @@ class _LoginViewState extends State<_LoginView> {
                 _deliveryRadiusController.text,
                 fallback: 8,
               ),
+              'acepta_transferencia': _deliveryAcceptsTransfer,
             }
           : null,
     );
@@ -307,11 +352,13 @@ class _AuthCard extends StatelessWidget {
     required this.deliveryBaseFareController,
     required this.deliveryKmFareController,
     required this.deliveryRadiusController,
+    required this.deliveryAcceptsTransfer,
     required this.showPassword,
     required this.isLoading,
     required this.onModeChanged,
     required this.onRoleChanged,
     required this.onDeliveryVehicleChanged,
+    required this.onDeliveryAcceptsTransferChanged,
     required this.onTogglePassword,
     required this.onSubmit,
     required this.onGoogle,
@@ -330,11 +377,13 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController deliveryBaseFareController;
   final TextEditingController deliveryKmFareController;
   final TextEditingController deliveryRadiusController;
+  final bool deliveryAcceptsTransfer;
   final bool showPassword;
   final bool isLoading;
   final ValueChanged<_AuthMode> onModeChanged;
   final ValueChanged<_RegisterRole> onRoleChanged;
   final ValueChanged<String> onDeliveryVehicleChanged;
+  final ValueChanged<bool> onDeliveryAcceptsTransferChanged;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final VoidCallback? onGoogle;
@@ -401,8 +450,10 @@ class _AuthCard extends StatelessWidget {
                     baseFareController: deliveryBaseFareController,
                     kmFareController: deliveryKmFareController,
                     radiusController: deliveryRadiusController,
+                    acceptsTransfer: deliveryAcceptsTransfer,
                     enabled: !isLoading,
                     onVehicleChanged: onDeliveryVehicleChanged,
+                    onAcceptsTransferChanged: onDeliveryAcceptsTransferChanged,
                   ),
                 ],
               ],
@@ -564,8 +615,10 @@ class _DeliveryProfileFields extends StatelessWidget {
     required this.baseFareController,
     required this.kmFareController,
     required this.radiusController,
+    required this.acceptsTransfer,
     required this.enabled,
     required this.onVehicleChanged,
+    required this.onAcceptsTransferChanged,
   });
 
   final String vehicleType;
@@ -574,8 +627,10 @@ class _DeliveryProfileFields extends StatelessWidget {
   final TextEditingController baseFareController;
   final TextEditingController kmFareController;
   final TextEditingController radiusController;
+  final bool acceptsTransfer;
   final bool enabled;
   final ValueChanged<String> onVehicleChanged;
+  final ValueChanged<bool> onAcceptsTransferChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -679,6 +734,15 @@ class _DeliveryProfileFields extends StatelessWidget {
                 prefixIcon: Icon(Icons.radar_outlined),
               ),
               validator: _validatePositiveNumber,
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: acceptsTransfer,
+              title: const Text('Acepto pagos por transferencia'),
+              subtitle: const Text(
+                'Los negocios y clientes podran verlo al solicitar entregas.',
+              ),
+              onChanged: enabled ? onAcceptsTransferChanged : null,
             ),
           ],
         ),

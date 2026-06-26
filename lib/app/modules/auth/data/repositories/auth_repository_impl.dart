@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
 import '../../domain/entities/auth_session.dart';
@@ -27,7 +25,8 @@ class AuthRepositoryImpl implements AuthRepository {
       password: password,
     );
     if (result.isSuccess && result.data != null) {
-      _saveSessionInBackground(result.data!);
+      final sessionResult = await _saveSession(result.data!);
+      if (sessionResult != null) return ApiResult.failure(sessionResult);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -37,7 +36,8 @@ class AuthRepositoryImpl implements AuthRepository {
   Future<ApiResult<AuthSession>> loginWithGoogle() async {
     final result = await _remoteDataSource.loginWithGoogle();
     if (result.isSuccess && result.data != null) {
-      _saveSessionInBackground(result.data!);
+      final sessionResult = await _saveSession(result.data!);
+      if (sessionResult != null) return ApiResult.failure(sessionResult);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -61,7 +61,8 @@ class AuthRepositoryImpl implements AuthRepository {
       deliveryProfile: deliveryProfile,
     );
     if (result.isSuccess && result.data != null) {
-      _saveSessionInBackground(result.data!);
+      final sessionResult = await _saveSession(result.data!);
+      if (sessionResult != null) return ApiResult.failure(sessionResult);
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -84,17 +85,31 @@ class AuthRepositoryImpl implements AuthRepository {
   @override
   Future<void> logout() => _remoteDataSource.logout();
 
-  void _saveSessionInBackground(AuthSession session) {
-    unawaited(
-      _apiClient
+  Future<ApiFailure?> _saveSession(AuthSession session) async {
+    if (session.accessToken.trim().isEmpty) {
+      return const ApiFailure(
+        code: 'EMAIL_CONFIRMATION_REQUIRED',
+        message:
+            'Cuenta creada, pero falta confirmar el correo antes de iniciar sesion.',
+      );
+    }
+
+    try {
+      await _apiClient
           .saveSession(
             accessToken: session.accessToken,
             refreshToken: session.refreshToken,
             expiresAt: session.expiresAt,
             expiresIn: session.expiresIn,
           )
-          .timeout(_sessionSaveTimeout)
-          .catchError((_) {}),
-    );
+          .timeout(_sessionSaveTimeout);
+      return null;
+    } catch (_) {
+      return const ApiFailure(
+        code: 'SESSION_SAVE_FAILED',
+        message:
+            'La cuenta se creo, pero no se pudo guardar la sesion en este dispositivo. Intenta iniciar sesion.',
+      );
+    }
   }
 }

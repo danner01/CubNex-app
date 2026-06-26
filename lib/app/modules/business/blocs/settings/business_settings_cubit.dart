@@ -12,8 +12,23 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
 
   final ApiClient _apiClient;
 
-  Future<void> load() async {
+  Future<void> load({BusinessModel? selectedBusiness}) async {
     emit(state.copyWith(status: BusinessSettingsStatus.loading));
+    final business = selectedBusiness ?? await _loadFallbackBusiness();
+    if (business == null) {
+      emit(
+        state.copyWith(
+          status: BusinessSettingsStatus.failure,
+          message: 'No tienes negocio creado.',
+        ),
+      );
+      return;
+    }
+
+    await _loadCustomizationForBusiness(business);
+  }
+
+  Future<BusinessModel?> _loadFallbackBusiness() async {
     final businessResult = await _apiClient.get<BusinessModel?>(
       '/negocios/mi-negocio',
       parser: (json) {
@@ -27,16 +42,13 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
     );
 
     if (!businessResult.isSuccess || businessResult.data == null) {
-      emit(
-        state.copyWith(
-          status: BusinessSettingsStatus.failure,
-          message: businessResult.error?.message ?? 'No tienes negocio creado.',
-        ),
-      );
-      return;
+      return null;
     }
 
-    final business = businessResult.data!;
+    return businessResult.data;
+  }
+
+  Future<void> _loadCustomizationForBusiness(BusinessModel business) async {
     final customizationResult = await _apiClient.get<StoreCustomizationModel?>(
       '/personalizacion/${business.id}',
       parser: (json) {
@@ -92,6 +104,7 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
   void updateBusinessOperations({
     String? openingTime,
     String? closingTime,
+    bool? acceptsTransfer,
     bool? availableNow,
     bool? hasPhysicalLocation,
     bool? requiresElectricity,
@@ -110,6 +123,7 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
         business: business.copyWith(
           openingTime: openingTime,
           closingTime: closingTime,
+          acceptsTransfer: acceptsTransfer,
           availableNow: availableNow,
           hasPhysicalLocation: hasPhysicalLocation,
           requiresElectricity: requiresElectricity,
@@ -159,6 +173,7 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
           'banner_url': business.bannerUrl,
           'horario_apertura': _blankToNull(business.openingTime),
           'horario_cierre': _blankToNull(business.closingTime),
+          'acepta_transferencia': business.acceptsTransfer,
           'disponible_ahora': business.availableNow,
           'tiene_local_fisico': business.hasPhysicalLocation,
           'requiere_electricidad': business.requiresElectricity,
@@ -197,13 +212,14 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
       }
     }
 
+    final selectedBusiness = state.business;
     emit(
       state.copyWith(
         status: BusinessSettingsStatus.success,
         message: 'Apariencia guardada.',
       ),
     );
-    await load();
+    await load(selectedBusiness: selectedBusiness);
   }
 
   String? _blankToNull(String? value) {
