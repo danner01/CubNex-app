@@ -56,12 +56,7 @@ class _BusinessDashboardView extends StatelessWidget {
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
-                Text(
-                  'Panel de negocio',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
+                const _DashboardHeader(),
                 const SizedBox(height: 6),
                 BusinessSwitcher(
                   onChanged: () => context.read<BusinessDashboardCubit>().load(
@@ -90,6 +85,8 @@ class _BusinessDashboardView extends StatelessWidget {
                 else ...[
                   _HeroSummary(summary: state.summary!),
                   const SizedBox(height: 14),
+                  _PerformancePanel(summary: state.summary!),
+                  const SizedBox(height: 14),
                   _MetricsGrid(summary: state.summary!),
                   const SizedBox(height: 18),
                   Text(
@@ -106,6 +103,42 @@ class _BusinessDashboardView extends StatelessWidget {
           );
         },
       ),
+    );
+  }
+}
+
+class _DashboardHeader extends StatelessWidget {
+  const _DashboardHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Panel de negocio',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Gestiona una tienda, franquicia o servicio por separado.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+        FilledButton.icon(
+          onPressed: () => context.go(AppRoutes.businessWizard),
+          icon: const Icon(Icons.add_business_rounded),
+          label: const Text('Nuevo'),
+        ),
+      ],
     );
   }
 }
@@ -177,15 +210,7 @@ class _MetricsGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final metrics = [
-      ('Productos', summary.products, Icons.inventory_2_outlined),
-      ('Resenas', summary.reviews, Icons.star_border_rounded),
-      ('Promos', summary.promotions, Icons.campaign_outlined),
-      ('Propiedades', summary.properties, Icons.home_work_outlined),
-      ('Transporte', summary.transport, Icons.local_shipping_outlined),
-      ('Menus', summary.menus, Icons.restaurant_menu_outlined),
-      ('Ventas', summary.sales, Icons.payments_outlined),
-    ];
+    final metrics = _metricsForBusiness(summary);
 
     return GridView.builder(
       shrinkWrap: true,
@@ -200,26 +225,184 @@ class _MetricsGrid extends StatelessWidget {
       itemBuilder: (context, index) {
         final metric = metrics[index];
         return Card(
-          child: Padding(
-            padding: const EdgeInsets.all(14),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(metric.$3, color: Theme.of(context).colorScheme.secondary),
-                const SizedBox(height: 8),
-                Text(metric.$1),
-                Text(
-                  '${metric.$2}',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+          child: InkWell(
+            onTap: () => context.go(metric.route),
+            borderRadius: BorderRadius.circular(16),
+            child: Padding(
+              padding: const EdgeInsets.all(14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(
+                    metric.icon,
+                    color: Theme.of(context).colorScheme.secondary,
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  Text(metric.label),
+                  Text(
+                    '${metric.value}',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         );
       },
+    );
+  }
+
+  List<_BusinessMetric> _metricsForBusiness(BusinessDashboardSummary summary) {
+    final category = summary.business.businessParentCategory;
+    final metrics = [
+      ('Productos', summary.products, Icons.inventory_2_outlined),
+      ('Resenas', summary.reviews, Icons.star_border_rounded),
+      ('Promos', summary.promotions, Icons.campaign_outlined),
+      ('Ventas', summary.sales, Icons.payments_outlined),
+    ];
+    final result = metrics
+        .map(
+          (item) => _BusinessMetric(
+            item.$1,
+            item.$2,
+            item.$3,
+            _routeForMetric(item.$1),
+          ),
+        )
+        .toList();
+
+    if (category == 'gastronomia') {
+      result.add(
+        _BusinessMetric(
+          'Menus',
+          summary.menus,
+          Icons.restaurant_menu_outlined,
+          AppRoutes.businessMenus,
+        ),
+      );
+    }
+    if (category == 'inmobiliaria') {
+      result.add(
+        _BusinessMetric(
+          'Propiedades',
+          summary.properties,
+          Icons.home_work_outlined,
+          AppRoutes.businessProperties,
+        ),
+      );
+    }
+    if (category == 'transporte') {
+      result.add(
+        _BusinessMetric(
+          'Transporte',
+          summary.transport,
+          Icons.local_shipping_outlined,
+          AppRoutes.businessTransport,
+        ),
+      );
+    }
+    if (category == 'servicio') {
+      result.add(
+        _BusinessMetric(
+          'Reservas',
+          summary.sales,
+          Icons.event_available_outlined,
+          AppRoutes.businessOrders,
+        ),
+      );
+    }
+
+    return result;
+  }
+
+  String _routeForMetric(String label) {
+    return switch (label) {
+      'Productos' => AppRoutes.businessInventory,
+      'Promos' => AppRoutes.businessPromotions,
+      'Ventas' || 'Resenas' => AppRoutes.businessOrders,
+      _ => AppRoutes.businessDashboard,
+    };
+  }
+}
+
+class _PerformancePanel extends StatelessWidget {
+  const _PerformancePanel({required this.summary});
+
+  final BusinessDashboardSummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final bars = [
+      _BarData('Ventas', summary.sales, Icons.payments_outlined),
+      _BarData('Productos', summary.products, Icons.inventory_2_outlined),
+      _BarData('Resenas', summary.reviews, Icons.star_rate_outlined),
+      _BarData('Promos', summary.promotions, Icons.campaign_outlined),
+    ];
+    final maxValue = bars
+        .map((item) => item.value)
+        .fold<int>(1, (max, item) => item > max ? item : max);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.query_stats_rounded,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Resumen operativo',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            ...bars.map(
+              (item) => Padding(
+                padding: const EdgeInsets.only(bottom: 10),
+                child: Row(
+                  children: [
+                    Icon(item.icon, size: 18),
+                    const SizedBox(width: 8),
+                    SizedBox(width: 82, child: Text(item.label)),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(999),
+                        child: LinearProgressIndicator(
+                          value: item.value <= 0 ? 0.03 : item.value / maxValue,
+                          minHeight: 9,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${item.value}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Las graficas se actualizan al cambiar el negocio activo o refrescar.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -273,6 +456,8 @@ class _ActionsGrid extends StatelessWidget {
       ('Negocio', Icons.palette_outlined, AppRoutes.businessSettings),
       ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
       ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
+      ('Conexiones', Icons.hub_outlined, AppRoutes.businessNetwork),
+      ('Empleos', Icons.work_outline_rounded, AppRoutes.businessJobs),
     ];
 
     final categorySpecific = switch (parentCategory) {
@@ -308,4 +493,21 @@ class _BusinessAction {
   final String label;
   final IconData icon;
   final String route;
+}
+
+class _BusinessMetric {
+  const _BusinessMetric(this.label, this.value, this.icon, this.route);
+
+  final String label;
+  final int value;
+  final IconData icon;
+  final String route;
+}
+
+class _BarData {
+  const _BarData(this.label, this.value, this.icon);
+
+  final String label;
+  final int value;
+  final IconData icon;
 }

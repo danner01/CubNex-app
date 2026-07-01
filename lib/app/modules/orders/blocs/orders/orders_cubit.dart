@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../../config/http/api_result.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../data/models/order_model.dart';
 import 'orders_state.dart';
@@ -12,28 +13,15 @@ class OrdersCubit extends Cubit<OrdersState> {
 
   final ApiClient _apiClient;
   String? _businessId;
+  bool _usingGroupedOrders = true;
 
   Future<void> load({String? businessId}) async {
     _businessId = businessId;
     emit(state.copyWith(status: OrdersStatus.loading));
-    final result = await _apiClient.get<List<OrderModel>>(
-      '/pedidos',
-      queryParameters: {
-        'order': 'created_at.desc',
-        if (businessId != null) 'negocio_id': businessId,
-      },
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map((item) => OrderModel.fromJson(Map<String, dynamic>.from(item)))
-              .toList();
-        }
-        return const [];
-      },
-    );
+    final result = await _loadFrom('/ordenes', businessId: businessId);
 
     if (result.isSuccess) {
+      _usingGroupedOrders = true;
       emit(
         state.copyWith(
           status: OrdersStatus.success,
@@ -43,11 +31,50 @@ class OrdersCubit extends Cubit<OrdersState> {
       return;
     }
 
+    final legacyResult = await _loadFrom('/pedidos', businessId: businessId);
+    if (legacyResult.isSuccess) {
+      _usingGroupedOrders = false;
+      emit(
+        state.copyWith(
+          status: OrdersStatus.success,
+          items: legacyResult.data ?? const [],
+        ),
+      );
+      return;
+    }
+
     emit(
       state.copyWith(
         status: OrdersStatus.failure,
-        errorMessage: result.error?.message ?? 'No se pudieron cargar pedidos.',
+        errorMessage:
+            result.error?.message ??
+            legacyResult.error?.message ??
+            'No se pudieron cargar pedidos.',
       ),
+    );
+  }
+
+  Future<ApiResult<List<OrderModel>>> _loadFrom(
+    String path, {
+    String? businessId,
+  }) {
+    return _apiClient.get<List<OrderModel>>(
+      path,
+      queryParameters: {
+        'order': 'created_at.desc',
+        if (businessId != null) 'negocio_id': businessId,
+      },
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) => OrderModel.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList();
+        }
+        return const [];
+      },
     );
   }
 
@@ -69,7 +96,8 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(
         state.copyWith(
           status: OrdersStatus.failure,
-          errorMessage: businessResult.error?.message ?? 'No tienes negocio creado.',
+          errorMessage:
+              businessResult.error?.message ?? 'No tienes negocio creado.',
         ),
       );
       return;
@@ -80,8 +108,11 @@ class OrdersCubit extends Cubit<OrdersState> {
 
   Future<void> updateStatus(String orderId, String status) async {
     emit(state.copyWith(status: OrdersStatus.saving));
+    final path = _usingGroupedOrders
+        ? '/ordenes/$orderId/estado'
+        : '/pedidos/$orderId';
     final result = await _apiClient.put<void>(
-      '/pedidos/$orderId',
+      path,
       data: {'estado': status},
       parser: (_) {},
     );
@@ -90,7 +121,8 @@ class OrdersCubit extends Cubit<OrdersState> {
       emit(
         state.copyWith(
           status: OrdersStatus.failure,
-          errorMessage: result.error?.message ?? 'No se pudo actualizar pedido.',
+          errorMessage:
+              result.error?.message ?? 'No se pudo actualizar pedido.',
         ),
       );
       return;

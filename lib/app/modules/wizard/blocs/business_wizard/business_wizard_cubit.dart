@@ -239,7 +239,6 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
     String? frontImageBase64,
     String? backImageBase64,
   }) async {
-    emit(state.copyWith(status: BusinessWizardStatus.saving));
     final result = await _apiClient.post<ProductLabelDetection>(
       '/vision-ia/detectar-etiqueta',
       data: {

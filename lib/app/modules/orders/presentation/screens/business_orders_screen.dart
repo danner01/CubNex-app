@@ -9,6 +9,12 @@ import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
 
 const _statusFilters = [
+  _FilterOption('reservado_recogida', 'Reservado'),
+  _FilterOption('reservado_delivery', 'Delivery'),
+  _FilterOption('preparando', 'Preparando'),
+  _FilterOption('listo_para_recoger', 'Listo'),
+  _FilterOption('en_ruta', 'En ruta'),
+  _FilterOption('completado', 'Completado'),
   _FilterOption('nuevo', 'Nuevo'),
   _FilterOption('contactado', 'Contactado'),
   _FilterOption('en_proceso', 'En proceso'),
@@ -85,13 +91,21 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
                 if (state.status == OrdersStatus.loading)
                   const Center(child: CircularProgressIndicator())
                 else if (state.status == OrdersStatus.failure)
-                  _MessageCard(message: state.errorMessage ?? 'No se pudo cargar.')
+                  _MessageCard(
+                    message: state.errorMessage ?? 'No se pudo cargar.',
+                  )
                 else if (state.items.isEmpty)
-                  const _MessageCard(message: 'Todavia no hay pedidos recibidos.')
+                  const _MessageCard(
+                    message: 'Todavia no hay pedidos recibidos.',
+                  )
                 else if (visibleItems.isEmpty)
-                  const _MessageCard(message: 'No hay pedidos con esos filtros.')
+                  const _MessageCard(
+                    message: 'No hay pedidos con esos filtros.',
+                  )
                 else
-                  ...visibleItems.map((order) => _BusinessOrderCard(order: order)),
+                  ...visibleItems.map(
+                    (order) => _BusinessOrderCard(order: order),
+                  ),
               ],
             ),
           );
@@ -101,7 +115,8 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
   }
 
   bool _matchesFilters(OrderModel order) {
-    final matchesStatus = _statusFilter == null || order.status == _statusFilter;
+    final matchesStatus =
+        _statusFilter == null || order.status == _statusFilter;
     final matchesType = _typeFilter == null || order.type == _typeFilter;
     return matchesStatus && matchesType;
   }
@@ -235,13 +250,15 @@ class _BusinessOrderCard extends StatelessWidget {
                         order.title,
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                          fontWeight: FontWeight.w900,
-                        ),
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        [order.typeLabel, if (created != null) created].join(' - '),
+                        [
+                          order.typeLabel,
+                          if (created != null) created,
+                        ].join(' - '),
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
                     ],
@@ -256,9 +273,15 @@ class _BusinessOrderCard extends StatelessWidget {
               text: 'Cliente: ${order.contactName ?? 'Sin nombre'}',
             ),
             if (order.phone != null && order.phone!.isNotEmpty)
-              _InfoRow(icon: Icons.phone_outlined, text: 'Telefono: ${order.phone}'),
+              _InfoRow(
+                icon: Icons.phone_outlined,
+                text: 'Telefono: ${order.phone}',
+              ),
             if (order.email != null && order.email!.isNotEmpty)
-              _InfoRow(icon: Icons.mail_outline_rounded, text: 'Email: ${order.email}'),
+              _InfoRow(
+                icon: Icons.mail_outline_rounded,
+                text: 'Email: ${order.email}',
+              ),
             if (order.message != null && order.message!.isNotEmpty) ...[
               const SizedBox(height: 10),
               Container(
@@ -271,6 +294,36 @@ class _BusinessOrderCard extends StatelessWidget {
                   borderRadius: BorderRadius.circular(14),
                 ),
                 child: Text(order.message!),
+              ),
+            ],
+            if (order.items.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Items reservados',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              ...order.items.map(
+                (item) => Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      Text(
+                        'x${item.quantity}',
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
             const SizedBox(height: 12),
@@ -288,7 +341,10 @@ class _BusinessOrderCard extends StatelessWidget {
                   highlight: true,
                 ),
                 if (order.productId != null)
-                  _MetaChip(icon: Icons.inventory_2_outlined, label: 'Producto'),
+                  _MetaChip(
+                    icon: Icons.inventory_2_outlined,
+                    label: 'Producto',
+                  ),
                 if (order.propertyId != null)
                   _MetaChip(icon: Icons.home_work_outlined, label: 'Propiedad'),
                 if (order.transportId != null)
@@ -329,9 +385,39 @@ class _BusinessOrderCard extends StatelessWidget {
                   : 'nuevo',
               decoration: const InputDecoration(labelText: 'Estado'),
               items: const [
+                DropdownMenuItem(
+                  value: 'reservado_recogida',
+                  child: Text('Reservado'),
+                ),
+                DropdownMenuItem(
+                  value: 'confirmado_negocio',
+                  child: Text('Confirmado'),
+                ),
+                DropdownMenuItem(
+                  value: 'preparando',
+                  child: Text('Preparando'),
+                ),
+                DropdownMenuItem(
+                  value: 'listo_para_recoger',
+                  child: Text('Listo para recoger'),
+                ),
+                DropdownMenuItem(
+                  value: 'vendido_en_tienda',
+                  child: Text('Vendido en tienda'),
+                ),
+                DropdownMenuItem(
+                  value: 'completado',
+                  child: Text('Completado'),
+                ),
                 DropdownMenuItem(value: 'nuevo', child: Text('Nuevo')),
-                DropdownMenuItem(value: 'contactado', child: Text('Contactado')),
-                DropdownMenuItem(value: 'en_proceso', child: Text('En proceso')),
+                DropdownMenuItem(
+                  value: 'contactado',
+                  child: Text('Contactado'),
+                ),
+                DropdownMenuItem(
+                  value: 'en_proceso',
+                  child: Text('En proceso'),
+                ),
                 DropdownMenuItem(value: 'cerrado', child: Text('Cerrado')),
                 DropdownMenuItem(value: 'cancelado', child: Text('Cancelado')),
               ],
@@ -352,6 +438,13 @@ class _BusinessOrderCard extends StatelessWidget {
     'en_proceso',
     'cerrado',
     'cancelado',
+    'reservado_recogida',
+    'reservado_delivery',
+    'confirmado_negocio',
+    'preparando',
+    'listo_para_recoger',
+    'vendido_en_tienda',
+    'completado',
   };
 
   IconData _iconFor(String? type) {
@@ -374,7 +467,8 @@ class _BusinessOrderCard extends StatelessWidget {
   Future<void> _openWhatsApp(BuildContext context) async {
     final message = await sl<ContactService>().openWhatsApp(
       order.phone,
-      message: 'Hola ${order.contactName ?? ''}, te escribo por tu solicitud en CubNex.',
+      message:
+          'Hola ${order.contactName ?? ''}, te escribo por tu solicitud en CubNex.',
     );
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);

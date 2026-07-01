@@ -3,7 +3,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/entities/user_role.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
@@ -110,6 +112,10 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
         }
 
         final session = context.watch<AppSessionCubit>().state;
+        final activeBusiness = context
+            .watch<ActiveBusinessCubit>()
+            .state
+            .activeBusiness;
         final business = state.business!;
         final customization =
             state.customization ??
@@ -127,6 +133,12 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
             ? 'Servicios'
             : 'Productos de la tienda';
         final categories = _productCategories(state.products);
+        final canConnectAsBusiness =
+            activeBusiness != null &&
+            activeBusiness.id != business.id &&
+            (session.role == UserRole.businessAdmin ||
+                session.role == UserRole.superadmin ||
+                session.role == UserRole.delivery);
         final filteredProducts = state.products.where((product) {
           final text = [
             product.name,
@@ -212,6 +224,22 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                         ),
                       ],
                     ),
+                    if (canConnectAsBusiness) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.tonalIcon(
+                          onPressed: () => _openConnectionSheet(
+                            context,
+                            sourceBusinessId: activeBusiness.id,
+                            targetBusinessId: business.id,
+                            targetName: business.name,
+                          ),
+                          icon: const Icon(Icons.hub_outlined),
+                          label: const Text('Conectar con mi negocio'),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     _ContactCard(
                       phone: business.phone,
@@ -382,6 +410,147 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }
+  }
+
+  void _openConnectionSheet(
+    BuildContext context, {
+    required String sourceBusinessId,
+    required String targetBusinessId,
+    required String targetName,
+  }) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BlocProvider.value(
+        value: context.read<BusinessDetailCubit>(),
+        child: _BusinessConnectionSheet(
+          sourceBusinessId: sourceBusinessId,
+          targetBusinessId: targetBusinessId,
+          targetName: targetName,
+        ),
+      ),
+    );
+  }
+}
+
+class _BusinessConnectionSheet extends StatefulWidget {
+  const _BusinessConnectionSheet({
+    required this.sourceBusinessId,
+    required this.targetBusinessId,
+    required this.targetName,
+  });
+
+  final String sourceBusinessId;
+  final String targetBusinessId;
+  final String targetName;
+
+  @override
+  State<_BusinessConnectionSheet> createState() =>
+      _BusinessConnectionSheetState();
+}
+
+class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
+  final _productsController = TextEditingController();
+  final _notesController = TextEditingController();
+  var _relationType = 'proveedor';
+  var _notifications = true;
+
+  @override
+  void dispose() {
+    _productsController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Conectar con ${widget.targetName}',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 12),
+            DropdownButtonFormField<String>(
+              initialValue: _relationType,
+              decoration: const InputDecoration(labelText: 'Relacion'),
+              items: const [
+                DropdownMenuItem(
+                  value: 'proveedor',
+                  child: Text('Este negocio me provee'),
+                ),
+                DropdownMenuItem(
+                  value: 'cliente_mayorista',
+                  child: Text('Yo le suministro'),
+                ),
+                DropdownMenuItem(
+                  value: 'aliado',
+                  child: Text('Aliado comercial'),
+                ),
+                DropdownMenuItem(
+                  value: 'delivery',
+                  child: Text('Delivery asociado'),
+                ),
+              ],
+              onChanged: (value) =>
+                  setState(() => _relationType = value ?? 'proveedor'),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _productsController,
+              decoration: const InputDecoration(
+                labelText: 'Productos o servicios',
+                hintText: 'arroz, bebidas, transporte...',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _notesController,
+              maxLines: 3,
+              decoration: const InputDecoration(labelText: 'Notas'),
+            ),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _notifications,
+              onChanged: (value) => setState(() => _notifications = value),
+              title: const Text('Recibir notificaciones'),
+              subtitle: const Text(
+                'Stock, precios, publicaciones y pedidos B2B.',
+              ),
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: () {
+                final interests = _productsController.text
+                    .split(',')
+                    .map((item) => item.trim())
+                    .where((item) => item.isNotEmpty)
+                    .toList();
+                context.read<BusinessDetailCubit>().connectBusiness(
+                  sourceBusinessId: widget.sourceBusinessId,
+                  targetBusinessId: widget.targetBusinessId,
+                  relationType: _relationType,
+                  notifications: _notifications,
+                  productsOfInterest: interests,
+                  notes: _notesController.text,
+                );
+                Navigator.of(context).pop();
+              },
+              icon: const Icon(Icons.hub_outlined),
+              label: const Text('Crear conexion'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

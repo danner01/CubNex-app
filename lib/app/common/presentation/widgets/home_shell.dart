@@ -18,6 +18,15 @@ class HomeShell extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final roleMode = context.watch<RoleModeCubit>().state.activeMode;
     final items = _itemsForMode(roleMode);
+    final expectedHome = _homeForMode(roleMode);
+
+    if (_isModeHomeMismatch(location, roleMode)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) {
+          context.go(expectedHome);
+        }
+      });
+    }
 
     return Scaffold(
       appBar: const MarketAppBar(),
@@ -51,6 +60,22 @@ class HomeShell extends StatelessWidget {
     final index = items.indexWhere((item) => location.startsWith(item.prefix));
     if (index >= 0) return index;
     return 0;
+  }
+
+  String _homeForMode(RoleMode mode) {
+    return switch (mode) {
+      RoleMode.business => AppRoutes.businessDashboard,
+      RoleMode.delivery => AppRoutes.deliveryDashboard,
+      RoleMode.client => AppRoutes.home,
+    };
+  }
+
+  bool _isModeHomeMismatch(String location, RoleMode mode) {
+    if (mode == RoleMode.client) return false;
+    return location == AppRoutes.home ||
+        location == AppRoutes.cart ||
+        location == AppRoutes.orders ||
+        location == AppRoutes.promotions;
   }
 
   List<_ShellItem> _itemsForMode(RoleMode mode) {

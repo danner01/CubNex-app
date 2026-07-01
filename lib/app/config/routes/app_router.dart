@@ -13,10 +13,13 @@ import '../../modules/business/presentation/screens/business_dashboard_screen.da
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
 import '../../modules/business_directory/presentation/screens/business_detail_screen.dart';
+import '../../modules/business_network/presentation/screens/business_network_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
 import '../../modules/favorites/presentation/screens/favorites_screen.dart';
 import '../../modules/gamification/presentation/screens/gamification_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
+import '../../modules/jobs/presentation/screens/business_jobs_screen.dart';
+import '../../modules/jobs/presentation/screens/jobs_screen.dart';
 import '../../modules/menus/presentation/screens/business_menus_screen.dart';
 import '../../modules/notifications/presentation/screens/notifications_screen.dart';
 import '../../modules/orders/presentation/screens/cart_screen.dart';
@@ -67,8 +70,15 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
 
       if (session.status == AppSessionStatus.authenticated) {
         if (isSplash) return null;
-        if (!isLogin && !isOnboarding) return null;
-        return _defaultLocationForRole(session.role);
+        final defaultLocation = _defaultLocationForRole(session.role);
+        final shouldUseRoleHome =
+            isLogin ||
+            isOnboarding ||
+            ((session.role == UserRole.businessAdmin ||
+                    session.role == UserRole.superadmin ||
+                    session.role == UserRole.delivery) &&
+                state.matchedLocation == AppRoutes.home);
+        return shouldUseRoleHome ? defaultLocation : null;
       }
 
       return null;
@@ -88,10 +98,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
             path: AppRoutes.search,
             builder: (_, __) => const SearchScreen(),
           ),
-          GoRoute(
-            path: AppRoutes.map,
-            builder: (_, __) => const MapScreen(),
-          ),
+          GoRoute(path: AppRoutes.map, builder: (_, __) => const MapScreen()),
           GoRoute(
             path: AppRoutes.scanner,
             builder: (_, __) => const ScannerScreen(),
@@ -120,6 +127,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
             path: AppRoutes.posts,
             builder: (_, __) => const PostsFeedScreen(),
           ),
+          GoRoute(path: AppRoutes.jobs, builder: (_, __) => const JobsScreen()),
           GoRoute(
             path: AppRoutes.myReviews,
             builder: (_, __) => const MyReviewsScreen(),
@@ -150,10 +158,7 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
             path: AppRoutes.favorites,
             builder: (_, __) => const FavoritesScreen(),
           ),
-          GoRoute(
-            path: AppRoutes.cart,
-            builder: (_, __) => const CartScreen(),
-          ),
+          GoRoute(path: AppRoutes.cart, builder: (_, __) => const CartScreen()),
           GoRoute(
             path: AppRoutes.orders,
             builder: (_, __) => const OrdersScreen(),
@@ -181,6 +186,14 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
           GoRoute(
             path: AppRoutes.businessPromotions,
             builder: (_, __) => const BusinessPromotionsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessNetwork,
+            builder: (_, __) => const BusinessNetworkScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessJobs,
+            builder: (_, __) => const BusinessJobsScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessProperties,
@@ -212,33 +225,28 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
           ),
           GoRoute(
             path: AppRoutes.deliveryDashboard,
-            builder: (_, __) => const DeliveryHubScreen(
-              section: DeliveryHubSection.dashboard,
-            ),
+            builder: (_, __) =>
+                const DeliveryHubScreen(section: DeliveryHubSection.dashboard),
           ),
           GoRoute(
             path: AppRoutes.deliveryRequests,
-            builder: (_, __) => const DeliveryHubScreen(
-              section: DeliveryHubSection.requests,
-            ),
+            builder: (_, __) =>
+                const DeliveryHubScreen(section: DeliveryHubSection.requests),
           ),
           GoRoute(
             path: AppRoutes.deliveryRoute,
-            builder: (_, __) => const DeliveryHubScreen(
-              section: DeliveryHubSection.route,
-            ),
+            builder: (_, __) =>
+                const DeliveryHubScreen(section: DeliveryHubSection.route),
           ),
           GoRoute(
             path: AppRoutes.deliveryHistory,
-            builder: (_, __) => const DeliveryHubScreen(
-              section: DeliveryHubSection.history,
-            ),
+            builder: (_, __) =>
+                const DeliveryHubScreen(section: DeliveryHubSection.history),
           ),
           GoRoute(
             path: AppRoutes.deliveryProfile,
-            builder: (_, __) => const DeliveryHubScreen(
-              section: DeliveryHubSection.profile,
-            ),
+            builder: (_, __) =>
+                const DeliveryHubScreen(section: DeliveryHubSection.profile),
           ),
         ],
       ),
@@ -248,7 +256,8 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
 
 String _defaultLocationForRole(UserRole role) {
   return switch (role) {
-    UserRole.businessAdmin || UserRole.superadmin => AppRoutes.businessDashboard,
+    UserRole.businessAdmin ||
+    UserRole.superadmin => AppRoutes.businessDashboard,
     UserRole.delivery => AppRoutes.deliveryDashboard,
     _ => AppRoutes.home,
   };

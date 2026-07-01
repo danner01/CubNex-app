@@ -3,6 +3,7 @@ import 'package:equatable/equatable.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/models/business_model.dart';
 import '../../data/models/product_model.dart';
+import '../../../jobs/data/models/job_model.dart';
 
 enum HomeStatus { initial, loading, success, failure }
 
@@ -12,6 +13,7 @@ class HomeState extends Equatable {
     this.banners = const [],
     this.businesses = const [],
     this.products = const [],
+    this.jobs = const [],
     this.errorMessage,
     this.loadingMoreBusinesses = false,
     this.loadingMoreProducts = false,
@@ -25,6 +27,7 @@ class HomeState extends Equatable {
   final List<BannerModel> banners;
   final List<BusinessModel> businesses;
   final List<ProductModel> products;
+  final List<JobModel> jobs;
   final String? errorMessage;
   final bool loadingMoreBusinesses;
   final bool loadingMoreProducts;
@@ -38,6 +41,7 @@ class HomeState extends Equatable {
     List<BannerModel>? banners,
     List<BusinessModel>? businesses,
     List<ProductModel>? products,
+    List<JobModel>? jobs,
     String? errorMessage,
     bool? loadingMoreBusinesses,
     bool? loadingMoreProducts,
@@ -51,6 +55,7 @@ class HomeState extends Equatable {
       banners: banners ?? this.banners,
       businesses: businesses ?? this.businesses,
       products: products ?? this.products,
+      jobs: jobs ?? this.jobs,
       errorMessage: errorMessage,
       loadingMoreBusinesses:
           loadingMoreBusinesses ?? this.loadingMoreBusinesses,
@@ -68,6 +73,7 @@ class HomeState extends Equatable {
     banners,
     businesses,
     products,
+    jobs,
     errorMessage,
     loadingMoreBusinesses,
     loadingMoreProducts,

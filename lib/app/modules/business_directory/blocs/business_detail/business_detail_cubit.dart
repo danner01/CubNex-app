@@ -193,4 +193,35 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
       await load(_businessId!);
     }
   }
+
+  Future<void> connectBusiness({
+    required String sourceBusinessId,
+    required String targetBusinessId,
+    required String relationType,
+    required bool notifications,
+    required List<String> productsOfInterest,
+    String? notes,
+  }) async {
+    emit(state.copyWith(status: BusinessDetailStatus.saving));
+    final result = await _apiClient.post<void>(
+      '/red-negocios/conectar/$targetBusinessId',
+      data: {
+        'negocio_id': sourceBusinessId,
+        'tipo_relacion': relationType,
+        'notificaciones': notifications,
+        'productos_interes': productsOfInterest,
+        if (notes?.trim().isNotEmpty == true) 'notas': notes!.trim(),
+      },
+      parser: (_) {},
+    );
+
+    emit(
+      state.copyWith(
+        status: BusinessDetailStatus.success,
+        message: result.isSuccess
+            ? 'Conexion creada.'
+            : result.error?.message ?? 'No se pudo crear la conexion.',
+      ),
+    );
+  }
 }

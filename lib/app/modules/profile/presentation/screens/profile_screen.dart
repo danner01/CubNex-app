@@ -13,6 +13,7 @@ class ProfileScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final session = context.watch<AppSessionCubit>().state;
     final roleMode = context.watch<RoleModeCubit>().state;
+    final activeMode = roleMode.activeMode;
 
     return Scaffold(
       body: ListView(
@@ -59,11 +60,17 @@ class ProfileScreen extends StatelessWidget {
             _ModeSwitcher(state: roleMode),
             const SizedBox(height: 14),
           ],
-          if (session.isBusiness)
+          if (session.isBusiness && activeMode == RoleMode.business)
             FilledButton.icon(
               onPressed: () => context.go(AppRoutes.businessDashboard),
               icon: const Icon(Icons.dashboard_outlined),
               label: const Text('Panel de mi negocio'),
+            )
+          else if (session.isDelivery && activeMode == RoleMode.delivery)
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.deliveryDashboard),
+              icon: const Icon(Icons.delivery_dining_rounded),
+              label: const Text('Panel delivery'),
             )
           else
             FilledButton.icon(
@@ -71,54 +78,8 @@ class ProfileScreen extends StatelessWidget {
               icon: const Icon(Icons.add_business_rounded),
               label: const Text('Crear mi negocio'),
             ),
-          if (session.isDelivery) ...[
-            const SizedBox(height: 10),
-            FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.deliveryDashboard),
-              icon: const Icon(Icons.delivery_dining_rounded),
-              label: const Text('Panel delivery'),
-            ),
-          ],
           const SizedBox(height: 18),
-          const _SectionLabel('Actividad'),
-          _ProfileTile(
-            icon: Icons.favorite_border_rounded,
-            title: 'Favoritos',
-            subtitle: 'Productos, tiendas y servicios guardados.',
-            onTap: () => context.go(AppRoutes.favorites),
-          ),
-          _ProfileTile(
-            icon: Icons.notifications_none_rounded,
-            title: 'Notificaciones',
-            subtitle: 'Promociones, pedidos y avisos del sistema.',
-            onTap: () => context.go(AppRoutes.notifications),
-          ),
-          _ProfileTile(
-            icon: Icons.receipt_long_outlined,
-            title: 'Mis pedidos',
-            subtitle: 'Solicitudes enviadas a negocios.',
-            onTap: () => context.go(AppRoutes.orders),
-          ),
-          const SizedBox(height: 10),
-          const _SectionLabel('Historial y reputacion'),
-          _ProfileTile(
-            icon: Icons.qr_code_scanner_rounded,
-            title: 'Historial de escaneos',
-            subtitle: 'QR, productos y codigos consultados.',
-            onTap: () => context.go(AppRoutes.scanHistory),
-          ),
-          _ProfileTile(
-            icon: Icons.rate_review_outlined,
-            title: 'Mis resenas',
-            subtitle: 'Opiniones y calificaciones publicadas.',
-            onTap: () => context.go(AppRoutes.myReviews),
-          ),
-          _ProfileTile(
-            icon: Icons.workspace_premium_outlined,
-            title: 'Puntos y nivel',
-            subtitle: 'Gamificacion, sorteos y cashback.',
-            onTap: () => context.go(AppRoutes.gamification),
-          ),
+          ..._profileTilesForMode(context, activeMode),
           const SizedBox(height: 10),
           const _SectionLabel('Configuracion'),
           _ProfileTile(
@@ -140,6 +101,130 @@ class ProfileScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
+  final common = [
+    _ProfileTile(
+      icon: Icons.notifications_none_rounded,
+      title: 'Notificaciones',
+      subtitle: 'Avisos, pedidos, promociones y mensajes del sistema.',
+      onTap: () => context.go(AppRoutes.notifications),
+    ),
+  ];
+
+  return switch (mode) {
+    RoleMode.client => [
+      const _SectionLabel('Actividad cliente'),
+      _ProfileTile(
+        icon: Icons.favorite_border_rounded,
+        title: 'Favoritos',
+        subtitle: 'Productos, negocios, servicios y delivery guardados.',
+        onTap: () => context.go(AppRoutes.favorites),
+      ),
+      _ProfileTile(
+        icon: Icons.receipt_long_outlined,
+        title: 'Mis pedidos',
+        subtitle: 'Reservas, compras y entregas solicitadas.',
+        onTap: () => context.go(AppRoutes.orders),
+      ),
+      ...common,
+      const SizedBox(height: 10),
+      const _SectionLabel('Historial y reputacion'),
+      _ProfileTile(
+        icon: Icons.qr_code_scanner_rounded,
+        title: 'Historial de escaneos',
+        subtitle: 'QR, productos y codigos consultados.',
+        onTap: () => context.go(AppRoutes.scanHistory),
+      ),
+      _ProfileTile(
+        icon: Icons.rate_review_outlined,
+        title: 'Mis resenas',
+        subtitle: 'Opiniones y calificaciones publicadas.',
+        onTap: () => context.go(AppRoutes.myReviews),
+      ),
+      _ProfileTile(
+        icon: Icons.workspace_premium_outlined,
+        title: 'Puntos y nivel',
+        subtitle: 'Gamificacion, sorteos y cashback.',
+        onTap: () => context.go(AppRoutes.gamification),
+      ),
+    ],
+    RoleMode.business => [
+      const _SectionLabel('Operacion del negocio'),
+      _ProfileTile(
+        icon: Icons.dashboard_customize_outlined,
+        title: 'Dashboard negocio',
+        subtitle: 'Ventas, reservas, inventario y rendimiento.',
+        onTap: () => context.go(AppRoutes.businessDashboard),
+      ),
+      _ProfileTile(
+        icon: Icons.add_business_rounded,
+        title: 'Crear otro negocio',
+        subtitle: 'Nueva tienda, franquicia o servicio asociado a tu cuenta.',
+        onTap: () => context.go(AppRoutes.businessWizard),
+      ),
+      _ProfileTile(
+        icon: Icons.receipt_long_outlined,
+        title: 'Pedidos recibidos',
+        subtitle: 'Reservas, ventas, QR y entregas de tus negocios.',
+        onTap: () => context.go(AppRoutes.businessOrders),
+      ),
+      _ProfileTile(
+        icon: Icons.inventory_2_outlined,
+        title: 'Inventario',
+        subtitle: 'Productos, stock, precios y visibilidad.',
+        onTap: () => context.go(AppRoutes.businessInventory),
+      ),
+      _ProfileTile(
+        icon: Icons.campaign_outlined,
+        title: 'Promociones',
+        subtitle: 'Ofertas activas del negocio seleccionado.',
+        onTap: () => context.go(AppRoutes.businessPromotions),
+      ),
+      _ProfileTile(
+        icon: Icons.storefront_outlined,
+        title: 'Negocio',
+        subtitle: 'Marca, horarios, electricidad, delivery y apariencia.',
+        onTap: () => context.go(AppRoutes.businessSettings),
+      ),
+      ...common,
+    ],
+    RoleMode.delivery => [
+      const _SectionLabel('Operacion delivery'),
+      _ProfileTile(
+        icon: Icons.delivery_dining_outlined,
+        title: 'Panel delivery',
+        subtitle: 'Solicitudes, entregas activas, ingresos y reputacion.',
+        onTap: () => context.go(AppRoutes.deliveryDashboard),
+      ),
+      _ProfileTile(
+        icon: Icons.assignment_outlined,
+        title: 'Solicitudes',
+        subtitle: 'Ordenes disponibles para aceptar.',
+        onTap: () => context.go(AppRoutes.deliveryRequests),
+      ),
+      _ProfileTile(
+        icon: Icons.map_outlined,
+        title: 'Ruta y mapa',
+        subtitle: 'Entregas activas y ubicacion en tiempo real.',
+        onTap: () => context.go(AppRoutes.deliveryRoute),
+      ),
+      _ProfileTile(
+        icon: Icons.history_rounded,
+        title: 'Historial de entregas',
+        subtitle: 'Ordenes completadas, kilometros y pagos.',
+        onTap: () => context.go(AppRoutes.deliveryHistory),
+      ),
+      _ProfileTile(
+        icon: Icons.badge_outlined,
+        title: 'Perfil delivery',
+        subtitle: 'Vehiculo, tarifa, disponibilidad y zona.',
+        onTap: () => context.go(AppRoutes.deliveryProfile),
+      ),
+      ...common,
+    ],
+  };
 }
 
 class _ModeSwitcher extends StatelessWidget {

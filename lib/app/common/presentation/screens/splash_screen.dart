@@ -7,6 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../blocs/app_session/app_session_cubit.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../entities/user_role.dart';
 import '../widgets/cubnex_logo.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -30,10 +31,8 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: _totalDuration,
-    )..forward();
+    _controller = AnimationController(vsync: this, duration: _totalDuration)
+      ..forward();
     _goToOnboarding();
   }
 
@@ -48,14 +47,22 @@ class _SplashScreenState extends State<SplashScreen>
     if (!mounted) return;
     final session = context.read<AppSessionCubit>().state;
     final target = switch (session.status) {
-      AppSessionStatus.authenticated || AppSessionStatus.guest =>
-        AppRoutes.home,
-      AppSessionStatus.unauthenticated => session.onboardingSeen
-          ? AppRoutes.login
-          : AppRoutes.onboarding,
+      AppSessionStatus.authenticated => _defaultLocationForRole(session.role),
+      AppSessionStatus.guest => AppRoutes.home,
+      AppSessionStatus.unauthenticated =>
+        session.onboardingSeen ? AppRoutes.login : AppRoutes.onboarding,
       AppSessionStatus.loading => AppRoutes.onboarding,
     };
     context.go(target);
+  }
+
+  String _defaultLocationForRole(UserRole role) {
+    return switch (role) {
+      UserRole.businessAdmin ||
+      UserRole.superadmin => AppRoutes.businessDashboard,
+      UserRole.delivery => AppRoutes.deliveryDashboard,
+      _ => AppRoutes.home,
+    };
   }
 
   @override
@@ -100,10 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
                   return Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      AnimatedCubNexLogo(
-                        animation: _controller,
-                        size: 138,
-                      ),
+                      AnimatedCubNexLogo(animation: _controller, size: 138),
                       const SizedBox(height: 20),
                       const Text(
                         'CubNex',
@@ -132,8 +136,9 @@ class _SplashScreenState extends State<SplashScreen>
                           child: LinearProgressIndicator(
                             minHeight: 4,
                             value: networkProgress,
-                            backgroundColor:
-                                Colors.white.withValues(alpha: 0.08),
+                            backgroundColor: Colors.white.withValues(
+                              alpha: 0.08,
+                            ),
                             color: AppColors.gold,
                           ),
                         ),
@@ -213,7 +218,11 @@ class _CubaNetworkPainter extends CustomPainter {
       canvas.drawLine(nodes[i].point, nodes[i + 1].point, linePaint);
       final phase = ((progress + i * 0.13) % 1.0);
       final start = Offset.lerp(nodes[i].point, nodes[i + 1].point, phase)!;
-      final end = Offset.lerp(nodes[i].point, nodes[i + 1].point, math.min(phase + 0.12, 1))!;
+      final end = Offset.lerp(
+        nodes[i].point,
+        nodes[i + 1].point,
+        math.min(phase + 0.12, 1),
+      )!;
       canvas.drawLine(start, end, activePaint);
     }
 
@@ -246,14 +255,38 @@ class _CubaNetworkPainter extends CustomPainter {
 
     return Path()
       ..moveTo(p(0.02, 0.58).dx, p(0.02, 0.58).dy)
-      ..cubicTo(p(0.18, 0.31).dx, p(0.18, 0.31).dy, p(0.42, 0.25).dx,
-          p(0.42, 0.25).dy, p(0.66, 0.34).dx, p(0.66, 0.34).dy)
-      ..cubicTo(p(0.83, 0.4).dx, p(0.83, 0.4).dy, p(0.94, 0.51).dx,
-          p(0.94, 0.51).dy, p(0.98, 0.65).dx, p(0.98, 0.65).dy)
-      ..cubicTo(p(0.72, 0.56).dx, p(0.72, 0.56).dy, p(0.44, 0.55).dx,
-          p(0.44, 0.55).dy, p(0.2, 0.73).dx, p(0.2, 0.73).dy)
-      ..cubicTo(p(0.08, 0.82).dx, p(0.08, 0.82).dy, p(-0.02, 0.74).dx,
-          p(-0.02, 0.74).dy, p(0.02, 0.58).dx, p(0.02, 0.58).dy)
+      ..cubicTo(
+        p(0.18, 0.31).dx,
+        p(0.18, 0.31).dy,
+        p(0.42, 0.25).dx,
+        p(0.42, 0.25).dy,
+        p(0.66, 0.34).dx,
+        p(0.66, 0.34).dy,
+      )
+      ..cubicTo(
+        p(0.83, 0.4).dx,
+        p(0.83, 0.4).dy,
+        p(0.94, 0.51).dx,
+        p(0.94, 0.51).dy,
+        p(0.98, 0.65).dx,
+        p(0.98, 0.65).dy,
+      )
+      ..cubicTo(
+        p(0.72, 0.56).dx,
+        p(0.72, 0.56).dy,
+        p(0.44, 0.55).dx,
+        p(0.44, 0.55).dy,
+        p(0.2, 0.73).dx,
+        p(0.2, 0.73).dy,
+      )
+      ..cubicTo(
+        p(0.08, 0.82).dx,
+        p(0.08, 0.82).dy,
+        p(-0.02, 0.74).dx,
+        p(-0.02, 0.74).dy,
+        p(0.02, 0.58).dx,
+        p(0.02, 0.58).dy,
+      )
       ..close();
   }
 

@@ -1,8 +1,12 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/store_brand_theme.dart';
 import '../../../home/data/models/business_model.dart';
@@ -422,14 +426,28 @@ class _OperationsSection extends StatelessWidget {
   }
 }
 
-class _BrandAssetsSection extends StatelessWidget {
+class _BrandAssetsSection extends StatefulWidget {
   const _BrandAssetsSection({required this.business, required this.saving});
 
   final BusinessModel? business;
   final bool saving;
 
   @override
+  State<_BrandAssetsSection> createState() => _BrandAssetsSectionState();
+}
+
+class _BrandAssetsSectionState extends State<_BrandAssetsSection> {
+  bool _uploadingLogo = false;
+  bool _uploadingBanner = false;
+
+  @override
   Widget build(BuildContext context) {
+    final enabled =
+        !widget.saving &&
+        widget.business != null &&
+        !_uploadingLogo &&
+        !_uploadingBanner;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -444,33 +462,271 @@ class _BrandAssetsSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'Usa enlaces de Supabase Storage para logo y banner. Luego podemos conectar selector de galeria y camara.',
+              'Sube el logo y banner desde la camara o galeria. Se guardan en Supabase Storage y luego quedan visibles en tu tienda.',
             ),
             const SizedBox(height: 14),
-            TextFormField(
-              initialValue: business?.logoUrl ?? '',
-              enabled: !saving && business != null,
-              decoration: const InputDecoration(
-                labelText: 'Logo del negocio',
-                prefixIcon: Icon(Icons.image_outlined),
-                hintText: 'https://.../logo.png',
-              ),
-              onChanged: (value) => context
-                  .read<BusinessSettingsCubit>()
-                  .updateBusinessBrand(logoUrl: value.trim()),
+            _ImagePickerTile(
+              title: 'Logo del negocio',
+              subtitle: 'Formato cuadrado recomendado',
+              imageUrl: widget.business?.logoUrl,
+              icon: Icons.storefront_outlined,
+              busy: _uploadingLogo,
+              enabled: enabled,
+              height: 88,
+              onTap: () => _pickAndUpload(kind: _BrandAssetKind.logo),
             ),
             const SizedBox(height: 12),
-            TextFormField(
-              initialValue: business?.bannerUrl ?? '',
-              enabled: !saving && business != null,
-              decoration: const InputDecoration(
-                labelText: 'Banner principal',
-                prefixIcon: Icon(Icons.panorama_outlined),
-                hintText: 'https://.../banner.png',
+            _ImagePickerTile(
+              title: 'Banner principal',
+              subtitle: 'Imagen horizontal para portada',
+              imageUrl: widget.business?.bannerUrl,
+              icon: Icons.panorama_outlined,
+              busy: _uploadingBanner,
+              enabled: enabled,
+              height: 120,
+              wide: true,
+              onTap: () => _pickAndUpload(kind: _BrandAssetKind.banner),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _pickAndUpload({required _BrandAssetKind kind}) async {
+    final source = await _chooseImageSource();
+    if (source == null || !mounted) return;
+
+    final image = await ImagePicker().pickImage(
+      source: source,
+      imageQuality: kind == _BrandAssetKind.banner ? 76 : 82,
+      maxWidth: kind == _BrandAssetKind.banner ? 1600 : 900,
+    );
+    if (image == null || !mounted) return;
+
+    setState(() {
+      if (kind == _BrandAssetKind.logo) {
+        _uploadingLogo = true;
+      } else {
+        _uploadingBanner = true;
+      }
+    });
+
+    final url = await _uploadBrandAsset(image, kind);
+    if (!mounted) return;
+
+    setState(() {
+      if (kind == _BrandAssetKind.logo) {
+        _uploadingLogo = false;
+      } else {
+        _uploadingBanner = false;
+      }
+    });
+
+    if (url == null) {
+      showSnackOrAuthDialog(
+        context,
+        'No se pudo subir la imagen. Revisa conexion y permisos.',
+      );
+      return;
+    }
+
+    context.read<BusinessSettingsCubit>().updateBusinessBrand(
+      logoUrl: kind == _BrandAssetKind.logo ? url : null,
+      bannerUrl: kind == _BrandAssetKind.banner ? url : null,
+    );
+  }
+
+  Future<String?> _uploadBrandAsset(XFile image, _BrandAssetKind kind) async {
+    final business = widget.business;
+    if (business == null) return null;
+
+    try {
+      final bytes = await image.readAsBytes();
+      final result = await sl<ApiClient>().post<Map<String, dynamic>>(
+        '/storage/subir',
+        data: {
+          'archivo_base64': base64Encode(bytes),
+          'nombre_archivo':
+              '${kind.name}-${business.id}-${DateTime.now().millisecondsSinceEpoch}.jpg',
+          'content_type': 'image/jpeg',
+          'bucket': 'negocios',
+          'scope': 'identidad-visual',
+          'negocio_id': business.id,
+        },
+        parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+      );
+      final url = result.data?['public_url']?.toString();
+      if (result.isSuccess && url != null && url.isNotEmpty) return url;
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  Future<ImageSource?> _chooseImageSource() {
+    return showModalBottomSheet<ImageSource>(
+      context: context,
+      showDragHandle: true,
+      builder: (context) {
+        return SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 18),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                ListTile(
+                  leading: const Icon(Icons.photo_camera_outlined),
+                  title: const Text('Tomar foto'),
+                  onTap: () => Navigator.pop(context, ImageSource.camera),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.photo_library_outlined),
+                  title: const Text('Escoger desde galeria'),
+                  onTap: () => Navigator.pop(context, ImageSource.gallery),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _BrandAssetKind { logo, banner }
+
+class _ImagePickerTile extends StatelessWidget {
+  const _ImagePickerTile({
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.onTap,
+    this.imageUrl,
+    this.busy = false,
+    this.enabled = true,
+    this.height = 96,
+    this.wide = false,
+  });
+
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final VoidCallback onTap;
+  final String? imageUrl;
+  final bool busy;
+  final bool enabled;
+  final double height;
+  final bool wide;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasImage = imageUrl != null && imageUrl!.isNotEmpty;
+    final colorScheme = Theme.of(context).colorScheme;
+
+    return InkWell(
+      onTap: enabled ? onTap : null,
+      borderRadius: BorderRadius.circular(18),
+      child: Container(
+        constraints: BoxConstraints(minHeight: height),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(18),
+          border: Border.all(color: colorScheme.outlineVariant),
+          color: colorScheme.surfaceContainerHighest.withValues(alpha: 0.42),
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            if (wide && hasImage)
+              Positioned.fill(
+                child: Image.network(
+                  imageUrl!,
+                  fit: BoxFit.cover,
+                  errorBuilder: (_, __, ___) => const SizedBox.shrink(),
+                ),
               ),
-              onChanged: (value) => context
-                  .read<BusinessSettingsCubit>()
-                  .updateBusinessBrand(bannerUrl: value.trim()),
+            if (wide && hasImage)
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withValues(alpha: 0.08),
+                        Colors.black.withValues(alpha: 0.58),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Row(
+                children: [
+                  Container(
+                    width: wide ? 58 : 64,
+                    height: wide ? 58 : 64,
+                    decoration: BoxDecoration(
+                      shape: wide ? BoxShape.rectangle : BoxShape.circle,
+                      borderRadius: wide ? BorderRadius.circular(14) : null,
+                      color: colorScheme.primaryContainer,
+                      image: !wide && hasImage
+                          ? DecorationImage(
+                              image: NetworkImage(imageUrl!),
+                              fit: BoxFit.cover,
+                            )
+                          : null,
+                    ),
+                    child: (!wide && hasImage)
+                        ? null
+                        : Icon(icon, color: colorScheme.onPrimaryContainer),
+                  ),
+                  const SizedBox(width: 14),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                fontWeight: FontWeight.w900,
+                                color: wide && hasImage ? Colors.white : null,
+                              ),
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          hasImage
+                              ? 'Imagen cargada. Toca para cambiarla.'
+                              : subtitle,
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: wide && hasImage
+                                    ? Colors.white.withValues(alpha: 0.82)
+                                    : null,
+                              ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  if (busy)
+                    const SizedBox(
+                      width: 22,
+                      height: 22,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  else
+                    Icon(
+                      hasImage
+                          ? Icons.edit_outlined
+                          : Icons.add_photo_alternate_outlined,
+                      color: wide && hasImage ? Colors.white : null,
+                    ),
+                ],
+              ),
             ),
           ],
         ),

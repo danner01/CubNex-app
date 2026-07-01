@@ -5,6 +5,7 @@ import '../../../../config/http/api_result.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/models/business_model.dart';
 import '../../data/models/product_model.dart';
+import '../../../jobs/data/models/job_model.dart';
 import 'home_state.dart';
 
 class HomeCubit extends Cubit<HomeState> {
@@ -24,12 +25,14 @@ class HomeCubit extends Cubit<HomeState> {
           _loadBanners(),
           _loadBusinesses(),
           _loadProducts(),
+          _loadJobs(),
         ]).timeout(
           const Duration(seconds: 7),
           onTimeout: () => [
             _HomeLoadResult<List<BannerModel>>.fallback(const []),
             _HomeLoadResult<List<BusinessModel>>.fallback(const []),
             _HomeLoadResult<List<ProductModel>>.fallback(const []),
+            _HomeLoadResult<List<JobModel>>.fallback(const []),
           ],
         );
 
@@ -38,10 +41,12 @@ class HomeCubit extends Cubit<HomeState> {
     final bannersResult = results[0] as _HomeLoadResult<List<BannerModel>>;
     final businessesResult = results[1] as _HomeLoadResult<List<BusinessModel>>;
     final productsResult = results[2] as _HomeLoadResult<List<ProductModel>>;
+    final jobsResult = results[3] as _HomeLoadResult<List<JobModel>>;
     final warnings = [
       bannersResult.message,
       businessesResult.message,
       productsResult.message,
+      jobsResult.message,
     ].whereType<String>().toList();
     final warning = warnings.isEmpty ? null : warnings.first;
 
@@ -51,6 +56,7 @@ class HomeCubit extends Cubit<HomeState> {
         banners: bannersResult.data,
         businesses: businessesResult.data,
         products: productsResult.data,
+        jobs: jobsResult.data,
         businessOffset: businessesResult.data.length,
         productOffset: productsResult.data.length,
         hasMoreBusinesses: businessesResult.data.length >= _pageSize,
@@ -140,6 +146,16 @@ class HomeCubit extends Cubit<HomeState> {
       queryParameters: {'limit': _pageSize, 'offset': offset},
       parser: (json) =>
           _asList(json).map((item) => ProductModel.fromJson(item)).toList(),
+    );
+    return _HomeLoadResult.fromApi(result, fallback: const []);
+  }
+
+  Future<_HomeLoadResult<List<JobModel>>> _loadJobs() async {
+    final result = await _apiClient.get<List<JobModel>>(
+      '/empleos',
+      queryParameters: {'limit': 6, 'order': 'created_at.desc'},
+      parser: (json) =>
+          _asList(json).map((item) => JobModel.fromJson(item)).toList(),
     );
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }

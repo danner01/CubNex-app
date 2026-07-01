@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../modules/orders/blocs/cart/cart_cubit.dart';
@@ -18,6 +19,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final isDark = colorScheme.brightness == Brightness.dark;
     final cartCount = context.watch<CartCubit>().state.totalItems;
+    final roleMode = context.watch<RoleModeCubit>().state.activeMode;
 
     return SafeArea(
       bottom: false,
@@ -51,12 +53,24 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: () => context.go(AppRoutes.notifications),
             ),
             const SizedBox(width: 8),
-            _HeaderButton(
-              tooltip: 'Carrito',
-              icon: Icons.shopping_cart_outlined,
-              badgeCount: cartCount,
-              onPressed: () => context.go(AppRoutes.cart),
-            ),
+            switch (roleMode) {
+              RoleMode.client => _HeaderButton(
+                tooltip: 'Carrito',
+                icon: Icons.shopping_cart_outlined,
+                badgeCount: cartCount,
+                onPressed: () => context.go(AppRoutes.cart),
+              ),
+              RoleMode.business => _HeaderButton(
+                tooltip: 'Pedidos del negocio',
+                icon: Icons.receipt_long_outlined,
+                onPressed: () => context.go(AppRoutes.businessOrders),
+              ),
+              RoleMode.delivery => _HeaderButton(
+                tooltip: 'Mis ordenes de delivery',
+                icon: Icons.delivery_dining_outlined,
+                onPressed: () => context.go(AppRoutes.deliveryRequests),
+              ),
+            },
           ],
         ),
       ),

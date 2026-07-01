@@ -13,6 +13,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../blocs/home/home_cubit.dart';
 import '../../blocs/home/home_state.dart';
 import '../../data/models/banner_model.dart';
+import '../../../jobs/data/models/job_model.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -137,6 +138,16 @@ class _HomeViewState extends State<_HomeView> {
                       queryParameters: {'q': query},
                     ).toString(),
                   ),
+                ),
+                const SizedBox(height: 24),
+                SectionHeader(
+                  title: 'Empleos cerca',
+                  onAction: () => context.go(AppRoutes.jobs),
+                ),
+                const SizedBox(height: 12),
+                _JobsStrip(
+                  jobs: state.jobs,
+                  onOpen: () => context.go(AppRoutes.jobs),
                 ),
                 const SizedBox(height: 24),
                 SectionHeader(
@@ -437,6 +448,110 @@ class _DiscoverySections extends StatelessWidget {
         itemBuilder: (context, index) {
           final item = items[index];
           return _DiscoveryCard(item: item, onTap: () => onSearch(item.query));
+        },
+      ),
+    );
+  }
+}
+
+class _JobsStrip extends StatelessWidget {
+  const _JobsStrip({required this.jobs, required this.onOpen});
+
+  final List<JobModel> jobs;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    if (jobs.isEmpty) {
+      return InkWell(
+        borderRadius: BorderRadius.circular(18),
+        onTap: onOpen,
+        child: Card(
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Row(
+              children: [
+                Icon(
+                  Icons.work_outline_rounded,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Marca en tu perfil que buscas empleo y revisa nuevas oportunidades publicadas por negocios.',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+                const Icon(Icons.arrow_forward_rounded),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
+    return SizedBox(
+      height: 146,
+      child: ListView.separated(
+        scrollDirection: Axis.horizontal,
+        itemCount: jobs.length,
+        separatorBuilder: (_, __) => const SizedBox(width: 12),
+        itemBuilder: (context, index) {
+          final job = jobs[index];
+          return SizedBox(
+            width: 254,
+            child: Card(
+              child: InkWell(
+                borderRadius: BorderRadius.circular(16),
+                onTap: onOpen,
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.work_outline_rounded,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              job.businessName ?? 'Negocio',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      Text(
+                        job.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const Spacer(),
+                      Text(
+                        job.salaryLabel,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          color: Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
         },
       ),
     );

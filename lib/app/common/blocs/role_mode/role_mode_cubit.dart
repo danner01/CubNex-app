@@ -6,10 +6,7 @@ import '../../entities/user_role.dart';
 enum RoleMode { client, business, delivery }
 
 class RoleModeState {
-  const RoleModeState({
-    required this.activeMode,
-    required this.availableModes,
-  });
+  const RoleModeState({required this.activeMode, required this.availableModes});
 
   const RoleModeState.client()
     : activeMode = RoleMode.client,
@@ -43,8 +40,10 @@ class RoleModeCubit extends Cubit<RoleModeState> {
   void syncWithRole(UserRole role) {
     final modes = _availableModesFor(role);
     final saved = _modeFromStorage(_sharedPreferences.getString(_storageKey));
-    final active = saved != null && modes.contains(saved)
-        ? saved
+    final active = role == UserRole.client || role == UserRole.guest
+        ? saved != null && modes.contains(saved)
+              ? saved
+              : _defaultModeFor(role)
         : _defaultModeFor(role);
 
     emit(RoleModeState(activeMode: active, availableModes: modes));

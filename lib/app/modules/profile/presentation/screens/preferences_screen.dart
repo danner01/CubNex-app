@@ -4,6 +4,7 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../common/blocs/app_theme/app_theme_cubit.dart';
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../wizard/data/models/business_type_model.dart';
@@ -36,6 +37,7 @@ class _PreferencesViewState extends State<_PreferencesView> {
 
   @override
   Widget build(BuildContext context) {
+    final roleMode = context.watch<RoleModeCubit>().state.activeMode;
     return Scaffold(
       body: BlocConsumer<PreferencesCubit, PreferencesState>(
         listener: (context, state) {
@@ -47,7 +49,7 @@ class _PreferencesViewState extends State<_PreferencesView> {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
             children: [
-              _HeaderCard(panel: _panel),
+              _HeaderCard(panel: _panel, roleMode: roleMode),
               const SizedBox(height: 12),
               _PanelSelector(
                 selected: _panel,
@@ -63,6 +65,7 @@ class _PreferencesViewState extends State<_PreferencesView> {
                   _PreferencePanel.categories => _CategoriesSection(
                     key: const ValueKey('categories'),
                     state: state,
+                    roleMode: roleMode,
                   ),
                   _PreferencePanel.privacy => const _PrivacySection(
                     key: ValueKey('privacy'),
@@ -98,23 +101,32 @@ class _PreferencesViewState extends State<_PreferencesView> {
 }
 
 class _HeaderCard extends StatelessWidget {
-  const _HeaderCard({required this.panel});
+  const _HeaderCard({required this.panel, required this.roleMode});
 
   final _PreferencePanel panel;
+  final RoleMode roleMode;
 
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
+    final roleLabel = switch (roleMode) {
+      RoleMode.client => 'cliente',
+      RoleMode.business => 'negocio',
+      RoleMode.delivery => 'delivery',
+    };
     final title = switch (panel) {
-      _PreferencePanel.theme => 'Preferencias',
-      _PreferencePanel.categories => 'Preferencias',
-      _PreferencePanel.privacy => 'Preferencias',
+      _PreferencePanel.theme => 'Preferencias de $roleLabel',
+      _PreferencePanel.categories => 'Categorias de $roleLabel',
+      _PreferencePanel.privacy => 'Privacidad de $roleLabel',
     };
     final subtitle = switch (panel) {
       _PreferencePanel.theme =>
         'Controla el modo claro, oscuro o automatico de CubNex.',
-      _PreferencePanel.categories =>
-        'Elige que negocios y servicios quieres ver primero.',
+      _PreferencePanel.categories => switch (roleMode) {
+        RoleMode.client => 'Elige que negocios y servicios quieres ver primero.',
+        RoleMode.business => 'Prioriza aliados, proveedores y servicios utiles para tus negocios.',
+        RoleMode.delivery => 'Configura los tipos de negocios y entregas que quieres recibir primero.',
+      },
       _PreferencePanel.privacy =>
         'Decide como se usa tu actividad dentro de la app.',
     };
@@ -223,16 +235,17 @@ class _PanelChip extends StatelessWidget {
 }
 
 class _CategoriesSection extends StatelessWidget {
-  const _CategoriesSection({required this.state, super.key});
+  const _CategoriesSection({required this.state, required this.roleMode, super.key});
 
   final PreferencesState state;
+  final RoleMode roleMode;
 
   @override
   Widget build(BuildContext context) {
     final loading = state.status == PreferencesStatus.loading;
     final saving = state.status == PreferencesStatus.saving;
     final grouped = <String, List<BusinessTypeModel>>{};
-    for (final type in state.types) {
+    for (final type in _typesForMode(state.types)) {
       grouped.putIfAbsent(type.parentCategory ?? 'otros', () => []).add(type);
     }
 
@@ -274,14 +287,25 @@ class _CategoriesSection extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Recomendaciones',
+          switch (roleMode) {
+            RoleMode.client => 'Recomendaciones',
+            RoleMode.business => 'Preferencias comerciales',
+            RoleMode.delivery => 'Preferencias de entregas',
+          },
           style: Theme.of(context).textTheme.titleMedium?.copyWith(
             fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 6),
-        const Text(
-          'Marca los tipos de negocios que quieres priorizar en el home, promociones y busqueda.',
+        Text(
+          switch (roleMode) {
+            RoleMode.client =>
+              'Marca los tipos de negocios que quieres priorizar en el home, promociones y busqueda.',
+            RoleMode.business =>
+              'Selecciona categorias de proveedores, aliados y clientes potenciales para recomendaciones B2B.',
+            RoleMode.delivery =>
+              'Selecciona negocios y servicios que generan entregas para ordenar tus solicitudes.',
+          },
         ),
         const SizedBox(height: 12),
         ...grouped.entries.map(
@@ -294,6 +318,17 @@ class _CategoriesSection extends StatelessWidget {
         ),
       ],
     );
+  }
+
+  List<BusinessTypeModel> _typesForMode(List<BusinessTypeModel> types) {
+    if (roleMode == RoleMode.client || roleMode == RoleMode.business) {
+      return types;
+    }
+
+    const deliveryParents = {'transporte', 'gastronomia', 'tienda', 'servicio'};
+    return types
+        .where((type) => deliveryParents.contains(type.parentCategory))
+        .toList();
   }
 
   static String _categoryLabel(String value) {

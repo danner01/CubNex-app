@@ -42,22 +42,29 @@ class PromotionsCubit extends Cubit<PromotionsState> {
     }
 
     emit(state.copyWith(businessId: businessId));
-    await _load('/promociones/mis-promociones');
+    await _load('/promociones/mis-promociones', businessId: businessId);
+  }
+
+  Future<void> loadForBusiness(String businessId) async {
+    emit(state.copyWith(status: PromotionsStatus.loading, businessId: businessId));
+    await _load('/promociones/mis-promociones', businessId: businessId);
   }
 
   Future<void> create({
     required String title,
     required String type,
+    required DateTime startAt,
+    required DateTime endAt,
     String? description,
     int? percent,
     double? value,
     String? code,
+    List<String>? productIds,
   }) async {
     final businessId = state.businessId;
     if (businessId == null) return;
 
     emit(state.copyWith(status: PromotionsStatus.saving));
-    final now = DateTime.now();
     final result = await _apiClient.post<void>(
       '/promociones',
       data: {
@@ -68,8 +75,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
         'codigo': code,
         'porcentaje': percent,
         'valor': value,
-        'fecha_inicio': now.toIso8601String(),
-        'fecha_fin': now.add(const Duration(days: 30)).toIso8601String(),
+        'productos_aplicables': productIds ?? const <String>[],
+        'fecha_inicio': startAt.toIso8601String(),
+        'fecha_fin': endAt.toIso8601String(),
         'activo': true,
       },
       parser: (_) {},
@@ -91,7 +99,7 @@ class PromotionsCubit extends Cubit<PromotionsState> {
         message: 'Promocion creada.',
       ),
     );
-    await loadMine();
+    await loadForBusiness(businessId);
   }
 
   Future<void> participate(String promotionId) async {
@@ -113,25 +121,74 @@ class PromotionsCubit extends Cubit<PromotionsState> {
 
   Future<void> redeem(String promotionId, {String? code}) async {
     emit(state.copyWith(status: PromotionsStatus.saving));
-    final result = await _apiClient.post<void>(
+    final result = await _apiClient.post<PromotionRedemption?>(
       '/promociones/$promotionId/canjear',
       data: {'codigo': code},
-      parser: (_) {},
+      parser: (json) {
+        if (json is Map && json['canje'] is Map) {
+          return PromotionRedemption.fromJson(
+            Map<String, dynamic>.from(json['canje'] as Map),
+          );
+        }
+        return null;
+      },
     );
     emit(
       state.copyWith(
         status: result.isSuccess ? PromotionsStatus.success : PromotionsStatus.failure,
         message: result.isSuccess
-            ? 'Promocion canjeada.'
+            ? 'QR de canje generado.'
             : result.error?.message ?? 'No se pudo canjear.',
+        redemption: result.data,
       ),
     );
   }
 
-  Future<void> _load(String path) async {
+  Future<void> validateRedemption(String token) async {
+    emit(state.copyWith(status: PromotionsStatus.saving));
+    final result = await _apiClient.post<Map<String, dynamic>?>(
+      '/promociones/validar-canje',
+      data: {'token': token},
+      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : null,
+    );
+    emit(
+      state.copyWith(
+        status: result.isSuccess ? PromotionsStatus.success : PromotionsStatus.failure,
+        message: result.isSuccess
+            ? _validatedMessage(result.data)
+            : result.error?.message ?? 'No se pudo validar el canje.',
+      ),
+    );
+    final businessId = state.businessId;
+    if (result.isSuccess && businessId != null) {
+      await loadForBusiness(businessId);
+    }
+  }
+
+  void clearRedemption() {
+    emit(state.copyWith(clearRedemption: true));
+  }
+
+  String _validatedMessage(Map<String, dynamic>? data) {
+    final cliente = data?['cliente'];
+    final promocion = data?['promocion'];
+    final clientName = cliente is Map ? cliente['nombre_completo']?.toString() : null;
+    final title = promocion is Map ? promocion['titulo']?.toString() : null;
+    return [
+      'Promocion validada',
+      if (title != null && title.isNotEmpty) title,
+      if (clientName != null && clientName.isNotEmpty) 'Cliente: $clientName',
+    ].join(' · ');
+  }
+
+  Future<void> _load(String path, {String? businessId}) async {
     final result = await _apiClient.get<List<PromotionModel>>(
       path,
-      queryParameters: {'limit': 80, 'order': 'created_at.desc'},
+      queryParameters: {
+        'limit': 80,
+        'order': 'created_at.desc',
+        if (businessId != null) 'negocio_id': businessId,
+      },
       parser: (json) {
         if (json is List) {
           return json

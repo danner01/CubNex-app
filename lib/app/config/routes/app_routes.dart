@@ -18,12 +18,15 @@ class AppRoutes {
   static const gamification = '/gamification';
   static const promotions = '/promotions';
   static const posts = '/posts';
+  static const jobs = '/jobs';
   static const myReviews = '/my-reviews';
   static const properties = '/properties';
   static const transport = '/transport';
   static const propertyDetail = '/properties/:id';
   static const transportDetail = '/transport/:id';
   static const businessPromotions = '/business/promotions';
+  static const businessNetwork = '/business/network';
+  static const businessJobs = '/business/jobs';
   static const businessProperties = '/business/properties';
   static const businessTransport = '/business/transport';
   static const businessMenus = '/business/menus';

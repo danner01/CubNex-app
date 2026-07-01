@@ -40,7 +40,10 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
 
     final products = await _count('/negocios/${business.id}/productos');
     final reviews = await _count('/negocios/${business.id}/resenas');
-    final promotions = await _count('/promociones/mis-promociones');
+    final promotions = await _count(
+      '/promociones/mis-promociones',
+      queryParameters: {'negocio_id': business.id},
+    );
     final properties = await _count(
       '/propiedades',
       queryParameters: {'negocio_id': 'eq.${business.id}'},
