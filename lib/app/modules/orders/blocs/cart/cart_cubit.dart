@@ -126,6 +126,19 @@ class CartCubit extends Cubit<CartState> {
       return;
     }
 
+    final requiresDelivery = state.deliveryByBusiness.values.any(
+      (value) => value,
+    );
+    if (requiresDelivery && (deliveryAddress?.trim().isEmpty ?? true)) {
+      emit(
+        state.copyWith(
+          status: CartStatus.failure,
+          message: 'Agrega la direccion de entrega para solicitar delivery.',
+        ),
+      );
+      return;
+    }
+
     emit(state.copyWith(status: CartStatus.submitting));
 
     final grouped = <String, List<CartItemModel>>{};

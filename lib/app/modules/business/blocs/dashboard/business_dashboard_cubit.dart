@@ -14,79 +14,117 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
 
   Future<void> load({BusinessModel? selectedBusiness}) async {
     emit(state.copyWith(status: BusinessDashboardStatus.loading));
-    final business = selectedBusiness ?? await _loadFallbackBusiness();
-    if (business == null) {
-      final noBusiness = selectedBusiness == null;
+    try {
+      final business = selectedBusiness ?? await _loadFallbackBusiness();
+      if (business == null) {
+        final noBusiness = selectedBusiness == null;
+        emit(
+          state.copyWith(
+            status: BusinessDashboardStatus.failure,
+            message: 'No tienes negocio creado.',
+            needsWizard: noBusiness,
+          ),
+        );
+        return;
+      }
+
+      final stats = await _loadStats(business.id);
+      final counts = await Future.wait<int>([
+        _count('/negocios/${business.id}/productos'),
+        _count('/negocios/${business.id}/resenas'),
+        _count(
+          '/promociones/mis-promociones',
+          queryParameters: {'negocio_id': business.id},
+        ),
+        _count(
+          '/propiedades',
+          queryParameters: {'negocio_id': 'eq.${business.id}'},
+        ),
+        _count(
+          '/transporte',
+          queryParameters: {'negocio_id': 'eq.${business.id}'},
+        ),
+        _count('/menus/${business.id}'),
+      ]);
+
+      emit(
+        state.copyWith(
+          status: BusinessDashboardStatus.success,
+          needsWizard: false,
+          summary: BusinessDashboardSummary(
+            business: business,
+            products: counts[0],
+            reviews: counts[1],
+            promotions: counts[2],
+            properties: counts[3],
+            transport: counts[4],
+            menus: counts[5],
+            points: _int(stats['puntos_acumulados']),
+            sales: _int(stats['total_ventas']),
+            level: '${stats['nivel'] ?? 'bronce'}',
+          ),
+        ),
+      );
+    } catch (_) {
+      final business = selectedBusiness;
+      if (business != null) {
+        emit(
+          state.copyWith(
+            status: BusinessDashboardStatus.success,
+            needsWizard: false,
+            summary: BusinessDashboardSummary(business: business),
+            message:
+                'Algunas estadisticas demoraron demasiado. Mostramos el panel basico.',
+          ),
+        );
+        return;
+      }
       emit(
         state.copyWith(
           status: BusinessDashboardStatus.failure,
-          message: 'No tienes negocio creado.',
-          needsWizard: noBusiness,
+          message: 'No se pudo cargar el panel de negocio.',
         ),
       );
-      return;
     }
+  }
 
-    final statsResult = await _apiClient.get<Map<String, dynamic>?>(
-      '/negocios/${business.id}/estadisticas',
-      parser: (json) {
-        if (json is List && json.isNotEmpty && json.first is Map) {
-          return Map<String, dynamic>.from(json.first as Map);
-        }
-        if (json is Map) return Map<String, dynamic>.from(json);
-        return null;
-      },
-    );
-
-    final products = await _count('/negocios/${business.id}/productos');
-    final reviews = await _count('/negocios/${business.id}/resenas');
-    final promotions = await _count(
-      '/promociones/mis-promociones',
-      queryParameters: {'negocio_id': business.id},
-    );
-    final properties = await _count(
-      '/propiedades',
-      queryParameters: {'negocio_id': 'eq.${business.id}'},
-    );
-    final transport = await _count(
-      '/transporte',
-      queryParameters: {'negocio_id': 'eq.${business.id}'},
-    );
-    final menus = await _count('/menus/${business.id}');
-    final stats = statsResult.data ?? const {};
-
-    emit(
-      state.copyWith(
-        status: BusinessDashboardStatus.success,
-        needsWizard: false,
-        summary: BusinessDashboardSummary(
-          business: business,
-          products: products,
-          reviews: reviews,
-          promotions: promotions,
-          properties: properties,
-          transport: transport,
-          menus: menus,
-          points: _int(stats['puntos_acumulados']),
-          sales: _int(stats['total_ventas']),
-          level: '${stats['nivel'] ?? 'bronce'}',
-        ),
-      ),
-    );
+  Future<Map<String, dynamic>> _loadStats(String businessId) async {
+    try {
+      final statsResult = await _apiClient
+          .get<Map<String, dynamic>?>(
+            '/negocios/$businessId/estadisticas',
+            parser: (json) {
+              if (json is List && json.isNotEmpty && json.first is Map) {
+                return Map<String, dynamic>.from(json.first as Map);
+              }
+              if (json is Map) return Map<String, dynamic>.from(json);
+              return null;
+            },
+          )
+          .timeout(const Duration(seconds: 8));
+      return statsResult.data ?? const {};
+    } catch (_) {
+      return const {};
+    }
   }
 
   Future<BusinessModel?> _loadFallbackBusiness() async {
-    final businessResult = await _apiClient.get<BusinessModel?>(
-      '/negocios/mi-negocio',
-      parser: (json) {
-        if (json is List && json.isNotEmpty) {
-          return BusinessModel.fromJson(
-            Map<String, dynamic>.from(json.first as Map),
-          );
-        }
-        return null;
-      },
-    );
+    final businessResult = await _apiClient
+        .get<BusinessModel?>(
+          '/negocios/mi-negocio',
+          parser: (json) {
+            if (json is List && json.isNotEmpty) {
+              return BusinessModel.fromJson(
+                Map<String, dynamic>.from(json.first as Map),
+              );
+            }
+            if (json is Map) {
+              return BusinessModel.fromJson(Map<String, dynamic>.from(json));
+            }
+            return null;
+          },
+        )
+        .timeout(const Duration(seconds: 10));
 
     if (!businessResult.isSuccess) return null;
     return businessResult.data;
@@ -96,12 +134,18 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
     String path, {
     Map<String, dynamic>? queryParameters,
   }) async {
-    final result = await _apiClient.get<int>(
-      path,
-      queryParameters: {'limit': 100, ...?queryParameters},
-      parser: (json) => json is List ? json.length : 0,
-    );
-    return result.data ?? 0;
+    try {
+      final result = await _apiClient
+          .get<int>(
+            path,
+            queryParameters: {'limit': 100, ...?queryParameters},
+            parser: (json) => json is List ? json.length : 0,
+          )
+          .timeout(const Duration(seconds: 8));
+      return result.data ?? 0;
+    } catch (_) {
+      return 0;
+    }
   }
 
   int _int(Object? value) {

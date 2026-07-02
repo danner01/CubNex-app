@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../config/http/api_client.dart';
+import '../../../../config/injection/injection.dart';
 import '../../blocs/cart/cart_cubit.dart';
 import '../../blocs/cart/cart_state.dart';
 import '../../data/models/cart_item_model.dart';
@@ -52,8 +56,9 @@ class _CartViewState extends State<_CartView> {
     if (session.status == AppSessionStatus.authenticated &&
         session.email?.isNotEmpty == true) {
       _emailController.text = session.email!;
-      _prefilled = true;
+      unawaited(_loadProfilePrefill());
     }
+    _prefilled = true;
   }
 
   @override
@@ -153,6 +158,31 @@ class _CartViewState extends State<_CartView> {
     );
   }
 
+  Future<void> _loadProfilePrefill() async {
+    final result = await sl<ApiClient>().get<Map<String, dynamic>>(
+      '/usuarios/perfil',
+      parser: (json) {
+        if (json is Map) return Map<String, dynamic>.from(json);
+        return const {};
+      },
+    );
+    if (!mounted || !result.isSuccess) return;
+    final profile = result.data ?? const {};
+    void setIfEmpty(TextEditingController controller, Object? value) {
+      final text = value?.toString().trim() ?? '';
+      if (controller.text.trim().isEmpty && text.isNotEmpty) {
+        controller.text = text;
+      }
+    }
+
+    setIfEmpty(
+      _nameController,
+      profile['nombre_completo'] ?? profile['nombre'],
+    );
+    setIfEmpty(_phoneController, profile['telefono'] ?? profile['phone']);
+    setIfEmpty(_emailController, profile['email']);
+  }
+
   void _submit(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
     context.read<CartCubit>().submit(
@@ -214,14 +244,19 @@ class _BusinessCartGroup extends StatelessWidget {
             Row(
               children: [
                 Expanded(
-                  child: Text(
-                    businessId == 'sin-negocio'
-                        ? 'Productos sin negocio'
-                        : 'Negocio $shortBusinessId',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  child: businessId == 'sin-negocio'
+                      ? Text(
+                          'Productos sin negocio',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        )
+                      : _BusinessNameText(
+                          businessId: businessId,
+                          initialName: _businessNameFromItems(items),
+                          fallback: 'Negocio $shortBusinessId',
+                          style: Theme.of(context).textTheme.titleMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
                 ),
                 Text(
                   '${subtotal.toStringAsFixed(0)} CUP',
@@ -255,6 +290,84 @@ class _BusinessCartGroup extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  String? _businessNameFromItems(List<CartItemModel> items) {
+    for (final item in items) {
+      final name = item.product.businessName?.trim();
+      if (name != null && name.isNotEmpty) return name;
+    }
+    return null;
+  }
+}
+
+class _BusinessNameText extends StatefulWidget {
+  const _BusinessNameText({
+    required this.businessId,
+    required this.initialName,
+    required this.fallback,
+    this.style,
+  });
+
+  final String businessId;
+  final String? initialName;
+  final String fallback;
+  final TextStyle? style;
+
+  @override
+  State<_BusinessNameText> createState() => _BusinessNameTextState();
+}
+
+class _BusinessNameTextState extends State<_BusinessNameText> {
+  String? _resolvedName;
+
+  @override
+  void initState() {
+    super.initState();
+    _resolvedName = widget.initialName;
+    if (_resolvedName == null || _resolvedName!.trim().isEmpty) {
+      unawaited(_loadBusinessName());
+    }
+  }
+
+  @override
+  void didUpdateWidget(covariant _BusinessNameText oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.businessId != widget.businessId) {
+      _resolvedName = widget.initialName;
+      if (_resolvedName == null || _resolvedName!.trim().isEmpty) {
+        unawaited(_loadBusinessName());
+      }
+    }
+  }
+
+  Future<void> _loadBusinessName() async {
+    final result = await sl<ApiClient>().get<String?>(
+      '/negocios/${widget.businessId}',
+      parser: (json) {
+        if (json is List && json.isNotEmpty && json.first is Map) {
+          return (json.first as Map)['nombre']?.toString();
+        }
+        if (json is Map) return json['nombre']?.toString();
+        return null;
+      },
+    );
+    if (!mounted || !result.isSuccess) return;
+    final name = result.data?.trim();
+    if (name == null || name.isEmpty) return;
+    setState(() => _resolvedName = name);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      _resolvedName?.trim().isNotEmpty == true
+          ? _resolvedName!.trim()
+          : widget.fallback,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: widget.style,
     );
   }
 }
@@ -378,24 +491,6 @@ class _ContactForm extends StatelessWidget {
                 decoration: const InputDecoration(labelText: 'Email'),
               ),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: messageController,
-                maxLines: 3,
-                decoration: const InputDecoration(
-                  labelText: 'Mensaje para el negocio',
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: discountController,
-                textCapitalization: TextCapitalization.characters,
-                decoration: const InputDecoration(
-                  labelText: 'Codigo de descuento',
-                  hintText: 'Opcional si tienes promocion de la tienda',
-                  prefixIcon: Icon(Icons.local_offer_outlined),
-                ),
-              ),
-              const SizedBox(height: 12),
               if (requiresDelivery) ...[
                 Text(
                   'Direccion para delivery',
@@ -425,7 +520,25 @@ class _ContactForm extends StatelessWidget {
                   'Pendiente: selector de mapa y transportistas disponibles.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
+                const SizedBox(height: 12),
               ],
+              TextFormField(
+                controller: messageController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Mensaje para el negocio',
+                ),
+              ),
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: discountController,
+                textCapitalization: TextCapitalization.characters,
+                decoration: const InputDecoration(
+                  labelText: 'Codigo de descuento',
+                  hintText: 'Opcional si tienes promocion de la tienda',
+                  prefixIcon: Icon(Icons.local_offer_outlined),
+                ),
+              ),
             ],
           ),
         ),

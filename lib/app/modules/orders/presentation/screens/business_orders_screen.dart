@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../config/injection/injection.dart';
@@ -35,8 +36,21 @@ class BusinessOrdersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final businessId = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness
+        ?.id;
     return BlocProvider(
-      create: (_) => sl<OrdersCubit>()..loadBusinessOrders(),
+      create: (_) {
+        final cubit = sl<OrdersCubit>();
+        if (businessId == null) {
+          cubit.loadBusinessOrders();
+        } else {
+          cubit.load(businessId: businessId);
+        }
+        return cubit;
+      },
       child: const _BusinessOrdersView(),
     );
   }
@@ -56,60 +70,82 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BlocConsumer<OrdersCubit, OrdersState>(
-        listener: (context, state) {
-          if (state.status == OrdersStatus.failure &&
-              state.errorMessage != null) {
-            showSnackOrAuthDialog(context, state.errorMessage);
+      body: BlocListener<ActiveBusinessCubit, ActiveBusinessState>(
+        listenWhen: (previous, current) =>
+            previous.activeBusiness?.id != current.activeBusiness?.id &&
+            current.activeBusiness?.id != null,
+        listener: (context, activeState) {
+          final businessId = activeState.activeBusiness?.id;
+          if (businessId != null) {
+            context.read<OrdersCubit>().load(businessId: businessId);
           }
         },
-        builder: (context, state) {
-          final visibleItems = state.items.where(_matchesFilters).toList();
+        child: BlocConsumer<OrdersCubit, OrdersState>(
+          listener: (context, state) {
+            if (state.status == OrdersStatus.failure &&
+                state.errorMessage != null) {
+              showSnackOrAuthDialog(context, state.errorMessage);
+            }
+          },
+          builder: (context, state) {
+            final visibleItems = state.items.where(_matchesFilters).toList();
 
-          return RefreshIndicator(
-            onRefresh: () => context.read<OrdersCubit>().loadBusinessOrders(),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-              children: [
-                Text(
-                  'Pedidos recibidos',
-                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                    fontWeight: FontWeight.w900,
+            return RefreshIndicator(
+              onRefresh: () {
+                final businessId = context
+                    .read<ActiveBusinessCubit>()
+                    .state
+                    .activeBusiness
+                    ?.id;
+                if (businessId == null) {
+                  return context.read<OrdersCubit>().loadBusinessOrders();
+                }
+                return context.read<OrdersCubit>().load(businessId: businessId);
+              },
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  Text(
+                    'Pedidos recibidos',
+                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 6),
-                const Text('Solicitudes de clientes hacia tu negocio.'),
-                const SizedBox(height: 14),
-                _BusinessOrderFilters(
-                  statusFilter: _statusFilter,
-                  typeFilter: _typeFilter,
-                  onStatusChanged: (value) =>
-                      setState(() => _statusFilter = value),
-                  onTypeChanged: (value) => setState(() => _typeFilter = value),
-                ),
-                const SizedBox(height: 18),
-                if (state.status == OrdersStatus.loading)
-                  const Center(child: CircularProgressIndicator())
-                else if (state.status == OrdersStatus.failure)
-                  _MessageCard(
-                    message: state.errorMessage ?? 'No se pudo cargar.',
-                  )
-                else if (state.items.isEmpty)
-                  const _MessageCard(
-                    message: 'Todavia no hay pedidos recibidos.',
-                  )
-                else if (visibleItems.isEmpty)
-                  const _MessageCard(
-                    message: 'No hay pedidos con esos filtros.',
-                  )
-                else
-                  ...visibleItems.map(
-                    (order) => _BusinessOrderCard(order: order),
+                  const SizedBox(height: 6),
+                  const Text('Solicitudes de clientes hacia tu negocio.'),
+                  const SizedBox(height: 14),
+                  _BusinessOrderFilters(
+                    statusFilter: _statusFilter,
+                    typeFilter: _typeFilter,
+                    onStatusChanged: (value) =>
+                        setState(() => _statusFilter = value),
+                    onTypeChanged: (value) =>
+                        setState(() => _typeFilter = value),
                   ),
-              ],
-            ),
-          );
-        },
+                  const SizedBox(height: 18),
+                  if (state.status == OrdersStatus.loading)
+                    const Center(child: CircularProgressIndicator())
+                  else if (state.status == OrdersStatus.failure)
+                    _MessageCard(
+                      message: state.errorMessage ?? 'No se pudo cargar.',
+                    )
+                  else if (state.items.isEmpty)
+                    const _MessageCard(
+                      message: 'Todavia no hay pedidos recibidos.',
+                    )
+                  else if (visibleItems.isEmpty)
+                    const _MessageCard(
+                      message: 'No hay pedidos con esos filtros.',
+                    )
+                  else
+                    ...visibleItems.map(
+                      (order) => _BusinessOrderCard(order: order),
+                    ),
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }

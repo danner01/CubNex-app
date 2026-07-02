@@ -80,7 +80,7 @@ class ScannerCubit extends Cubit<ScannerState> {
           'imagen_base64': imageBase64,
           'tipo_deteccion': 'producto_visual',
           'guardar_historial': true,
-          'limite': 12,
+          'limite': 50,
         },
         emptyMessage:
             'No encontramos productos parecidos. Prueba con una foto mas clara de la etiqueta o empaque.',
@@ -110,13 +110,10 @@ class ScannerCubit extends Cubit<ScannerState> {
       ),
     );
     await _saveVisualScan(query);
-    await _searchVisual(
-      {
-        'texto_detectado': query,
-        'limite': 12,
-      },
-      emptyMessage: 'No encontramos productos parecidos a ese texto.',
-    );
+    await _searchVisual({
+      'texto_detectado': query,
+      'limite': 50,
+    }, emptyMessage: 'No encontramos productos parecidos a ese texto.');
     _processing = false;
   }
 
@@ -131,7 +128,10 @@ class ScannerCubit extends Cubit<ScannerState> {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .toList();
         }
         if (json is Map) {
@@ -139,7 +139,10 @@ class ScannerCubit extends Cubit<ScannerState> {
           if (products is List) {
             return products
                 .whereType<Map>()
-                .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+                .map(
+                  (item) =>
+                      ProductModel.fromJson(Map<String, dynamic>.from(item)),
+                )
                 .toList();
           }
         }
@@ -183,9 +186,7 @@ class ScannerCubit extends Cubit<ScannerState> {
       if (segment == 'product' || segment == 'producto') {
         return '/product/$next';
       }
-      if (segment == 'store' ||
-          segment == 'tienda' ||
-          segment == 'negocio') {
+      if (segment == 'store' || segment == 'tienda' || segment == 'negocio') {
         return '/store/$next';
       }
     }
@@ -202,10 +203,7 @@ class ScannerCubit extends Cubit<ScannerState> {
   Future<void> _saveScan(String code) async {
     await _apiClient.post<void>(
       '/historial/escaneos',
-      data: {
-        'tipo': _scanType(code),
-        'contenido': code,
-      },
+      data: {'tipo': _scanType(code), 'contenido': code},
       parser: (_) {},
     );
   }
@@ -213,10 +211,7 @@ class ScannerCubit extends Cubit<ScannerState> {
   Future<void> _saveVisualScan(String content) async {
     await _apiClient.post<void>(
       '/historial/escaneos',
-      data: {
-        'tipo': 'etiqueta_ia',
-        'contenido': content,
-      },
+      data: {'tipo': 'etiqueta_ia', 'contenido': content},
       parser: (_) {},
     );
   }

@@ -1,6 +1,9 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../../config/http/api_result.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../data/models/promotion_model.dart';
 import 'promotions_state.dart';
@@ -11,6 +14,7 @@ class PromotionsCubit extends Cubit<PromotionsState> {
       super(const PromotionsState());
 
   final ApiClient _apiClient;
+  static const _loadTimeout = Duration(seconds: 12);
 
   Future<void> loadPublic() async {
     emit(state.copyWith(status: PromotionsStatus.loading));
@@ -19,17 +23,27 @@ class PromotionsCubit extends Cubit<PromotionsState> {
 
   Future<void> loadMine() async {
     emit(state.copyWith(status: PromotionsStatus.loading));
-    final businessResult = await _apiClient.get<BusinessModel?>(
-      '/negocios/mi-negocio',
-      parser: (json) {
-        if (json is List && json.isNotEmpty) {
-          return BusinessModel.fromJson(
-            Map<String, dynamic>.from(json.first as Map),
-          );
-        }
-        return null;
-      },
-    );
+    final businessResult = await _apiClient
+        .get<BusinessModel?>(
+          '/negocios/mi-negocio',
+          parser: (json) {
+            if (json is List && json.isNotEmpty) {
+              return BusinessModel.fromJson(
+                Map<String, dynamic>.from(json.first as Map),
+              );
+            }
+            return null;
+          },
+        )
+        .timeout(
+          _loadTimeout,
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'BUSINESS_TIMEOUT',
+              message: 'No se pudo confirmar tu negocio activo a tiempo.',
+            ),
+          ),
+        );
     final businessId = businessResult.data?.id;
     if (!businessResult.isSuccess || businessId == null) {
       emit(
@@ -46,7 +60,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   }
 
   Future<void> loadForBusiness(String businessId) async {
-    emit(state.copyWith(status: PromotionsStatus.loading, businessId: businessId));
+    emit(
+      state.copyWith(status: PromotionsStatus.loading, businessId: businessId),
+    );
     await _load('/promociones/mis-promociones', businessId: businessId);
   }
 
@@ -111,7 +127,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
     );
     emit(
       state.copyWith(
-        status: result.isSuccess ? PromotionsStatus.success : PromotionsStatus.failure,
+        status: result.isSuccess
+            ? PromotionsStatus.success
+            : PromotionsStatus.failure,
         message: result.isSuccess
             ? 'Participacion registrada.'
             : result.error?.message ?? 'No se pudo participar.',
@@ -135,7 +153,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
     );
     emit(
       state.copyWith(
-        status: result.isSuccess ? PromotionsStatus.success : PromotionsStatus.failure,
+        status: result.isSuccess
+            ? PromotionsStatus.success
+            : PromotionsStatus.failure,
         message: result.isSuccess
             ? 'QR de canje generado.'
             : result.error?.message ?? 'No se pudo canjear.',
@@ -153,7 +173,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
     );
     emit(
       state.copyWith(
-        status: result.isSuccess ? PromotionsStatus.success : PromotionsStatus.failure,
+        status: result.isSuccess
+            ? PromotionsStatus.success
+            : PromotionsStatus.failure,
         message: result.isSuccess
             ? _validatedMessage(result.data)
             : result.error?.message ?? 'No se pudo validar el canje.',
@@ -172,7 +194,9 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   String _validatedMessage(Map<String, dynamic>? data) {
     final cliente = data?['cliente'];
     final promocion = data?['promocion'];
-    final clientName = cliente is Map ? cliente['nombre_completo']?.toString() : null;
+    final clientName = cliente is Map
+        ? cliente['nombre_completo']?.toString()
+        : null;
     final title = promocion is Map ? promocion['titulo']?.toString() : null;
     return [
       'Promocion validada',
@@ -182,32 +206,44 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   }
 
   Future<void> _load(String path, {String? businessId}) async {
-    final result = await _apiClient.get<List<PromotionModel>>(
-      path,
-      queryParameters: {
-        'limit': 80,
-        'order': 'created_at.desc',
-        if (businessId != null) 'negocio_id': businessId,
-      },
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    PromotionModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
-        }
-        return const [];
-      },
-    );
+    final result = await _apiClient
+        .get<List<PromotionModel>>(
+          path,
+          queryParameters: {
+            'limit': 80,
+            'order': 'created_at.desc',
+            if (businessId != null) 'negocio_id': businessId,
+          },
+          parser: (json) {
+            if (json is List) {
+              return json
+                  .whereType<Map>()
+                  .map(
+                    (item) => PromotionModel.fromJson(
+                      Map<String, dynamic>.from(item),
+                    ),
+                  )
+                  .toList();
+            }
+            return const [];
+          },
+        )
+        .timeout(
+          _loadTimeout,
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'PROMOTIONS_TIMEOUT',
+              message: 'La carga de promociones esta tardando demasiado.',
+            ),
+          ),
+        );
 
     if (!result.isSuccess) {
       emit(
         state.copyWith(
           status: PromotionsStatus.failure,
-          message: result.error?.message ?? 'No se pudieron cargar promociones.',
+          message:
+              result.error?.message ?? 'No se pudieron cargar promociones.',
         ),
       );
       return;

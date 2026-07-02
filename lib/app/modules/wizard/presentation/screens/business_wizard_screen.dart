@@ -345,7 +345,8 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
               data: Theme.of(context).copyWith(
                 inputDecorationTheme: Theme.of(context).inputDecorationTheme
                     .copyWith(
-                      contentPadding: const EdgeInsets.fromLTRB(18, 24, 18, 16),
+                      contentPadding: const EdgeInsets.fromLTRB(18, 18, 18, 18),
+                      floatingLabelBehavior: FloatingLabelBehavior.never,
                       floatingLabelStyle: Theme.of(context).textTheme.bodySmall,
                     ),
               ),
@@ -1954,15 +1955,13 @@ class _BusinessTypeSelector extends StatelessWidget {
       borderRadius: BorderRadius.circular(16),
       child: InputDecorator(
         isEmpty: selected == null,
-        decoration: InputDecoration(
-          labelText: selected == null ? null : 'Selecciona un tipo',
-          hintText: 'Selecciona un tipo',
-          suffixIcon: const Icon(Icons.keyboard_arrow_down),
-          contentPadding: const EdgeInsets.fromLTRB(18, 24, 18, 16),
+        decoration: const InputDecoration(
+          suffixIcon: Icon(Icons.keyboard_arrow_down),
+          contentPadding: EdgeInsets.fromLTRB(18, 18, 18, 18),
         ),
         child: Text(
           selected == null
-              ? 'Toca para elegir el tipo de negocio'
+              ? 'Selecciona un tipo de negocio'
               : _typeLabel(selected),
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

@@ -47,20 +47,33 @@ class PushNotificationService {
   }
 
   Future<void> _syncCurrentToken() async {
-    final token = await _firebaseMessaging.getToken();
-    if (token != null && token.isNotEmpty) {
-      await _syncToken(token);
+    try {
+      final token = await _firebaseMessaging.getToken();
+      if (token != null && token.isNotEmpty) {
+        await _syncToken(token);
+      }
+    } catch (_) {
+      // Push registration is best-effort; auth and app startup must continue.
     }
   }
 
   Future<void> _syncToken(String token) async {
-    await _apiClient.put('/auth/fcm-token', data: {'fcm_token': token});
+    try {
+      await _apiClient
+          .put('/auth/fcm-token', data: {'fcm_token': token})
+          .timeout(const Duration(seconds: 6));
+    } catch (_) {
+      // Token refresh can happen without an active API session.
+    }
   }
 
   void _showForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
     final title = notification?.title ?? message.data['titulo'] ?? 'CubNex';
-    final body = notification?.body ?? message.data['mensaje'] ?? 'Nueva notificacion recibida.';
+    final body =
+        notification?.body ??
+        message.data['mensaje'] ??
+        'Nueva notificacion recibida.';
 
     messengerKey.currentState?.showSnackBar(
       SnackBar(

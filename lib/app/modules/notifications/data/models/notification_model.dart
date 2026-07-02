@@ -19,6 +19,28 @@ class NotificationModel {
   final bool read;
   final DateTime? createdAt;
 
+  NotificationModel copyWith({
+    String? id,
+    String? type,
+    String? title,
+    String? message,
+    String? imageUrl,
+    String? link,
+    bool? read,
+    DateTime? createdAt,
+  }) {
+    return NotificationModel(
+      id: id ?? this.id,
+      type: type ?? this.type,
+      title: title ?? this.title,
+      message: message ?? this.message,
+      imageUrl: imageUrl ?? this.imageUrl,
+      link: link ?? this.link,
+      read: read ?? this.read,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
   factory NotificationModel.fromJson(Map<String, dynamic> json) {
     return NotificationModel(
       id: '${json['id'] ?? ''}',

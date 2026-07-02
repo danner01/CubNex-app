@@ -19,6 +19,7 @@ class HomeShell extends StatelessWidget {
     final roleMode = context.watch<RoleModeCubit>().state.activeMode;
     final items = _itemsForMode(roleMode);
     final expectedHome = _homeForMode(roleMode);
+    final showBackButton = _shouldShowBackButton(location, items);
 
     if (_isModeHomeMismatch(location, roleMode)) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -29,7 +30,10 @@ class HomeShell extends StatelessWidget {
     }
 
     return Scaffold(
-      appBar: const MarketAppBar(),
+      appBar: MarketAppBar(
+        showBackButton: showBackButton,
+        fallbackLocation: expectedHome,
+      ),
       body: child,
       bottomNavigationBar: NavigationBar(
         selectedIndex: _indexFromLocation(location, items),
@@ -71,11 +75,30 @@ class HomeShell extends StatelessWidget {
   }
 
   bool _isModeHomeMismatch(String location, RoleMode mode) {
-    if (mode == RoleMode.client) return false;
-    return location == AppRoutes.home ||
-        location == AppRoutes.cart ||
-        location == AppRoutes.orders ||
-        location == AppRoutes.promotions;
+    return switch (mode) {
+      RoleMode.client =>
+        location.startsWith('/business') || location.startsWith('/delivery'),
+      RoleMode.business =>
+        location == AppRoutes.home ||
+            location == AppRoutes.cart ||
+            location == AppRoutes.orders ||
+            location == AppRoutes.promotions ||
+            location.startsWith('/delivery'),
+      RoleMode.delivery =>
+        location == AppRoutes.home ||
+            location == AppRoutes.cart ||
+            location == AppRoutes.orders ||
+            location == AppRoutes.promotions ||
+            location.startsWith('/business'),
+    };
+  }
+
+  bool _shouldShowBackButton(String location, List<_ShellItem> items) {
+    final isNavigationDestination = items.any(
+      (item) => location == item.location || location == item.prefix,
+    );
+    if (isNavigationDestination) return false;
+    return location != AppRoutes.home;
   }
 
   List<_ShellItem> _itemsForMode(RoleMode mode) {

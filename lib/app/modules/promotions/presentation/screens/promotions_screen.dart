@@ -89,7 +89,11 @@ class BusinessPromotionsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final businessId = context.read<ActiveBusinessCubit>().state.activeBusiness?.id;
+    final businessId = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness
+        ?.id;
     return BlocProvider(
       create: (_) {
         final cubit = sl<PromotionsCubit>();
@@ -110,55 +114,72 @@ class _BusinessPromotionsView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final activeBusiness = context.watch<ActiveBusinessCubit>().state.activeBusiness;
+    final activeBusiness = context
+        .watch<ActiveBusinessCubit>()
+        .state
+        .activeBusiness;
     final businessId = activeBusiness?.id;
     return Scaffold(
       floatingActionButton: FloatingActionButton.extended(
-        onPressed: businessId == null ? null : () => showModalBottomSheet<void>(
-          context: context,
-          isScrollControlled: true,
-          builder: (_) => BlocProvider.value(
-            value: context.read<PromotionsCubit>(),
-            child: _PromotionFormSheet(businessId: businessId),
-          ),
-        ),
+        onPressed: businessId == null
+            ? null
+            : () => showModalBottomSheet<void>(
+                context: context,
+                isScrollControlled: true,
+                builder: (_) => BlocProvider.value(
+                  value: context.read<PromotionsCubit>(),
+                  child: _PromotionFormSheet(businessId: businessId),
+                ),
+              ),
         icon: const Icon(Icons.add),
         label: const Text('Promocion'),
       ),
-      body: BlocConsumer<PromotionsCubit, PromotionsState>(
-        listener: (context, state) {
-          if (state.message != null) {
-            showSnackOrAuthDialog(context, state.message);
+      body: BlocListener<ActiveBusinessCubit, ActiveBusinessState>(
+        listenWhen: (previous, current) =>
+            previous.activeBusiness?.id != current.activeBusiness?.id &&
+            current.activeBusiness?.id != null,
+        listener: (context, activeState) {
+          final nextBusinessId = activeState.activeBusiness?.id;
+          if (nextBusinessId != null) {
+            context.read<PromotionsCubit>().loadForBusiness(nextBusinessId);
           }
         },
-        builder: (context, state) => RefreshIndicator(
-          onRefresh: () async {
-            if (businessId == null) {
-              await context.read<PromotionsCubit>().loadMine();
-            } else {
-              await context.read<PromotionsCubit>().loadForBusiness(businessId);
+        child: BlocConsumer<PromotionsCubit, PromotionsState>(
+          listener: (context, state) {
+            if (state.message != null) {
+              showSnackOrAuthDialog(context, state.message);
             }
           },
-          child: ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-            children: [
-              Text(
-                'Mis promociones',
-                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  fontWeight: FontWeight.w900,
+          builder: (context, state) => RefreshIndicator(
+            onRefresh: () async {
+              if (businessId == null) {
+                await context.read<PromotionsCubit>().loadMine();
+              } else {
+                await context.read<PromotionsCubit>().loadForBusiness(
+                  businessId,
+                );
+              }
+            },
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+              children: [
+                Text(
+                  'Mis promociones',
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                activeBusiness == null
-                    ? 'Selecciona o crea un negocio para crear promociones.'
-                    : 'Promociones del negocio activo: ${activeBusiness.name}.',
-              ),
-              const SizedBox(height: 16),
-              FilledButton.tonalIcon(
-                onPressed: businessId == null
-                    ? null
-                    : () => showModalBottomSheet<void>(
+                const SizedBox(height: 6),
+                Text(
+                  activeBusiness == null
+                      ? 'Selecciona o crea un negocio para crear promociones.'
+                      : 'Promociones del negocio activo: ${activeBusiness.name}.',
+                ),
+                const SizedBox(height: 16),
+                FilledButton.tonalIcon(
+                  onPressed: businessId == null
+                      ? null
+                      : () => showModalBottomSheet<void>(
                           context: context,
                           isScrollControlled: true,
                           builder: (_) => BlocProvider.value(
@@ -166,34 +187,50 @@ class _BusinessPromotionsView extends StatelessWidget {
                             child: const _ValidateRedemptionSheet(),
                           ),
                         ),
-                icon: const Icon(Icons.qr_code_scanner_rounded),
-                label: const Text('Escanear canje'),
-              ),
-              const SizedBox(height: 12),
-              if (state.status == PromotionsStatus.loading)
-                const Center(child: CircularProgressIndicator())
-              else if (state.items.isEmpty)
-                const Card(
-                  child: Padding(
-                    padding: EdgeInsets.all(18),
-                    child: Text('Aun no tienes promociones creadas.'),
-                  ),
-                )
-              else ...[
-                _PromotionSummary(items: _businessItems(state.items, businessId)),
-                const SizedBox(height: 12),
-                ..._businessItems(state.items, businessId).map(
-                  (item) => _PromotionCard(item: item, showClientActions: false),
+                  icon: const Icon(Icons.qr_code_scanner_rounded),
+                  label: const Text('Escanear canje'),
                 ),
+                const SizedBox(height: 12),
+                if (state.status == PromotionsStatus.loading)
+                  const Center(child: CircularProgressIndicator())
+                else if (state.status == PromotionsStatus.failure)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.all(18),
+                      child: Text(
+                        state.message ?? 'No se pudieron cargar promociones.',
+                      ),
+                    ),
+                  )
+                else if (state.items.isEmpty)
+                  const Card(
+                    child: Padding(
+                      padding: EdgeInsets.all(18),
+                      child: Text('Aun no tienes promociones creadas.'),
+                    ),
+                  )
+                else ...[
+                  _PromotionSummary(
+                    items: _businessItems(state.items, businessId),
+                  ),
+                  const SizedBox(height: 12),
+                  ..._businessItems(state.items, businessId).map(
+                    (item) =>
+                        _PromotionCard(item: item, showClientActions: false),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  List<PromotionModel> _businessItems(List<PromotionModel> items, String? businessId) {
+  List<PromotionModel> _businessItems(
+    List<PromotionModel> items,
+    String? businessId,
+  ) {
     if (businessId == null) return items;
     return items.where((item) => item.businessId == businessId).toList();
   }
@@ -239,9 +276,9 @@ class _MiniStat extends StatelessWidget {
           Text(label, style: Theme.of(context).textTheme.bodySmall),
           Text(
             '$value',
-            style: Theme.of(context).textTheme.titleLarge?.copyWith(
-              fontWeight: FontWeight.w900,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -321,10 +358,13 @@ class _PromotionCard extends StatelessWidget {
                   FilledButton.tonalIcon(
                     onPressed: () => isRaffle
                         ? context.read<PromotionsCubit>().participate(item.id)
-                        : context
-                              .read<PromotionsCubit>()
-                              .redeem(item.id, code: item.code),
-                    icon: Icon(isRaffle ? Icons.how_to_reg : Icons.qr_code_2_rounded),
+                        : context.read<PromotionsCubit>().redeem(
+                            item.id,
+                            code: item.code,
+                          ),
+                    icon: Icon(
+                      isRaffle ? Icons.how_to_reg : Icons.qr_code_2_rounded,
+                    ),
                     label: Text(isRaffle ? 'Participar' : 'Generar QR'),
                   ),
                 ],
@@ -389,22 +429,29 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
               children: [
                 Text(
                   'Nueva promocion',
-                  style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
                 ),
                 const SizedBox(height: 14),
                 DropdownButtonFormField<String>(
                   initialValue: _type,
                   decoration: const InputDecoration(labelText: 'Tipo'),
                   items: const [
-                    DropdownMenuItem(value: 'descuento', child: Text('Descuento')),
+                    DropdownMenuItem(
+                      value: 'descuento',
+                      child: Text('Descuento'),
+                    ),
                     DropdownMenuItem(value: 'sorteo', child: Text('Sorteo')),
-                    DropdownMenuItem(value: 'cashback', child: Text('Cashback')),
+                    DropdownMenuItem(
+                      value: 'cashback',
+                      child: Text('Cashback'),
+                    ),
                     DropdownMenuItem(value: '2x1', child: Text('2x1')),
                     DropdownMenuItem(value: 'regalo', child: Text('Regalo')),
                   ],
-                  onChanged: (value) => setState(() => _type = value ?? 'descuento'),
+                  onChanged: (value) =>
+                      setState(() => _type = value ?? 'descuento'),
                 ),
                 const SizedBox(height: 12),
                 FutureBuilder<List<ProductModel>>(
@@ -435,7 +482,9 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
                         ),
                       ],
                       onChanged: (value) => setState(
-                        () => _productId = value == null || value.isEmpty ? null : value,
+                        () => _productId = value == null || value.isEmpty
+                            ? null
+                            : value,
                       ),
                     );
                   },
@@ -444,8 +493,9 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
                 TextFormField(
                   controller: _titleController,
                   decoration: const InputDecoration(labelText: 'Titulo'),
-                  validator: (value) =>
-                      value == null || value.trim().isEmpty ? 'Escribe titulo' : null,
+                  validator: (value) => value == null || value.trim().isEmpty
+                      ? 'Escribe titulo'
+                      : null,
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
@@ -456,13 +506,17 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _codeController,
-                  decoration: const InputDecoration(labelText: 'Codigo opcional'),
+                  decoration: const InputDecoration(
+                    labelText: 'Codigo opcional',
+                  ),
                 ),
                 const SizedBox(height: 12),
                 TextFormField(
                   controller: _percentController,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Porcentaje opcional'),
+                  decoration: const InputDecoration(
+                    labelText: 'Porcentaje opcional',
+                  ),
                 ),
                 const SizedBox(height: 16),
                 Row(
@@ -514,7 +568,10 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
   void _submit() {
     if (!_formKey.currentState!.validate()) return;
     if (!_endAt.isAfter(_startAt)) {
-      showSnackOrAuthDialog(context, 'La fecha final debe ser posterior al inicio.');
+      showSnackOrAuthDialog(
+        context,
+        'La fecha final debe ser posterior al inicio.',
+      );
       return;
     }
     context.read<PromotionsCubit>().create(
@@ -525,14 +582,19 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
-      code: _codeController.text.trim().isEmpty ? null : _codeController.text.trim(),
+      code: _codeController.text.trim().isEmpty
+          ? null
+          : _codeController.text.trim(),
       percent: int.tryParse(_percentController.text.trim()),
       productIds: _productId == null ? const [] : [_productId!],
     );
     Navigator.of(context).pop();
   }
 
-  Future<DateTime?> _pickDateTime(BuildContext context, DateTime initial) async {
+  Future<DateTime?> _pickDateTime(
+    BuildContext context,
+    DateTime initial,
+  ) async {
     final date = await showDatePicker(
       context: context,
       initialDate: initial,
@@ -558,7 +620,10 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
         if (json is List) {
           return json
               .whereType<Map>()
-              .map((item) => ProductModel.fromJson(Map<String, dynamic>.from(item)))
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
               .where((item) => item.inInventory && item.available)
               .toList();
         }
@@ -623,7 +688,9 @@ class _RedemptionQrDialog extends StatelessWidget {
           ),
           if (redemption.expiresAt != null) ...[
             const SizedBox(height: 8),
-            Text('Vence: ${DateFormat('dd/MM/yyyy HH:mm').format(redemption.expiresAt!)}'),
+            Text(
+              'Vence: ${DateFormat('dd/MM/yyyy HH:mm').format(redemption.expiresAt!)}',
+            ),
           ],
         ],
       ),
@@ -648,7 +715,8 @@ class _ValidateRedemptionSheet extends StatefulWidget {
   const _ValidateRedemptionSheet();
 
   @override
-  State<_ValidateRedemptionSheet> createState() => _ValidateRedemptionSheetState();
+  State<_ValidateRedemptionSheet> createState() =>
+      _ValidateRedemptionSheetState();
 }
 
 class _ValidateRedemptionSheetState extends State<_ValidateRedemptionSheet> {
@@ -667,12 +735,14 @@ class _ValidateRedemptionSheetState extends State<_ValidateRedemptionSheet> {
             children: [
               Text(
                 'Escanear promocion',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 8),
-              const Text('Escanea el QR del cliente para validar descuento, fecha y estado.'),
+              const Text(
+                'Escanea el QR del cliente para validar descuento, fecha y estado.',
+              ),
               const SizedBox(height: 14),
               Expanded(
                 child: ClipRRect(
@@ -686,7 +756,9 @@ class _ValidateRedemptionSheetState extends State<_ValidateRedemptionSheet> {
                                 : capture.barcodes.first.rawValue;
                             if (token == null || token.trim().isEmpty) return;
                             setState(() => _locked = true);
-                            context.read<PromotionsCubit>().validateRedemption(token.trim());
+                            context.read<PromotionsCubit>().validateRedemption(
+                              token.trim(),
+                            );
                             Navigator.of(context).pop();
                           },
                   ),

@@ -58,20 +58,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     emit(
       state.copyWith(
         items: state.items
-            .map(
-              (item) => item.id == id
-                  ? NotificationModel(
-                      id: item.id,
-                      type: item.type,
-                      title: item.title,
-                      message: item.message,
-                      imageUrl: item.imageUrl,
-                      link: item.link,
-                      read: true,
-                      createdAt: item.createdAt,
-                    )
-                  : item,
-            )
+            .map((item) => item.id == id ? item.copyWith(read: true) : item)
             .toList(),
       ),
     );
@@ -97,20 +84,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
     emit(
       state.copyWith(
         status: NotificationsStatus.success,
-        items: state.items
-            .map(
-              (item) => NotificationModel(
-                id: item.id,
-                type: item.type,
-                title: item.title,
-                message: item.message,
-                imageUrl: item.imageUrl,
-                link: item.link,
-                read: true,
-                createdAt: item.createdAt,
-              ),
-            )
-            .toList(),
+        items: state.items.map((item) => item.copyWith(read: true)).toList(),
         message: 'Notificaciones marcadas como leidas.',
       ),
     );

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -6,6 +7,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
+import '../../../../config/http/api_result.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../business/presentation/widgets/business_switcher.dart';
@@ -24,7 +26,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   var _loading = true;
   var _searching = false;
   String? _error;
+  String? _searchError;
   String _searchQuery = '';
+  String? _loadedBusinessId;
   List<BusinessConnectionModel> _connections = const [];
   List<BusinessModel> _candidates = const [];
 
@@ -35,11 +39,16 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   }
 
   Future<void> _load() async {
-    final businessId = context
-        .read<ActiveBusinessCubit>()
-        .state
-        .activeBusiness
-        ?.id;
+    var activeBusinessState = context.read<ActiveBusinessCubit>().state;
+    var businessId = activeBusinessState.activeBusiness?.id;
+    if (businessId == null &&
+        activeBusinessState.status != ActiveBusinessStatus.loading) {
+      await context.read<ActiveBusinessCubit>().load();
+      if (!mounted) return;
+      activeBusinessState = context.read<ActiveBusinessCubit>().state;
+      businessId = activeBusinessState.activeBusiness?.id;
+    }
+
     if (businessId == null) {
       setState(() {
         _loading = false;
@@ -52,26 +61,30 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       _loading = true;
       _error = null;
     });
-    final result = await _apiClient.get<List<BusinessConnectionModel>>(
-      '/red-negocios',
-      queryParameters: {'negocio_id': businessId},
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map(
-                (item) => BusinessConnectionModel.fromJson(
-                  Map<String, dynamic>.from(item),
-                ),
-              )
-              .toList();
-        }
-        return const [];
-      },
-    );
+    final result = await _apiClient
+        .get<List<BusinessConnectionModel>>(
+          '/red-negocios',
+          queryParameters: {'negocio_id': businessId},
+          parser: (json) {
+            final rows = _asList(json);
+            return rows
+                .map((item) => BusinessConnectionModel.fromJson(item))
+                .toList();
+          },
+        )
+        .timeout(
+          const Duration(seconds: 14),
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'red_timeout',
+              message: 'La carga de conexiones tardo demasiado.',
+            ),
+          ),
+        );
     if (!mounted) return;
     setState(() {
       _loading = false;
+      _loadedBusinessId = businessId;
       _connections = result.data ?? const [];
       _error = result.isSuccess ? null : result.error?.message;
     });
@@ -87,6 +100,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     setState(() {
       _searching = true;
       _searchQuery = query;
+      _searchError = null;
     });
 
     final filters = <String, Object>{
@@ -95,40 +109,52 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     };
     if (query.trim().isNotEmpty) {
       filters['q'] = query.trim();
-    } else {
-      final parentCategory = activeBusiness.businessParentCategory;
-      if (parentCategory?.isNotEmpty == true) {
-        filters['categoria_padre'] = parentCategory!;
-      }
     }
 
-    final result = await _apiClient.get<List<BusinessModel>>(
-      '/negocios',
-      queryParameters: filters,
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    BusinessModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .where((business) => business.id != activeBusiness.id)
-              .where(
-                (business) => !_connections.any(
-                  (connection) => connection.connectedBusinessId == business.id,
-                ),
-              )
-              .toList();
-        }
-        return const [];
-      },
-    );
+    final result = await _apiClient
+        .get<List<BusinessModel>>(
+          '/negocios',
+          queryParameters: filters,
+          parser: (json) {
+            final businesses = _asList(json)
+                .map(BusinessModel.fromJson)
+                .where((business) => business.id != activeBusiness.id)
+                .where(
+                  (business) => !_connections.any(
+                    (connection) =>
+                        connection.connectedBusinessId == business.id,
+                  ),
+                );
+            if (query.trim().isNotEmpty) {
+              return businesses.toList();
+            }
+            final parentCategory = activeBusiness.businessParentCategory;
+            final related = parentCategory?.isNotEmpty == true
+                ? businesses
+                      .where(
+                        (business) =>
+                            business.businessParentCategory == parentCategory,
+                      )
+                      .toList()
+                : <BusinessModel>[];
+            return related.isNotEmpty ? related : businesses.toList();
+          },
+        )
+        .timeout(
+          const Duration(seconds: 14),
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'business_search_timeout',
+              message: 'La busqueda de negocios tardo demasiado.',
+            ),
+          ),
+        );
 
     if (!mounted) return;
     setState(() {
       _searching = false;
       _candidates = result.data ?? const [];
+      _searchError = result.isSuccess ? null : result.error?.message;
     });
   }
 
@@ -243,72 +269,83 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         .activeBusiness;
     return DefaultTabController(
       length: 2,
-      child: Scaffold(
-        body: SafeArea(
-          child: RefreshIndicator(
-            onRefresh: _load,
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-              children: [
-                Row(
-                  children: [
-                    Expanded(
-                      child: Text(
-                        'Conexiones',
-                        style: Theme.of(context).textTheme.headlineMedium
-                            ?.copyWith(fontWeight: FontWeight.w900),
-                      ),
-                    ),
-                    IconButton.filledTonal(
-                      onPressed: _load,
-                      icon: const Icon(Icons.refresh_rounded),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 8),
-                BusinessSwitcher(onChanged: _load),
-                const SizedBox(height: 16),
-                Text(
-                  'Conecta proveedores, clientes mayoristas, aliados y deliverys. Recibe avisos cuando actualicen productos o solicita abastecimiento con antelacion.',
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 16),
-                _BusinessSearchPanel(
-                  candidates: _candidates,
-                  searching: _searching,
-                  onChanged: _searchBusinesses,
-                  onConnect: _connectBusiness,
-                ),
-                const SizedBox(height: 16),
-                const TabBar(
-                  tabs: [
-                    Tab(icon: Icon(Icons.list_alt_rounded), text: 'Lista'),
-                    Tab(icon: Icon(Icons.hub_outlined), text: 'Diagrama'),
-                  ],
-                ),
-                SizedBox(
-                  height: MediaQuery.sizeOf(context).height * 0.64,
-                  child: TabBarView(
+      child: BlocListener<ActiveBusinessCubit, ActiveBusinessState>(
+        listenWhen: (previous, current) =>
+            previous.activeBusiness?.id != current.activeBusiness?.id,
+        listener: (context, state) {
+          final businessId = state.activeBusiness?.id;
+          if (businessId == null || businessId == _loadedBusinessId) return;
+          _load();
+          _searchBusinesses(_searchQuery);
+        },
+        child: Scaffold(
+          body: SafeArea(
+            child: RefreshIndicator(
+              onRefresh: _load,
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
+                children: [
+                  Row(
                     children: [
-                      _NetworkList(
-                        loading: _loading,
-                        error: _error,
-                        connections: _connections,
-                        onToggleNotifications: _toggleNotifications,
-                        onRequestProduct: _requestProduct,
-                        onRefresh: _load,
+                      Expanded(
+                        child: Text(
+                          'Conexiones',
+                          style: Theme.of(context).textTheme.headlineMedium
+                              ?.copyWith(fontWeight: FontWeight.w900),
+                        ),
                       ),
-                      _NetworkDiagram(
-                        centerName: activeBusiness?.name ?? 'Mi negocio',
-                        centerLogo: activeBusiness?.logoUrl,
-                        connections: _connections,
-                        onTap: (connection) =>
-                            _showConnectionDetails(connection),
+                      IconButton.filledTonal(
+                        onPressed: _load,
+                        icon: const Icon(Icons.refresh_rounded),
                       ),
                     ],
                   ),
-                ),
-              ],
+                  const SizedBox(height: 8),
+                  BusinessSwitcher(onChanged: _load),
+                  const SizedBox(height: 16),
+                  Text(
+                    'Conecta proveedores, clientes mayoristas, aliados y deliverys. Recibe avisos cuando actualicen productos o solicita abastecimiento con antelacion.',
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 16),
+                  _BusinessSearchPanel(
+                    candidates: _candidates,
+                    searching: _searching,
+                    error: _searchError,
+                    onChanged: _searchBusinesses,
+                    onConnect: _connectBusiness,
+                  ),
+                  const SizedBox(height: 16),
+                  const TabBar(
+                    tabs: [
+                      Tab(icon: Icon(Icons.list_alt_rounded), text: 'Lista'),
+                      Tab(icon: Icon(Icons.hub_outlined), text: 'Diagrama'),
+                    ],
+                  ),
+                  SizedBox(
+                    height: MediaQuery.sizeOf(context).height * 0.64,
+                    child: TabBarView(
+                      children: [
+                        _NetworkList(
+                          loading: _loading,
+                          error: _error,
+                          connections: _connections,
+                          onToggleNotifications: _toggleNotifications,
+                          onRequestProduct: _requestProduct,
+                          onRefresh: _load,
+                        ),
+                        _NetworkDiagram(
+                          centerName: activeBusiness?.name ?? 'Mi negocio',
+                          centerLogo: activeBusiness?.logoUrl,
+                          connections: _connections,
+                          onTap: (connection) =>
+                              _showConnectionDetails(connection),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -328,6 +365,25 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       ),
     );
   }
+}
+
+List<Map<String, dynamic>> _asList(dynamic json) {
+  if (json is List) {
+    return json
+        .whereType<Map>()
+        .map((item) => Map<String, dynamic>.from(item))
+        .toList();
+  }
+  if (json is Map) {
+    final values = json['items'] ?? json['datos'] ?? json['negocios'];
+    if (values is List) {
+      return values
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+  }
+  return const [];
 }
 
 class _NetworkList extends StatelessWidget {
@@ -910,10 +966,12 @@ class _BusinessSearchPanel extends StatefulWidget {
     required this.searching,
     required this.onChanged,
     required this.onConnect,
+    this.error,
   });
 
   final List<BusinessModel> candidates;
   final bool searching;
+  final String? error;
   final ValueChanged<String> onChanged;
   final ValueChanged<BusinessModel> onConnect;
 
@@ -923,6 +981,7 @@ class _BusinessSearchPanel extends StatefulWidget {
 
 class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
   final _controller = TextEditingController();
+  Timer? _debounce;
 
   @override
   void initState() {
@@ -932,8 +991,17 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
 
   @override
   void dispose() {
+    _debounce?.cancel();
     _controller.dispose();
     super.dispose();
+  }
+
+  void _onSearchChanged(String value) {
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      if (!mounted) return;
+      widget.onChanged(value);
+    });
   }
 
   @override
@@ -954,7 +1022,8 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
             TextField(
               controller: _controller,
               textInputAction: TextInputAction.search,
-              onChanged: widget.onChanged,
+              onChanged: _onSearchChanged,
+              onSubmitted: widget.onChanged,
               decoration: InputDecoration(
                 hintText: 'Buscar proveedor, mayorista, delivery...',
                 prefixIcon: const Icon(Icons.search_rounded),
@@ -970,6 +1039,13 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
               ),
             ),
             const SizedBox(height: 12),
+            if (widget.error != null) ...[
+              Text(
+                widget.error!,
+                style: TextStyle(color: Theme.of(context).colorScheme.error),
+              ),
+              const SizedBox(height: 8),
+            ],
             if (widget.candidates.isEmpty)
               Text(
                 widget.searching
@@ -979,7 +1055,7 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
               )
             else
               SizedBox(
-                height: 132,
+                height: 168,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.candidates.length,
@@ -1033,14 +1109,34 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
                                   maxLines: 1,
                                   overflow: TextOverflow.ellipsis,
                                 ),
-                                const Spacer(),
-                                FilledButton.tonalIcon(
-                                  onPressed: () => widget.onConnect(business),
-                                  icon: const Icon(
-                                    Icons.hub_outlined,
-                                    size: 18,
+                                if (business.province?.isNotEmpty == true &&
+                                    business.businessTypeName?.isNotEmpty ==
+                                        true) ...[
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    business.province!,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
                                   ),
-                                  label: const Text('Conectar'),
+                                ],
+                                const SizedBox(height: 10),
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 42,
+                                  child: FilledButton.tonalIcon(
+                                    onPressed: () => widget.onConnect(business),
+                                    icon: const Icon(
+                                      Icons.hub_outlined,
+                                      size: 18,
+                                    ),
+                                    label: const FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      child: Text('Conectar'),
+                                    ),
+                                  ),
                                 ),
                               ],
                             ),

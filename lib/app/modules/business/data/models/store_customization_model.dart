@@ -6,7 +6,10 @@ class StoreCustomizationModel {
     this.secondaryColor = '#111512',
     this.accentColor = '#3B82F6',
     this.textColor = '#FFFFFF',
+    this.headingTextColor = '#FFFFFF',
+    this.secondaryTextColor = '#9CA3AF',
     this.backgroundColor = '#0D0D0D',
+    this.fontFamily = 'Inter',
     this.gradientEnabled = false,
     this.gradientStart = '#000000',
     this.gradientEnd = '#1A1A1A',
@@ -25,7 +28,10 @@ class StoreCustomizationModel {
   final String secondaryColor;
   final String accentColor;
   final String textColor;
+  final String headingTextColor;
+  final String secondaryTextColor;
   final String backgroundColor;
+  final String fontFamily;
   final bool gradientEnabled;
   final String gradientStart;
   final String gradientEnd;
@@ -42,7 +48,10 @@ class StoreCustomizationModel {
     String? secondaryColor,
     String? accentColor,
     String? textColor,
+    String? headingTextColor,
+    String? secondaryTextColor,
     String? backgroundColor,
+    String? fontFamily,
     bool? gradientEnabled,
     String? gradientStart,
     String? gradientEnd,
@@ -61,7 +70,10 @@ class StoreCustomizationModel {
       secondaryColor: secondaryColor ?? this.secondaryColor,
       accentColor: accentColor ?? this.accentColor,
       textColor: textColor ?? this.textColor,
+      headingTextColor: headingTextColor ?? this.headingTextColor,
+      secondaryTextColor: secondaryTextColor ?? this.secondaryTextColor,
       backgroundColor: backgroundColor ?? this.backgroundColor,
+      fontFamily: fontFamily ?? this.fontFamily,
       gradientEnabled: gradientEnabled ?? this.gradientEnabled,
       gradientStart: gradientStart ?? this.gradientStart,
       gradientEnd: gradientEnd ?? this.gradientEnd,
@@ -83,7 +95,11 @@ class StoreCustomizationModel {
       secondaryColor: '${json['color_secundario'] ?? '#111512'}',
       accentColor: '${json['color_acento'] ?? '#3B82F6'}',
       textColor: '${json['color_texto'] ?? '#FFFFFF'}',
+      headingTextColor:
+          '${json['color_titulo'] ?? json['color_texto'] ?? '#FFFFFF'}',
+      secondaryTextColor: '${json['color_texto_secundario'] ?? '#9CA3AF'}',
       backgroundColor: '${json['color_fondo'] ?? '#0D0D0D'}',
+      fontFamily: '${json['fuente_tienda'] ?? 'Inter'}',
       gradientEnabled: json['gradiente_habilitado'] == true,
       gradientStart: '${json['gradiente_inicio'] ?? '#000000'}',
       gradientEnd: '${json['gradiente_fin'] ?? '#1A1A1A'}',
@@ -104,7 +120,10 @@ class StoreCustomizationModel {
       'color_secundario': secondaryColor,
       'color_acento': accentColor,
       'color_texto': textColor,
+      'color_titulo': headingTextColor,
+      'color_texto_secundario': secondaryTextColor,
       'color_fondo': backgroundColor,
+      'fuente_tienda': fontFamily,
       'gradiente_habilitado': gradientEnabled,
       'gradiente_inicio': gradientStart,
       'gradiente_fin': gradientEnd,
@@ -125,11 +144,15 @@ class StoreCustomizationModel {
     return StoreCustomizationModel(
       businessId: businessId,
       primaryColor: colors['primario'] ?? colors['primary'] ?? '#D4AF37',
-      secondaryColor:
-          colors['secundario'] ?? colors['secondary'] ?? '#111512',
+      secondaryColor: colors['secundario'] ?? colors['secondary'] ?? '#111512',
       accentColor: colors['acento'] ?? colors['accent'] ?? '#3B82F6',
       textColor: colors['texto'] ?? colors['text'] ?? '#FFFFFF',
+      headingTextColor:
+          colors['titulo'] ?? colors['heading'] ?? colors['texto'] ?? '#FFFFFF',
+      secondaryTextColor:
+          colors['texto_secundario'] ?? colors['textSecondary'] ?? '#9CA3AF',
       backgroundColor: colors['fondo'] ?? colors['background'] ?? '#0D0D0D',
+      fontFamily: colors['fuente'] ?? colors['fontFamily'] ?? 'Inter',
     );
   }
 

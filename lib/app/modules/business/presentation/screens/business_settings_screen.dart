@@ -171,9 +171,10 @@ class _StorePreview extends StatelessWidget {
                   child: Text(
                     business?.name ?? 'Vista previa del negocio',
                     style: TextStyle(
-                      color: brand.onBackground,
+                      color: brand.headingOnBackground,
                       fontSize: 18,
                       fontWeight: FontWeight.w900,
+                      fontFamily: brand.fontFamily,
                     ),
                   ),
                 ),
@@ -195,8 +196,9 @@ class _StorePreview extends StatelessWidget {
                 child: Text(
                   'Producto destacado - ${customization.cardStyle}',
                   style: TextStyle(
-                    color: brand.onSurface,
+                    color: brand.headingOnSurface,
                     fontWeight: FontWeight.w800,
+                    fontFamily: brand.fontFamily,
                   ),
                 ),
               ),
@@ -769,6 +771,8 @@ class _PaletteSection extends StatelessWidget {
                         accentColor: palette.accent,
                         backgroundColor: palette.background,
                         textColor: palette.text,
+                        headingTextColor: palette.heading,
+                        secondaryTextColor: palette.secondaryText,
                         gradientStart: palette.primary,
                         gradientEnd: palette.accent,
                       ),
@@ -873,12 +877,50 @@ class _ColorFineTuneSection extends StatelessWidget {
               ),
             ),
             _PaletteColorField(
-              label: 'Texto sugerido',
+              label: 'Texto principal',
               value: customization.textColor,
               enabled: !saving,
               onChanged: (value) =>
                   _update(context, customization.copyWith(textColor: value)),
             ),
+            _PaletteColorField(
+              label: 'Titulos',
+              value: customization.headingTextColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(headingTextColor: value),
+              ),
+            ),
+            _PaletteColorField(
+              label: 'Texto secundario',
+              value: customization.secondaryTextColor,
+              enabled: !saving,
+              onChanged: (value) => _update(
+                context,
+                customization.copyWith(secondaryTextColor: value),
+              ),
+            ),
+            DropdownButtonFormField<String>(
+              initialValue: _validStoreFont(customization.fontFamily),
+              decoration: const InputDecoration(
+                labelText: 'Fuente de la tienda',
+                prefixIcon: Icon(Icons.font_download_outlined),
+              ),
+              items: _storeFontOptions.map((font) {
+                return DropdownMenuItem(
+                  value: font,
+                  child: Text(font, style: TextStyle(fontFamily: font)),
+                );
+              }).toList(),
+              onChanged: saving
+                  ? null
+                  : (value) => _update(
+                      context,
+                      customization.copyWith(fontFamily: value ?? 'Inter'),
+                    ),
+            ),
+            const SizedBox(height: 10),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: customization.gradientEnabled,
@@ -941,6 +983,10 @@ class _ColorFineTuneSection extends StatelessWidget {
 
   void _update(BuildContext context, StoreCustomizationModel value) {
     context.read<BusinessSettingsCubit>().update(value);
+  }
+
+  String _validStoreFont(String value) {
+    return _storeFontOptions.contains(value) ? value : 'Inter';
   }
 }
 
@@ -1158,6 +1204,8 @@ class _Palette {
     required this.accent,
     required this.background,
     required this.text,
+    required this.heading,
+    required this.secondaryText,
   });
 
   final String name;
@@ -1166,6 +1214,8 @@ class _Palette {
   final String accent;
   final String background;
   final String text;
+  final String heading;
+  final String secondaryText;
 }
 
 const _palettes = [
@@ -1176,6 +1226,8 @@ const _palettes = [
     accent: '#3B82F6',
     background: '#0D0D0D',
     text: '#FFFFFF',
+    heading: '#FFFFFF',
+    secondaryText: '#A8AAA2',
   ),
   _Palette(
     name: 'Tropical',
@@ -1184,6 +1236,8 @@ const _palettes = [
     accent: '#2563EB',
     background: '#F8FAF7',
     text: '#111827',
+    heading: '#0F172A',
+    secondaryText: '#4B5563',
   ),
   _Palette(
     name: 'Urbano',
@@ -1192,6 +1246,8 @@ const _palettes = [
     accent: '#EF4444',
     background: '#FFFFFF',
     text: '#111827',
+    heading: '#111827',
+    secondaryText: '#6B7280',
   ),
   _Palette(
     name: 'Mar',
@@ -1200,6 +1256,8 @@ const _palettes = [
     accent: '#22C55E',
     background: '#F8FAFC',
     text: '#0F172A',
+    heading: '#0F172A',
+    secondaryText: '#475569',
   ),
   _Palette(
     name: 'Neon',
@@ -1208,10 +1266,23 @@ const _palettes = [
     accent: '#22D3EE',
     background: '#09090B',
     text: '#FFFFFF',
+    heading: '#FFFFFF',
+    secondaryText: '#D4D4D8',
   ),
 ];
 
+const _storeFontOptions = [
+  'Inter',
+  'Roboto',
+  'Montserrat',
+  'Poppins',
+  'Nunito',
+  'Lato',
+  'Merriweather',
+];
+
 const _brandColorOptions = [
+  '#FFFFFF',
   '#D4AF37',
   '#F59E0B',
   '#F97316',
@@ -1229,5 +1300,6 @@ const _brandColorOptions = [
   '#9CA3AF',
   '#374151',
   '#111827',
+  '#000000',
   '#0D0D0D',
 ];

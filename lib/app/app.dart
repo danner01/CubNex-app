@@ -41,7 +41,10 @@ class CubNexApp extends StatelessWidget {
         },
         child: Builder(
           builder: (context) {
-            final router = createAppRouter(context.read<AppSessionCubit>());
+            final router = createAppRouter(
+              context.read<AppSessionCubit>(),
+              context.read<RoleModeCubit>(),
+            );
 
             return BlocBuilder<AppThemeCubit, ThemeMode>(
               builder: (context, themeMode) {

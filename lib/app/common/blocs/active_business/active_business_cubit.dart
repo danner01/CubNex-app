@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../config/http/api_client.dart';
+import '../../../config/http/api_result.dart';
 import '../../../modules/home/data/models/business_model.dart';
 
 enum ActiveBusinessStatus { initial, loading, success, empty, failure }
@@ -48,9 +49,9 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
   ActiveBusinessCubit({
     required ApiClient apiClient,
     required SharedPreferences sharedPreferences,
-  })  : _apiClient = apiClient,
-        _sharedPreferences = sharedPreferences,
-        super(const ActiveBusinessState());
+  }) : _apiClient = apiClient,
+       _sharedPreferences = sharedPreferences,
+       super(const ActiveBusinessState());
 
   static const _storageKey = 'business.active.id';
 
@@ -58,30 +59,19 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
   final SharedPreferences _sharedPreferences;
 
   Future<void> load() async {
-    emit(state.copyWith(status: ActiveBusinessStatus.loading, clearMessage: true));
-
-    final result = await _apiClient.get<List<BusinessModel>>(
-      '/negocios/mis-negocios',
-      queryParameters: {
-        'limit': 100,
-        'order': 'created_at.desc',
-      },
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map((item) => BusinessModel.fromJson(Map<String, dynamic>.from(item)))
-              .toList();
-        }
-        return const [];
-      },
+    emit(
+      state.copyWith(status: ActiveBusinessStatus.loading, clearMessage: true),
     );
+
+    final result = await _safeLoadBusinesses();
 
     if (!result.isSuccess) {
       emit(
         state.copyWith(
           status: ActiveBusinessStatus.failure,
-          message: result.error?.message ?? 'No se pudieron cargar tus negocios.',
+          message:
+              result.error?.message ??
+              'No se pudieron cargar tus negocios. Revisa la conexion.',
         ),
       );
       return;
@@ -90,9 +80,7 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
     final businesses = result.data ?? const <BusinessModel>[];
     if (businesses.isEmpty) {
       await _sharedPreferences.remove(_storageKey);
-      emit(
-        const ActiveBusinessState(status: ActiveBusinessStatus.empty),
-      );
+      emit(const ActiveBusinessState(status: ActiveBusinessStatus.empty));
       return;
     }
 
@@ -110,6 +98,37 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
         activeBusiness: active,
       ),
     );
+  }
+
+  Future<ApiResult<List<BusinessModel>>> _safeLoadBusinesses() async {
+    try {
+      return await _apiClient
+          .get<List<BusinessModel>>(
+            '/negocios/mis-negocios',
+            queryParameters: {'limit': 100, 'order': 'created_at.desc'},
+            parser: (json) {
+              if (json is List) {
+                return json
+                    .whereType<Map>()
+                    .map(
+                      (item) => BusinessModel.fromJson(
+                        Map<String, dynamic>.from(item),
+                      ),
+                    )
+                    .toList();
+              }
+              return const [];
+            },
+          )
+          .timeout(const Duration(seconds: 12));
+    } catch (_) {
+      return const ApiResult.failure(
+        ApiFailure(
+          code: 'business_load_timeout',
+          message: 'La carga de negocios tardo demasiado.',
+        ),
+      );
+    }
   }
 
   Future<void> selectBusiness(BusinessModel business) async {

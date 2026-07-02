@@ -40,14 +40,21 @@ import '../../modules/service/presentation/screens/asset_detail_screen.dart';
 import '../../modules/transport/presentation/screens/transport_screen.dart';
 import '../../modules/wizard/presentation/screens/business_wizard_screen.dart';
 import 'app_routes.dart';
-import '../../common/entities/user_role.dart';
+import '../../common/blocs/role_mode/role_mode_cubit.dart';
 
-GoRouter createAppRouter(AppSessionCubit sessionCubit) {
+GoRouter createAppRouter(
+  AppSessionCubit sessionCubit,
+  RoleModeCubit roleModeCubit,
+) {
   return GoRouter(
     initialLocation: AppRoutes.splash,
-    refreshListenable: GoRouterRefreshStream(sessionCubit.stream),
+    refreshListenable: GoRouterRefreshStreams([
+      sessionCubit.stream,
+      roleModeCubit.stream,
+    ]),
     redirect: (context, state) {
       final session = sessionCubit.state;
+      final activeMode = roleModeCubit.state.activeMode;
       final isLogin = state.matchedLocation == AppRoutes.login;
       final isSplash = state.matchedLocation == AppRoutes.splash;
       final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
@@ -70,14 +77,12 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
 
       if (session.status == AppSessionStatus.authenticated) {
         if (isSplash) return null;
-        final defaultLocation = _defaultLocationForRole(session.role);
+        final defaultLocation = _defaultLocationForMode(activeMode);
         final shouldUseRoleHome =
             isLogin ||
             isOnboarding ||
-            ((session.role == UserRole.businessAdmin ||
-                    session.role == UserRole.superadmin ||
-                    session.role == UserRole.delivery) &&
-                state.matchedLocation == AppRoutes.home);
+            (state.matchedLocation == AppRoutes.home &&
+                activeMode != RoleMode.client);
         return shouldUseRoleHome ? defaultLocation : null;
       }
 
@@ -90,6 +95,23 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
         builder: (_, __) => const OnboardingScreen(),
       ),
       GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: '/market/negocio/pedidos',
+        redirect: (_, __) => AppRoutes.businessOrders,
+      ),
+      GoRoute(
+        path: '/market/negocio/red',
+        redirect: (_, __) => AppRoutes.businessNetwork,
+      ),
+      GoRoute(
+        path: '/market/notificaciones',
+        redirect: (_, __) => AppRoutes.notifications,
+      ),
+      GoRoute(
+        path: '/market/negocios/:id',
+        redirect: (_, state) =>
+            AppRoutes.store(state.pathParameters['id'] ?? ''),
+      ),
       ShellRoute(
         builder: (context, state, child) => HomeShell(child: child),
         routes: [
@@ -254,26 +276,32 @@ GoRouter createAppRouter(AppSessionCubit sessionCubit) {
   );
 }
 
-String _defaultLocationForRole(UserRole role) {
-  return switch (role) {
-    UserRole.businessAdmin ||
-    UserRole.superadmin => AppRoutes.businessDashboard,
-    UserRole.delivery => AppRoutes.deliveryDashboard,
-    _ => AppRoutes.home,
+String _defaultLocationForMode(RoleMode mode) {
+  return switch (mode) {
+    RoleMode.business => AppRoutes.businessDashboard,
+    RoleMode.delivery => AppRoutes.deliveryDashboard,
+    RoleMode.client => AppRoutes.home,
   };
 }
 
-class GoRouterRefreshStream extends ChangeNotifier {
-  GoRouterRefreshStream(Stream<dynamic> stream) {
+class GoRouterRefreshStreams extends ChangeNotifier {
+  GoRouterRefreshStreams(List<Stream<dynamic>> streams) {
     notifyListeners();
-    _subscription = stream.asBroadcastStream().listen((_) => notifyListeners());
+    _subscriptions = streams
+        .map(
+          (stream) =>
+              stream.asBroadcastStream().listen((_) => notifyListeners()),
+        )
+        .toList();
   }
 
-  late final StreamSubscription<dynamic> _subscription;
+  late final List<StreamSubscription<dynamic>> _subscriptions;
 
   @override
   void dispose() {
-    _subscription.cancel();
+    for (final subscription in _subscriptions) {
+      subscription.cancel();
+    }
     super.dispose();
   }
 }

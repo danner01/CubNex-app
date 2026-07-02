@@ -1,15 +1,27 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../common/blocs/role_mode/role_mode_cubit.dart';
+import '../../../config/http/api_client.dart';
+import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
+import '../../../modules/notifications/data/models/notification_model.dart';
 import '../../../modules/orders/blocs/cart/cart_cubit.dart';
 import 'cubnex_logo.dart';
 
 class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
-  const MarketAppBar({super.key});
+  const MarketAppBar({
+    super.key,
+    this.showBackButton = false,
+    this.fallbackLocation,
+  });
+
+  final bool showBackButton;
+  final String? fallbackLocation;
 
   @override
   Size get preferredSize => const Size.fromHeight(88);
@@ -27,6 +39,10 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
         padding: const EdgeInsets.fromLTRB(16, 10, 16, 8),
         child: Row(
           children: [
+            if (showBackButton) ...[
+              _BackButton(fallbackLocation: fallbackLocation),
+              const SizedBox(width: 8),
+            ],
             const CubNexLogo(size: 54),
             const SizedBox(width: 12),
             Expanded(
@@ -47,9 +63,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ],
               ),
             ),
-            _HeaderButton(
-              tooltip: 'Notificaciones',
-              icon: Icons.notifications_none_rounded,
+            _UnreadNotificationsButton(
               onPressed: () => context.go(AppRoutes.notifications),
             ),
             const SizedBox(width: 8),
@@ -72,6 +86,121 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
               ),
             },
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _UnreadNotificationsButton extends StatefulWidget {
+  const _UnreadNotificationsButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  State<_UnreadNotificationsButton> createState() =>
+      _UnreadNotificationsButtonState();
+}
+
+class _UnreadNotificationsButtonState
+    extends State<_UnreadNotificationsButton> {
+  final ApiClient _apiClient = sl<ApiClient>();
+  Timer? _timer;
+  int _unreadCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUnreadCount();
+    _timer = Timer.periodic(
+      const Duration(seconds: 45),
+      (_) => _loadUnreadCount(),
+    );
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _loadUnreadCount() async {
+    final token = await _apiClient.readAccessToken();
+    if (!mounted) return;
+    if (token == null || token.isEmpty) {
+      if (_unreadCount != 0) setState(() => _unreadCount = 0);
+      return;
+    }
+
+    final result = await _apiClient.get<List<NotificationModel>>(
+      '/notificaciones',
+      queryParameters: {'limit': 50, 'order': 'created_at.desc'},
+      parser: (json) {
+        if (json is! List) return const <NotificationModel>[];
+        return json
+            .whereType<Map>()
+            .map(
+              (item) =>
+                  NotificationModel.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+      },
+    );
+    if (!mounted || !result.isSuccess) return;
+
+    final nextCount = (result.data ?? const <NotificationModel>[])
+        .where((item) => !item.read)
+        .length;
+    if (nextCount != _unreadCount) {
+      setState(() => _unreadCount = nextCount);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _HeaderButton(
+      tooltip: _unreadCount > 0
+          ? '$_unreadCount notificaciones sin leer'
+          : 'Notificaciones',
+      icon: Icons.notifications_none_rounded,
+      badgeCount: _unreadCount,
+      onPressed: widget.onPressed,
+    );
+  }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({this.fallbackLocation});
+
+  final String? fallbackLocation;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = Theme.of(context).colorScheme.primary;
+
+    return Tooltip(
+      message: 'Volver',
+      child: Material(
+        color: Theme.of(context).colorScheme.surface,
+        borderRadius: BorderRadius.circular(14),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(14),
+          onTap: () {
+            if (context.canPop()) {
+              context.pop();
+              return;
+            }
+            context.go(fallbackLocation ?? AppRoutes.home);
+          },
+          child: SizedBox(
+            width: 44,
+            height: 54,
+            child: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              size: 21,
+              color: primary,
+            ),
+          ),
         ),
       ),
     );

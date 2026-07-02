@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
@@ -12,6 +14,7 @@ class OrdersCubit extends Cubit<OrdersState> {
       super(const OrdersState());
 
   final ApiClient _apiClient;
+  static const _loadTimeout = Duration(seconds: 12);
   String? _businessId;
   bool _usingGroupedOrders = true;
 
@@ -58,39 +61,60 @@ class OrdersCubit extends Cubit<OrdersState> {
     String path, {
     String? businessId,
   }) {
-    return _apiClient.get<List<OrderModel>>(
-      path,
-      queryParameters: {
-        'order': 'created_at.desc',
-        if (businessId != null) 'negocio_id': businessId,
-      },
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map(
-                (item) => OrderModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
-        }
-        return const [];
-      },
-    );
+    return _apiClient
+        .get<List<OrderModel>>(
+          path,
+          queryParameters: {
+            'order': 'created_at.desc',
+            if (businessId != null) 'negocio_id': businessId,
+          },
+          parser: (json) {
+            if (json is List) {
+              return json
+                  .whereType<Map>()
+                  .map(
+                    (item) =>
+                        OrderModel.fromJson(Map<String, dynamic>.from(item)),
+                  )
+                  .toList();
+            }
+            return const [];
+          },
+        )
+        .timeout(
+          _loadTimeout,
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'ORDERS_TIMEOUT',
+              message: 'La carga de pedidos esta tardando demasiado.',
+            ),
+          ),
+        );
   }
 
   Future<void> loadBusinessOrders() async {
     emit(state.copyWith(status: OrdersStatus.loading));
-    final businessResult = await _apiClient.get<BusinessModel?>(
-      '/negocios/mi-negocio',
-      parser: (json) {
-        if (json is List && json.isNotEmpty) {
-          return BusinessModel.fromJson(
-            Map<String, dynamic>.from(json.first as Map),
-          );
-        }
-        return null;
-      },
-    );
+    final businessResult = await _apiClient
+        .get<BusinessModel?>(
+          '/negocios/mi-negocio',
+          parser: (json) {
+            if (json is List && json.isNotEmpty) {
+              return BusinessModel.fromJson(
+                Map<String, dynamic>.from(json.first as Map),
+              );
+            }
+            return null;
+          },
+        )
+        .timeout(
+          _loadTimeout,
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'BUSINESS_TIMEOUT',
+              message: 'No se pudo confirmar tu negocio activo a tiempo.',
+            ),
+          ),
+        );
     final businessId = businessResult.data?.id;
     if (!businessResult.isSuccess || businessId == null) {
       emit(
