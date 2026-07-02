@@ -130,8 +130,8 @@ class HomeShell extends StatelessWidget {
         ),
         _ShellItem(
           label: 'Negocio',
-          location: AppRoutes.businessSettings,
-          prefix: '/business/settings',
+          location: AppRoutes.businessStore,
+          prefix: AppRoutes.businessStore,
           icon: Icons.storefront_outlined,
           selectedIcon: Icons.storefront_rounded,
           protected: true,

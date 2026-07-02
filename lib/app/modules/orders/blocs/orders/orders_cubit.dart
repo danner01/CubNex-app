@@ -16,31 +16,41 @@ class OrdersCubit extends Cubit<OrdersState> {
   final ApiClient _apiClient;
   static const _loadTimeout = Duration(seconds: 12);
   String? _businessId;
-  bool _usingGroupedOrders = true;
+  Set<String> _groupedOrderIds = const <String>{};
 
   Future<void> load({String? businessId}) async {
     _businessId = businessId;
     emit(state.copyWith(status: OrdersStatus.loading));
-    final result = await _loadFrom('/ordenes', businessId: businessId);
+    final results = await Future.wait<ApiResult<List<OrderModel>>>([
+      _loadFrom('/ordenes', businessId: businessId),
+      _loadFrom('/pedidos', businessId: businessId),
+    ]);
 
-    if (result.isSuccess) {
-      _usingGroupedOrders = true;
+    final groupedResult = results[0];
+    final legacyResult = results[1];
+    if (groupedResult.isSuccess || legacyResult.isSuccess) {
+      final groupedOrders = groupedResult.data ?? const <OrderModel>[];
+      final legacyOrders = legacyResult.data ?? const <OrderModel>[];
+      _groupedOrderIds = groupedOrders.map((order) => order.id).toSet();
+      final byId = <String, OrderModel>{};
+      for (final order in [...groupedOrders, ...legacyOrders]) {
+        if (order.id.isNotEmpty) {
+          byId[order.id] = order;
+        }
+      }
+      final items = byId.values.toList()
+        ..sort((a, b) {
+          final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+          return bDate.compareTo(aDate);
+        });
       emit(
         state.copyWith(
           status: OrdersStatus.success,
-          items: result.data ?? const [],
-        ),
-      );
-      return;
-    }
-
-    final legacyResult = await _loadFrom('/pedidos', businessId: businessId);
-    if (legacyResult.isSuccess) {
-      _usingGroupedOrders = false;
-      emit(
-        state.copyWith(
-          status: OrdersStatus.success,
-          items: legacyResult.data ?? const [],
+          items: items,
+          errorMessage: groupedResult.isSuccess
+              ? null
+              : groupedResult.error?.message,
         ),
       );
       return;
@@ -48,9 +58,10 @@ class OrdersCubit extends Cubit<OrdersState> {
 
     emit(
       state.copyWith(
-        status: OrdersStatus.failure,
+        status: OrdersStatus.success,
+        items: const [],
         errorMessage:
-            result.error?.message ??
+            groupedResult.error?.message ??
             legacyResult.error?.message ??
             'No se pudieron cargar pedidos.',
       ),
@@ -65,20 +76,14 @@ class OrdersCubit extends Cubit<OrdersState> {
         .get<List<OrderModel>>(
           path,
           queryParameters: {
+            'limit': 50,
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
           },
           parser: (json) {
-            if (json is List) {
-              return json
-                  .whereType<Map>()
-                  .map(
-                    (item) =>
-                        OrderModel.fromJson(Map<String, dynamic>.from(item)),
-                  )
-                  .toList();
-            }
-            return const [];
+            return _asList(
+              json,
+            ).map((item) => OrderModel.fromJson(item)).toList();
           },
         )
         .timeout(
@@ -130,9 +135,29 @@ class OrdersCubit extends Cubit<OrdersState> {
     await load(businessId: businessId);
   }
 
+  List<Map<String, dynamic>> _asList(dynamic json) {
+    if (json is List) {
+      return json
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    if (json is Map) {
+      final raw = json['items'] ?? json['datos'] ?? json['ordenes'];
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+      if (json['id'] != null) return [Map<String, dynamic>.from(json)];
+    }
+    return const [];
+  }
+
   Future<void> updateStatus(String orderId, String status) async {
     emit(state.copyWith(status: OrdersStatus.saving));
-    final path = _usingGroupedOrders
+    final path = _groupedOrderIds.contains(orderId)
         ? '/ordenes/$orderId/estado'
         : '/pedidos/$orderId';
     final result = await _apiClient.put<void>(
@@ -155,7 +180,7 @@ class OrdersCubit extends Cubit<OrdersState> {
     if (_businessId != null) {
       await load(businessId: _businessId);
     } else {
-      await loadBusinessOrders();
+      await load();
     }
   }
 }

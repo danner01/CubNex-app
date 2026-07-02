@@ -78,6 +78,7 @@ class SearchAssetModel {
     this.type,
     this.price,
     this.currency,
+    this.imageUrl,
     this.province,
     this.municipality,
   });
@@ -88,10 +89,17 @@ class SearchAssetModel {
   final String? type;
   final double? price;
   final String? currency;
+  final String? imageUrl;
   final String? province;
   final String? municipality;
 
   factory SearchAssetModel.fromJson(Map<String, dynamic> json) {
+    final images = json['imagenes'];
+    String? firstImage;
+    if (images is List && images.isNotEmpty) {
+      firstImage = images.first?.toString();
+    }
+
     return SearchAssetModel(
       id: '${json['id'] ?? ''}',
       title: '${json['titulo'] ?? json['nombre'] ?? ''}',
@@ -101,6 +109,7 @@ class SearchAssetModel {
         '${json['precio'] ?? json['precio_base'] ?? json['precio_por_km'] ?? ''}',
       ),
       currency: json['moneda']?.toString(),
+      imageUrl: firstImage,
       province: json['provincia']?.toString(),
       municipality: json['municipio']?.toString(),
     );

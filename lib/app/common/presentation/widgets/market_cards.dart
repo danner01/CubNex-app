@@ -282,6 +282,7 @@ class BusinessPreviewCard extends StatelessWidget {
     final imageUrl = (bannerUrl != null && bannerUrl!.isNotEmpty)
         ? bannerUrl
         : logoUrl;
+    final hasRating = rating != null && rating! > 0;
 
     return SizedBox(
       width: 254,
@@ -362,31 +363,34 @@ class BusinessPreviewCard extends StatelessWidget {
                       ),
                     ),
                     const SizedBox(width: 8),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 5,
+                    if (hasRating)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 5,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.gold.withValues(alpha: 0.18),
+                          borderRadius: BorderRadius.circular(999),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 15,
+                              color: AppColors.goldDark,
+                            ),
+                            const SizedBox(width: 3),
+                            Text(
+                              rating!.toStringAsFixed(1),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                      decoration: BoxDecoration(
-                        color: AppColors.gold.withValues(alpha: 0.18),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 15,
-                            color: AppColors.goldDark,
-                          ),
-                          const SizedBox(width: 3),
-                          Text(
-                            rating?.toStringAsFixed(1) ?? '0.0',
-                            style: const TextStyle(fontWeight: FontWeight.w900),
-                          ),
-                        ],
-                      ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 2),
@@ -487,6 +491,7 @@ class ProductPreviewCard extends StatelessWidget {
     this.imageUrl,
     this.price,
     this.currency,
+    this.rating,
     this.onTap,
     super.key,
   });
@@ -496,10 +501,12 @@ class ProductPreviewCard extends StatelessWidget {
   final String? imageUrl;
   final double? price;
   final String? currency;
+  final double? rating;
   final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
+    final hasRating = rating != null && rating! > 0;
     return SizedBox(
       width: 170,
       child: Card(
@@ -553,16 +560,37 @@ class ProductPreviewCard extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 6),
-                Text(
-                  price == null
-                      ? 'Consultar'
-                      : '${price!.toStringAsFixed(0)} ${currency ?? 'CUP'}',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                    color: Theme.of(context).colorScheme.secondary,
-                    fontWeight: FontWeight.w900,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        price == null
+                            ? 'Consultar'
+                            : '${price!.toStringAsFixed(0)} ${currency ?? 'CUP'}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          color: Theme.of(context).colorScheme.secondary,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ),
+                    if (hasRating) ...[
+                      const SizedBox(width: 6),
+                      const Icon(
+                        Icons.star_rounded,
+                        size: 15,
+                        color: AppColors.goldDark,
+                      ),
+                      Text(
+                        rating!.toStringAsFixed(1),
+                        style: const TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                    ],
+                  ],
                 ),
               ],
             ),

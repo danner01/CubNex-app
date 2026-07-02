@@ -154,6 +154,16 @@ class _ProductDetailView extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (product.rating != null && product.rating! > 0) ...[
+                    const SizedBox(height: 10),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: _ProductBadge(
+                        icon: Icons.star_rounded,
+                        label: '${product.rating!.toStringAsFixed(1)} de 5',
+                      ),
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   Wrap(
                     spacing: 8,

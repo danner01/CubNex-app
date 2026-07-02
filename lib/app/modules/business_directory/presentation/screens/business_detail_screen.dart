@@ -139,6 +139,8 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
             (session.role == UserRole.businessAdmin ||
                 session.role == UserRole.superadmin ||
                 session.role == UserRole.delivery);
+        final isOwnBusiness =
+            activeBusiness != null && activeBusiness.id == business.id;
         final filteredProducts = state.products.where((product) {
           final text = [
             product.name,
@@ -240,6 +242,10 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                         ),
                       ),
                     ],
+                    if (isOwnBusiness) ...[
+                      const SizedBox(height: 10),
+                      _OwnerActions(brand: brand),
+                    ],
                     const SizedBox(height: 18),
                     _ContactCard(
                       phone: business.phone,
@@ -322,6 +328,7 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                               imageUrl: product.imageUrl,
                               price: product.currentPrice,
                               currency: product.currency,
+                              rating: product.rating,
                               onTap: () =>
                                   context.go(AppRoutes.product(product.id)),
                             );
@@ -330,6 +337,11 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                       ),
                     const SizedBox(height: 22),
                     SectionHeader(title: 'Resenas'),
+                    const SizedBox(height: 10),
+                    _RatingSummaryCard(
+                      rating: business.rating,
+                      reviewCount: state.reviews.length,
+                    ),
                     const SizedBox(height: 10),
                     OutlinedButton.icon(
                       onPressed: () => showModalBottomSheet<void>(
@@ -748,6 +760,75 @@ class _ReviewFormSheetState extends State<_ReviewFormSheet> {
   }
 }
 
+class _OwnerActions extends StatelessWidget {
+  const _OwnerActions({required this.brand});
+
+  final StoreBrandTheme brand;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      color: brand.primary.withValues(alpha: 0.12),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Expanded(
+              child: FilledButton.icon(
+                onPressed: () => context.go(AppRoutes.businessInventory),
+                icon: const Icon(Icons.inventory_2_outlined),
+                label: const Text('Inventario'),
+              ),
+            ),
+            const SizedBox(width: 10),
+            IconButton.filledTonal(
+              tooltip: 'Configurar negocio',
+              onPressed: () => context.go(AppRoutes.businessSettings),
+              icon: const Icon(Icons.settings_rounded),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RatingSummaryCard extends StatelessWidget {
+  const _RatingSummaryCard({required this.rating, required this.reviewCount});
+
+  final double? rating;
+  final int reviewCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final hasRating = rating != null && rating! > 0;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Row(
+          children: [
+            Icon(
+              hasRating ? Icons.star_rounded : Icons.star_border_rounded,
+              color: hasRating ? AppColors.goldDark : null,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                hasRating
+                    ? '${rating!.toStringAsFixed(1)} de 5 · $reviewCount resenas'
+                    : 'Aun no hay calificaciones para este negocio.',
+                style: Theme.of(
+                  context,
+                ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _BusinessHero extends StatelessWidget {
   const _BusinessHero({
     required this.name,
@@ -769,6 +850,7 @@ class _BusinessHero extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasRating = rating != null && rating! > 0;
     return Card(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -820,21 +902,23 @@ class _BusinessHero extends StatelessWidget {
                       const SizedBox(height: 6),
                       Row(
                         children: [
-                          const Icon(
-                            Icons.star_rounded,
-                            size: 18,
-                            color: AppColors.goldDark,
-                          ),
-                          const SizedBox(width: 4),
-                          Text(
-                            rating?.toStringAsFixed(1) ?? '0.0',
-                            style: TextStyle(
-                              color: brand.onSurface,
-                              fontWeight: FontWeight.w900,
+                          if (hasRating) ...[
+                            const Icon(
+                              Icons.star_rounded,
+                              size: 18,
+                              color: AppColors.goldDark,
                             ),
-                          ),
+                            const SizedBox(width: 4),
+                            Text(
+                              rating!.toStringAsFixed(1),
+                              style: TextStyle(
+                                color: brand.onSurface,
+                                fontWeight: FontWeight.w900,
+                              ),
+                            ),
+                          ],
                           if (location != null && location!.isNotEmpty) ...[
-                            const SizedBox(width: 10),
+                            if (hasRating) const SizedBox(width: 10),
                             Expanded(
                               child: Text(
                                 location!,

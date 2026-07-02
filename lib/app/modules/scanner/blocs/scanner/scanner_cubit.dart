@@ -80,7 +80,8 @@ class ScannerCubit extends Cubit<ScannerState> {
           'imagen_base64': imageBase64,
           'tipo_deteccion': 'producto_visual',
           'guardar_historial': true,
-          'limite': 50,
+          'limite': 30,
+          'min_score': 10,
         },
         emptyMessage:
             'No encontramos productos parecidos. Prueba con una foto mas clara de la etiqueta o empaque.',
@@ -112,7 +113,8 @@ class ScannerCubit extends Cubit<ScannerState> {
     await _saveVisualScan(query);
     await _searchVisual({
       'texto_detectado': query,
-      'limite': 50,
+      'limite': 30,
+      'min_score': 6,
     }, emptyMessage: 'No encontramos productos parecidos a ese texto.');
     _processing = false;
   }

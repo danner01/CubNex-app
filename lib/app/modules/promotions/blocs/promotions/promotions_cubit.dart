@@ -210,22 +210,14 @@ class PromotionsCubit extends Cubit<PromotionsState> {
         .get<List<PromotionModel>>(
           path,
           queryParameters: {
-            'limit': 80,
+            'limit': 40,
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
           },
           parser: (json) {
-            if (json is List) {
-              return json
-                  .whereType<Map>()
-                  .map(
-                    (item) => PromotionModel.fromJson(
-                      Map<String, dynamic>.from(item),
-                    ),
-                  )
-                  .toList();
-            }
-            return const [];
+            return _asList(
+              json,
+            ).map((item) => PromotionModel.fromJson(item)).toList();
           },
         )
         .timeout(
@@ -241,7 +233,8 @@ class PromotionsCubit extends Cubit<PromotionsState> {
     if (!result.isSuccess) {
       emit(
         state.copyWith(
-          status: PromotionsStatus.failure,
+          status: PromotionsStatus.success,
+          items: const [],
           message:
               result.error?.message ?? 'No se pudieron cargar promociones.',
         ),
@@ -255,5 +248,25 @@ class PromotionsCubit extends Cubit<PromotionsState> {
         items: result.data ?? const [],
       ),
     );
+  }
+
+  List<Map<String, dynamic>> _asList(dynamic json) {
+    if (json is List) {
+      return json
+          .whereType<Map>()
+          .map((item) => Map<String, dynamic>.from(item))
+          .toList();
+    }
+    if (json is Map) {
+      final raw = json['items'] ?? json['datos'] ?? json['promociones'];
+      if (raw is List) {
+        return raw
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      }
+      if (json['id'] != null) return [Map<String, dynamic>.from(json)];
+    }
+    return const [];
   }
 }

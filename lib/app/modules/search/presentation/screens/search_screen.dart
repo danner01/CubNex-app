@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/widgets/market_cards.dart';
@@ -227,6 +228,7 @@ class _SearchResults extends StatelessWidget {
                   imageUrl: product.imageUrl,
                   price: product.currentPrice,
                   currency: product.currency,
+                  rating: product.rating,
                   onTap: () => context.go(AppRoutes.product(product.id)),
                 );
               },
@@ -237,13 +239,21 @@ class _SearchResults extends StatelessWidget {
         if (state.results.properties.isNotEmpty) ...[
           const _MiniSectionTitle('Propiedades'),
           const SizedBox(height: 10),
-          ..._spacedAssetTiles(state.results.properties),
+          ..._spacedAssetTiles(
+            context,
+            state.results.properties,
+            (asset) => AppRoutes.property(asset.id),
+          ),
           const SizedBox(height: 18),
         ],
         if (state.results.transport.isNotEmpty) ...[
           const _MiniSectionTitle('Transporte'),
           const SizedBox(height: 10),
-          ..._spacedAssetTiles(state.results.transport),
+          ..._spacedAssetTiles(
+            context,
+            state.results.transport,
+            (asset) => AppRoutes.transportService(asset.id),
+          ),
         ],
         if (state.loadingMore)
           const Padding(
@@ -254,10 +264,17 @@ class _SearchResults extends StatelessWidget {
     );
   }
 
-  List<Widget> _spacedAssetTiles(List<SearchAssetModel> assets) {
+  List<Widget> _spacedAssetTiles(
+    BuildContext context,
+    List<SearchAssetModel> assets,
+    String Function(SearchAssetModel asset) routeFor,
+  ) {
     return [
       for (var index = 0; index < assets.length; index++) ...[
-        _AssetResultTile(assets[index]),
+        _AssetResultTile(
+          assets[index],
+          onTap: () => context.go(routeFor(assets[index])),
+        ),
         if (index < assets.length - 1) const SizedBox(height: 8),
       ],
     ];
@@ -558,9 +575,10 @@ const _searchCategories = [
 ];
 
 class _AssetResultTile extends StatelessWidget {
-  const _AssetResultTile(this.asset);
+  const _AssetResultTile(this.asset, {this.onTap});
 
   final SearchAssetModel asset;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -573,27 +591,76 @@ class _AssetResultTile extends StatelessWidget {
         : '${asset.price!.toStringAsFixed(0)} ${asset.currency ?? 'CUP'}';
 
     return Card(
-      child: ListTile(
-        leading: CircleAvatar(
-          backgroundColor: Theme.of(context).colorScheme.secondary,
-          foregroundColor: Theme.of(context).colorScheme.onSecondary,
-          child: const Icon(Icons.place_outlined),
-        ),
-        title: Text(asset.title),
-        subtitle: Text(
-          [
-            asset.type,
-            location,
-            asset.description,
-          ].where((value) => value != null && value.isNotEmpty).join(' - '),
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: Text(
-          price,
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.secondary,
-            fontWeight: FontWeight.w900,
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          height: 112,
+          child: Row(
+            children: [
+              SizedBox(
+                width: 118,
+                height: double.infinity,
+                child: asset.imageUrl?.isNotEmpty == true
+                    ? CachedNetworkImage(
+                        imageUrl: asset.imageUrl!,
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) =>
+                            const Icon(Icons.place_outlined),
+                      )
+                    : DecoratedBox(
+                        decoration: BoxDecoration(
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondary.withValues(alpha: 0.16),
+                        ),
+                        child: Icon(
+                          Icons.place_outlined,
+                          color: Theme.of(context).colorScheme.secondary,
+                        ),
+                      ),
+              ),
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        asset.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        [asset.type, location, asset.description]
+                            .where((value) => value != null && value.isNotEmpty)
+                            .join(' - '),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const Spacer(),
+                      Row(
+                        children: [
+                          Text(
+                            price,
+                            style: TextStyle(
+                              color: Theme.of(context).colorScheme.secondary,
+                              fontWeight: FontWeight.w900,
+                            ),
+                          ),
+                          const Spacer(),
+                          const Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),

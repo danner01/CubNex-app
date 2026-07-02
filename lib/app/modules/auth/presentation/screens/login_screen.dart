@@ -82,6 +82,20 @@ class _LoginViewState extends State<_LoginView> {
   Widget build(BuildContext context) {
     return BlocConsumer<AuthCubit, AuthState>(
       listener: (context, state) async {
+        if (state.status == AuthStatus.registered) {
+          _navigatingAfterAuth = false;
+          if (!context.mounted) return;
+          setState(() => _mode = _AuthMode.login);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                state.errorMessage ?? 'Cuenta creada. Inicia sesion.',
+              ),
+            ),
+          );
+          return;
+        }
+
         if (state.status == AuthStatus.success &&
             state.session != null &&
             !_navigatingAfterAuth) {

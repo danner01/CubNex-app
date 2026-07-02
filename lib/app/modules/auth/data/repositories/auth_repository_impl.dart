@@ -61,8 +61,7 @@ class AuthRepositoryImpl implements AuthRepository {
       deliveryProfile: deliveryProfile,
     );
     if (result.isSuccess && result.data != null) {
-      final sessionResult = await _saveSession(result.data!);
-      if (sessionResult != null) return ApiResult.failure(sessionResult);
+      await _clearLocalSessionAfterRegister();
       return ApiResult.success(result.data!);
     }
     return ApiResult.failure(result.error!);
@@ -110,6 +109,14 @@ class AuthRepositoryImpl implements AuthRepository {
         message:
             'La cuenta se creo, pero no se pudo guardar la sesion en este dispositivo. Intenta iniciar sesion.',
       );
+    }
+  }
+
+  Future<void> _clearLocalSessionAfterRegister() async {
+    try {
+      await _apiClient.clearSession().timeout(_sessionSaveTimeout);
+    } catch (_) {
+      // El registro no debe quedar bloqueado por limpieza local.
     }
   }
 }

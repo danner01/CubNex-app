@@ -230,6 +230,7 @@ class _HomeViewState extends State<_HomeView> {
                         imageUrl: product.imageUrl,
                         price: product.currentPrice,
                         currency: product.currency,
+                        rating: product.rating,
                         onTap: () => context.go(AppRoutes.product(product.id)),
                       );
                     },

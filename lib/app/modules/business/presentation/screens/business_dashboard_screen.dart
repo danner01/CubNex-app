@@ -34,74 +34,85 @@ class _BusinessDashboardView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BlocConsumer<BusinessDashboardCubit, BusinessDashboardState>(
+      body: BlocListener<ActiveBusinessCubit, ActiveBusinessState>(
         listenWhen: (previous, current) =>
-            previous.needsWizard != current.needsWizard,
-        listener: (context, state) {
-          if (!state.needsWizard) return;
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (context.mounted) {
-              context.go(AppRoutes.businessWizard);
-            }
-          });
-        },
-        builder: (context, state) {
-          return RefreshIndicator(
-            onRefresh: () => context.read<BusinessDashboardCubit>().load(
-              selectedBusiness: context
-                  .read<ActiveBusinessCubit>()
-                  .state
-                  .activeBusiness,
-            ),
-            child: ListView(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-              children: [
-                const _DashboardHeader(),
-                const SizedBox(height: 6),
-                BusinessSwitcher(
-                  onChanged: () => context.read<BusinessDashboardCubit>().load(
-                    selectedBusiness: context
-                        .read<ActiveBusinessCubit>()
-                        .state
-                        .activeBusiness,
-                  ),
-                ),
-                const SizedBox(height: 14),
-                if (state.status == BusinessDashboardStatus.loading)
-                  const Padding(
-                    padding: EdgeInsets.only(top: 32),
-                    child: Center(child: CircularProgressIndicator()),
-                  )
-                else if (state.summary == null)
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.all(18),
-                      child: Text(
-                        state.message ??
-                            'Crea tu negocio para ver estadisticas.',
-                      ),
-                    ),
-                  )
-                else ...[
-                  _HeroSummary(summary: state.summary!),
-                  const SizedBox(height: 14),
-                  _PerformancePanel(summary: state.summary!),
-                  const SizedBox(height: 14),
-                  _MetricsGrid(summary: state.summary!),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Gestion',
-                    style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  _ActionsGrid(summary: state.summary!),
-                ],
-              ],
-            ),
+            previous.activeBusiness?.id != current.activeBusiness?.id &&
+            current.activeBusiness?.id != null,
+        listener: (context, activeState) {
+          context.read<BusinessDashboardCubit>().load(
+            selectedBusiness: activeState.activeBusiness,
           );
         },
+        child: BlocConsumer<BusinessDashboardCubit, BusinessDashboardState>(
+          listenWhen: (previous, current) =>
+              previous.needsWizard != current.needsWizard,
+          listener: (context, state) {
+            if (!state.needsWizard) return;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                context.go(AppRoutes.businessWizard);
+              }
+            });
+          },
+          builder: (context, state) {
+            return RefreshIndicator(
+              onRefresh: () => context.read<BusinessDashboardCubit>().load(
+                selectedBusiness: context
+                    .read<ActiveBusinessCubit>()
+                    .state
+                    .activeBusiness,
+              ),
+              child: ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  const _DashboardHeader(),
+                  const SizedBox(height: 6),
+                  BusinessSwitcher(
+                    onChanged: () =>
+                        context.read<BusinessDashboardCubit>().load(
+                          selectedBusiness: context
+                              .read<ActiveBusinessCubit>()
+                              .state
+                              .activeBusiness,
+                        ),
+                  ),
+                  const SizedBox(height: 14),
+                  if (state.status == BusinessDashboardStatus.loading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 32),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  else if (state.summary == null)
+                    Card(
+                      child: Padding(
+                        padding: const EdgeInsets.all(18),
+                        child: Text(
+                          state.message ??
+                              'Crea tu negocio para ver estadisticas.',
+                        ),
+                      ),
+                    )
+                  else ...[
+                    _HeroSummary(summary: state.summary!),
+                    const SizedBox(height: 14),
+                    _PerformancePanel(summary: state.summary!),
+                    const SizedBox(height: 14),
+                    _MetricsGrid(summary: state.summary!),
+                    const SizedBox(height: 18),
+                    Text(
+                      'Gestion',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    _ActionsGrid(summary: state.summary!),
+                  ],
+                ],
+              ),
+            );
+          },
+        ),
       ),
     );
   }
@@ -453,7 +464,7 @@ class _ActionsGrid extends StatelessWidget {
   List<_BusinessAction> _actionsForBusiness(String? parentCategory) {
     final common = [
       ('Inventario', Icons.inventory_2_outlined, AppRoutes.businessInventory),
-      ('Negocio', Icons.palette_outlined, AppRoutes.businessSettings),
+      ('Negocio', Icons.storefront_outlined, AppRoutes.businessStore),
       ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
       ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
       ('Conexiones', Icons.hub_outlined, AppRoutes.businessNetwork),

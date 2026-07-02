@@ -12,6 +12,7 @@ import '../../modules/address/presentation/screens/map_screen.dart';
 import '../../modules/business/presentation/screens/business_dashboard_screen.dart';
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
+import '../../modules/business/presentation/screens/business_store_preview_screen.dart';
 import '../../modules/business_directory/presentation/screens/business_detail_screen.dart';
 import '../../modules/business_network/presentation/screens/business_network_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
@@ -236,6 +237,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.businessInventory,
             builder: (_, __) => const BusinessInventoryScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessStore,
+            builder: (_, __) => const BusinessStorePreviewScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessSettings,

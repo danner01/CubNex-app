@@ -31,7 +31,13 @@ class AuthCubit extends Cubit<AuthState> {
     required String email,
     required String password,
   }) async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        errorMessage: null,
+        clearSession: true,
+      ),
+    );
     _debugAuth('login_email:start $email');
     try {
       final result = await _loginWithEmail(
@@ -52,6 +58,7 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: result.error?.message ?? 'No se pudo iniciar sesion.',
+          clearSession: true,
         ),
       );
     } on TimeoutException {
@@ -61,6 +68,7 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.failure,
           errorMessage:
               'La autenticacion esta tardando demasiado. Verifica tu conexion e intenta de nuevo.',
+          clearSession: true,
         ),
       );
     } catch (error) {
@@ -69,6 +77,7 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: 'Ocurrio un error inesperado al iniciar sesion.',
+          clearSession: true,
         ),
       );
     }
@@ -81,7 +90,13 @@ class AuthCubit extends Cubit<AuthState> {
   }
 
   Future<void> loginWithGoogle() async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        errorMessage: null,
+        clearSession: true,
+      ),
+    );
     try {
       final result = await _loginWithGoogle().timeout(_requestTimeout);
 
@@ -95,6 +110,7 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.failure,
           errorMessage:
               result.error?.message ?? 'No se pudo iniciar con Google.',
+          clearSession: true,
         ),
       );
     } on TimeoutException {
@@ -103,6 +119,7 @@ class AuthCubit extends Cubit<AuthState> {
           status: AuthStatus.failure,
           errorMessage:
               'Google Sign-In esta tardando demasiado. Intenta nuevamente en unos segundos.',
+          clearSession: true,
         ),
       );
     } catch (_) {
@@ -110,6 +127,7 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: 'Ocurrio un error inesperado con Google Sign-In.',
+          clearSession: true,
         ),
       );
     }
@@ -123,7 +141,13 @@ class AuthCubit extends Cubit<AuthState> {
     required String role,
     Map<String, dynamic>? deliveryProfile,
   }) async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        errorMessage: null,
+        clearSession: true,
+      ),
+    );
     try {
       final result = await _registerAccount(
         fullName: fullName,
@@ -135,7 +159,13 @@ class AuthCubit extends Cubit<AuthState> {
       ).timeout(_requestTimeout);
 
       if (result.isSuccess && result.data != null) {
-        emit(state.copyWith(status: AuthStatus.success, session: result.data));
+        emit(
+          state.copyWith(
+            status: AuthStatus.registered,
+            errorMessage: 'Cuenta creada. Inicia sesion para continuar.',
+            clearSession: true,
+          ),
+        );
         return;
       }
 
@@ -143,6 +173,7 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: result.error?.message ?? 'No se pudo crear la cuenta.',
+          clearSession: true,
         ),
       );
     } on TimeoutException {
@@ -150,7 +181,8 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage:
-              'El registro esta tardando demasiado. Revisa la conexion e intenta de nuevo.',
+              'El registro esta tardando demasiado. Si la cuenta fue creada, intenta iniciar sesion antes de repetir el registro.',
+          clearSession: true,
         ),
       );
     } catch (_) {
@@ -158,13 +190,20 @@ class AuthCubit extends Cubit<AuthState> {
         state.copyWith(
           status: AuthStatus.failure,
           errorMessage: 'Ocurrio un error inesperado al crear la cuenta.',
+          clearSession: true,
         ),
       );
     }
   }
 
   Future<void> recoverPassword({required String email}) async {
-    emit(state.copyWith(status: AuthStatus.loading, errorMessage: null));
+    emit(
+      state.copyWith(
+        status: AuthStatus.loading,
+        errorMessage: null,
+        clearSession: true,
+      ),
+    );
     try {
       final result = await _recoverPassword(
         email: email,

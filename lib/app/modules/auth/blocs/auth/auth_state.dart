@@ -2,7 +2,7 @@ import 'package:equatable/equatable.dart';
 
 import '../../domain/entities/auth_session.dart';
 
-enum AuthStatus { initial, loading, success, failure, recoverySent }
+enum AuthStatus { initial, loading, success, registered, failure, recoverySent }
 
 class AuthState extends Equatable {
   const AuthState({
@@ -19,10 +19,11 @@ class AuthState extends Equatable {
     AuthStatus? status,
     AuthSession? session,
     String? errorMessage,
+    bool clearSession = false,
   }) {
     return AuthState(
       status: status ?? this.status,
-      session: session ?? this.session,
+      session: clearSession ? null : session ?? this.session,
       errorMessage: errorMessage,
     );
   }

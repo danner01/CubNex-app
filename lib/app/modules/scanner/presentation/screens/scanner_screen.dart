@@ -52,126 +52,147 @@ class _ScannerView extends StatelessWidget {
         },
         builder: (context, state) {
           final resolving = state.status == ScannerStatus.resolving;
+          final showingProductResults = state.products.length > 1;
 
           return Column(
             children: [
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(24),
-                    child: Stack(
-                      fit: StackFit.expand,
-                      children: [
-                        MobileScanner(
-                          onDetect: resolving
-                              ? null
-                              : (capture) {
-                                  final value = capture.barcodes.isEmpty
-                                      ? null
-                                      : capture.barcodes.first.rawValue;
-                                  if (value == null) return;
-                                  context.read<ScannerCubit>().processCode(
-                                    value,
-                                  );
-                                },
-                        ),
-                        DecoratedBox(
-                          decoration: BoxDecoration(
-                            border: Border.all(
-                              color: Theme.of(context).colorScheme.secondary,
-                              width: 3,
-                            ),
-                            borderRadius: BorderRadius.circular(24),
+              if (!showingProductResults)
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(24),
+                      child: Stack(
+                        fit: StackFit.expand,
+                        children: [
+                          MobileScanner(
+                            onDetect: resolving
+                                ? null
+                                : (capture) {
+                                    final value = capture.barcodes.isEmpty
+                                        ? null
+                                        : capture.barcodes.first.rawValue;
+                                    if (value == null) return;
+                                    context.read<ScannerCubit>().processCode(
+                                      value,
+                                    );
+                                  },
                           ),
-                        ),
-                        if (resolving)
-                          ColoredBox(
-                            color: Colors.black.withValues(alpha: 0.45),
-                            child: const Center(
-                              child: CircularProgressIndicator(),
+                          DecoratedBox(
+                            decoration: BoxDecoration(
+                              border: Border.all(
+                                color: Theme.of(context).colorScheme.secondary,
+                                width: 3,
+                              ),
+                              borderRadius: BorderRadius.circular(24),
                             ),
                           ),
-                      ],
+                          if (resolving)
+                            ColoredBox(
+                              color: Colors.black.withValues(alpha: 0.45),
+                              child: const Center(
+                                child: CircularProgressIndicator(),
+                              ),
+                            ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Card(
-                  child: Padding(
-                    padding: const EdgeInsets.all(16),
-                    child: Column(
-                      children: [
-                        Text(
-                          'Escaneo inteligente',
-                          style: Theme.of(context).textTheme.titleMedium
-                              ?.copyWith(fontWeight: FontWeight.w900),
-                        ),
-                        const SizedBox(height: 6),
-                        const Text(
-                          'Busca productos por imagen: toma una foto del empaque, etiqueta o producto. El lector QR queda solo para enlaces directos.',
-                          textAlign: TextAlign.center,
-                        ),
-                        if (state.code != null) ...[
-                          const SizedBox(height: 12),
-                          SelectableText(
-                            state.code!,
+              Flexible(
+                fit: showingProductResults ? FlexFit.tight : FlexFit.loose,
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Card(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            'Escaneo inteligente',
+                            style: Theme.of(context).textTheme.titleMedium
+                                ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          const SizedBox(height: 6),
+                          const Text(
+                            'Busca productos por imagen: toma una foto del empaque, etiqueta o producto. El lector QR queda solo para enlaces directos.',
                             textAlign: TextAlign.center,
-                            style: Theme.of(context).textTheme.bodySmall,
                           ),
-                        ],
-                        if (state.products.length > 1) ...[
-                          const SizedBox(height: 12),
-                          _PagedScannerResults(
-                            key: ValueKey(
-                              state.products.map((item) => item.id).join('|'),
-                            ),
-                            products: state.products,
-                          ),
-                        ],
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(
-                              child: FilledButton.icon(
-                                onPressed: resolving
-                                    ? null
-                                    : () => context
-                                          .read<ScannerCubit>()
-                                          .pickAndSearchProduct(
-                                            ImageSource.camera,
-                                          ),
-                                icon: const Icon(Icons.camera_alt_rounded),
-                                label: const Text('Foto'),
-                              ),
-                            ),
-                            const SizedBox(width: 10),
-                            Expanded(
-                              child: OutlinedButton.icon(
-                                onPressed: resolving
-                                    ? null
-                                    : () => context
-                                          .read<ScannerCubit>()
-                                          .pickAndSearchProduct(
-                                            ImageSource.gallery,
-                                          ),
-                                icon: const Icon(Icons.photo_library_outlined),
-                                label: const Text('Galeria'),
-                              ),
+                          if (state.code != null) ...[
+                            const SizedBox(height: 12),
+                            SelectableText(
+                              state.code!,
+                              textAlign: TextAlign.center,
+                              style: Theme.of(context).textTheme.bodySmall,
                             ),
                           ],
-                        ),
-                        const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: resolving
-                              ? null
-                              : () => context.read<ScannerCubit>().restart(),
-                          icon: const Icon(Icons.refresh),
-                          label: const Text('Escanear otro'),
-                        ),
-                      ],
+                          if (showingProductResults) ...[
+                            const SizedBox(height: 12),
+                            _PagedScannerResults(
+                              key: ValueKey(
+                                state.products.map((item) => item.id).join('|'),
+                              ),
+                              products: state.products,
+                            ),
+                          ],
+                          const SizedBox(height: 12),
+                          SafeArea(
+                            top: false,
+                            minimum: const EdgeInsets.only(bottom: 8),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: FilledButton.icon(
+                                        onPressed: resolving
+                                            ? null
+                                            : () => context
+                                                  .read<ScannerCubit>()
+                                                  .pickAndSearchProduct(
+                                                    ImageSource.camera,
+                                                  ),
+                                        icon: const Icon(
+                                          Icons.camera_alt_rounded,
+                                        ),
+                                        label: const Text('Foto'),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: OutlinedButton.icon(
+                                        onPressed: resolving
+                                            ? null
+                                            : () => context
+                                                  .read<ScannerCubit>()
+                                                  .pickAndSearchProduct(
+                                                    ImageSource.gallery,
+                                                  ),
+                                        icon: const Icon(
+                                          Icons.photo_library_outlined,
+                                        ),
+                                        label: const Text('Galeria'),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                OutlinedButton.icon(
+                                  onPressed: resolving
+                                      ? null
+                                      : () => context
+                                            .read<ScannerCubit>()
+                                            .restart(),
+                                  icon: const Icon(Icons.refresh),
+                                  label: const Text('Escanear otro'),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -195,8 +216,9 @@ class _PagedScannerResults extends StatefulWidget {
 
 class _PagedScannerResultsState extends State<_PagedScannerResults> {
   static const _pageSize = 10;
+  static const _initialPageSize = 5;
   final _controller = ScrollController();
-  int _visibleCount = _pageSize;
+  int _visibleCount = _initialPageSize;
 
   @override
   void initState() {
@@ -208,7 +230,7 @@ class _PagedScannerResultsState extends State<_PagedScannerResults> {
   void didUpdateWidget(covariant _PagedScannerResults oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.products != widget.products) {
-      _visibleCount = _pageSize;
+      _visibleCount = _initialPageSize;
       if (_controller.hasClients) {
         _controller.jumpTo(0);
       }
@@ -240,8 +262,8 @@ class _PagedScannerResultsState extends State<_PagedScannerResults> {
   Widget build(BuildContext context) {
     final visible = widget.products.take(_visibleCount).toList();
     final height = math.min(
-      MediaQuery.sizeOf(context).height * 0.42,
-      math.max(120.0, visible.length * 76.0),
+      MediaQuery.sizeOf(context).height * 0.28,
+      math.max(148.0, visible.length * 72.0),
     );
 
     return Column(

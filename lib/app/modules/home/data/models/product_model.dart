@@ -20,6 +20,7 @@ class ProductModel {
     this.available = true,
     this.inInventory = true,
     this.purchasable = true,
+    this.rating,
     this.features = const {},
   });
 
@@ -43,6 +44,7 @@ class ProductModel {
   final bool available;
   final bool inInventory;
   final bool purchasable;
+  final double? rating;
   final Map<String, dynamic> features;
 
   double? get currentPrice => offerPrice ?? price;
@@ -77,6 +79,7 @@ class ProductModel {
     bool? available,
     bool? inInventory,
     bool? purchasable,
+    double? rating,
     Map<String, dynamic>? features,
   }) {
     return ProductModel(
@@ -100,6 +103,7 @@ class ProductModel {
       available: available ?? this.available,
       inInventory: inInventory ?? this.inInventory,
       purchasable: purchasable ?? this.purchasable,
+      rating: rating ?? this.rating,
       features: features ?? this.features,
     );
   }
@@ -143,6 +147,7 @@ class ProductModel {
       available: json['disponible'] != false,
       inInventory: json['en_inventario'] != false,
       purchasable: json['comprable'] != false,
+      rating: double.tryParse('${json['calificacion_promedio'] ?? ''}'),
       features: _parseMap(json['caracteristicas']),
     );
   }
@@ -172,6 +177,7 @@ class ProductModel {
       'disponible': available,
       'en_inventario': inInventory,
       'comprable': purchasable,
+      'calificacion_promedio': rating,
       'caracteristicas': features,
     };
   }

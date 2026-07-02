@@ -25,15 +25,43 @@ class BusinessDashboardSummary {
   final int sales;
   final String level;
 
+  BusinessDashboardSummary copyWith({
+    BusinessModel? business,
+    int? products,
+    int? reviews,
+    int? promotions,
+    int? properties,
+    int? transport,
+    int? menus,
+    int? points,
+    int? sales,
+    String? level,
+  }) {
+    return BusinessDashboardSummary(
+      business: business ?? this.business,
+      products: products ?? this.products,
+      reviews: reviews ?? this.reviews,
+      promotions: promotions ?? this.promotions,
+      properties: properties ?? this.properties,
+      transport: transport ?? this.transport,
+      menus: menus ?? this.menus,
+      points: points ?? this.points,
+      sales: sales ?? this.sales,
+      level: level ?? this.level,
+    );
+  }
+
   double get completeness {
     var score = 0;
     if ((business.logoUrl ?? '').isNotEmpty) score++;
     if ((business.bannerUrl ?? '').isNotEmpty) score++;
     if ((business.description ?? '').isNotEmpty) score++;
-    if ((business.phone ?? '').isNotEmpty || (business.whatsapp ?? '').isNotEmpty) {
+    if ((business.phone ?? '').isNotEmpty ||
+        (business.whatsapp ?? '').isNotEmpty) {
       score++;
     }
-    if ((business.province ?? '').isNotEmpty || (business.municipality ?? '').isNotEmpty) {
+    if ((business.province ?? '').isNotEmpty ||
+        (business.municipality ?? '').isNotEmpty) {
       score++;
     }
     return score / 5;

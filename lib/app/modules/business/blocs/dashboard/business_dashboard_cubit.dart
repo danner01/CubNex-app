@@ -28,6 +28,16 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
         return;
       }
 
+      final baseSummary = BusinessDashboardSummary(business: business);
+      emit(
+        state.copyWith(
+          status: BusinessDashboardStatus.success,
+          needsWizard: false,
+          summary: baseSummary,
+          message: 'Cargando metricas...',
+        ),
+      );
+
       final stats = await _loadStats(business.id);
       final counts = await Future.wait<int>([
         _count('/negocios/${business.id}/productos'),
@@ -51,8 +61,7 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
         state.copyWith(
           status: BusinessDashboardStatus.success,
           needsWizard: false,
-          summary: BusinessDashboardSummary(
-            business: business,
+          summary: baseSummary.copyWith(
             products: counts[0],
             reviews: counts[1],
             promotions: counts[2],

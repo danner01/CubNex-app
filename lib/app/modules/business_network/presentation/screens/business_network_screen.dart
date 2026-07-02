@@ -88,6 +88,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       _connections = result.data ?? const [];
       _error = result.isSuccess ? null : result.error?.message;
     });
+    if (result.isSuccess) {
+      unawaited(_searchBusinesses(_searchQuery));
+    }
   }
 
   Future<void> _searchBusinesses(String query) async {
@@ -1055,7 +1058,7 @@ class _BusinessSearchPanelState extends State<_BusinessSearchPanel> {
               )
             else
               SizedBox(
-                height: 168,
+                height: 188,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   itemCount: widget.candidates.length,
