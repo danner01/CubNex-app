@@ -116,7 +116,7 @@ class _ScannerView extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            'Busca productos por imagen: toma una foto del empaque, etiqueta o producto. El lector QR queda solo para enlaces directos.',
+                            'Escanea QR de pedidos para validar entregas o usa foto para buscar productos por etiqueta/empaque.',
                             textAlign: TextAlign.center,
                           ),
                           if (state.code != null) ...[

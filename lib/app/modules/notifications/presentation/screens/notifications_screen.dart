@@ -300,6 +300,7 @@ class _NotificationTile extends StatelessWidget {
 
     if (link == '/market/negocio/pedidos' ||
         link == '/market/business/orders' ||
+        link == '/business/orders' ||
         link == AppRoutes.businessOrders) {
       return AppRoutes.businessOrders;
     }
@@ -355,6 +356,7 @@ class _NotificationTile extends StatelessWidget {
       'promocion' || 'marketing' => Icons.campaign_outlined,
       'nuevo_producto' => Icons.new_releases_outlined,
       'pedido' => Icons.receipt_long_outlined,
+      'solicitud_red' => Icons.playlist_add_check_circle_outlined,
       'suscripcion' => Icons.storefront_outlined,
       'resena' => Icons.rate_review_outlined,
       'sorteo' || 'cashback' => Icons.card_giftcard_outlined,

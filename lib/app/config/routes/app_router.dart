@@ -235,6 +235,10 @@ GoRouter createAppRouter(
             builder: (_, __) => const BusinessOrdersScreen(),
           ),
           GoRoute(
+            path: AppRoutes.businessMyOrders,
+            builder: (_, __) => const OrdersScreen(businessRequesterView: true),
+          ),
+          GoRoute(
             path: AppRoutes.businessInventory,
             builder: (_, __) => const BusinessInventoryScreen(),
           ),

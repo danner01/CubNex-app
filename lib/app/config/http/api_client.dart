@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
@@ -19,7 +21,7 @@ class ApiClient {
           ),
       _secureStorage = secureStorage ?? const FlutterSecureStorage() {
     _dio.interceptors.add(
-      QueuedInterceptorsWrapper(
+      InterceptorsWrapper(
         onRequest: (options, handler) async {
           options.extra[_requestStartedAtExtra] =
               DateTime.now().millisecondsSinceEpoch;
@@ -54,9 +56,15 @@ class ApiClient {
             'data=${_safePayload(error.response?.data ?? error.message)}',
           );
           final requestOptions = error.requestOptions;
+          final statusCode = error.response?.statusCode;
+          final apiErrorCode = _extractApiErrorCode(error.response?.data);
+          final hasAuthHeader = _hasAuthHeader(requestOptions.headers);
+          final retryCount =
+              (requestOptions.extra[_authRetryCountExtra] as int?) ?? 0;
           final canRefresh =
-              error.response?.statusCode == 401 &&
-              !_skipsAuthRefresh(requestOptions);
+              statusCode == 401 &&
+              !_skipsAuthRefresh(requestOptions) &&
+              (!hasAuthHeader || _shouldTryRefresh(apiErrorCode));
 
           if (canRefresh && await refreshSession(force: true)) {
             final token = await _secureStorage.read(key: _accessTokenKey);
@@ -90,6 +98,49 @@ class ApiClient {
             }
           }
 
+          final canRetrySameToken =
+              statusCode == 401 &&
+              !_skipsAuthRefresh(requestOptions) &&
+              hasAuthHeader &&
+              apiErrorCode == 'SIN_TOKEN' &&
+              retryCount < 1;
+
+          if (canRetrySameToken) {
+            final token = await _secureStorage.read(key: _accessTokenKey);
+            final retryOptions = Options(
+              method: requestOptions.method,
+              headers: {
+                ...requestOptions.headers,
+                if (token != null && token.isNotEmpty)
+                  'authorization': 'Bearer $token',
+              },
+              responseType: requestOptions.responseType,
+              contentType: requestOptions.contentType,
+              extra: {
+                ...requestOptions.extra,
+                _skipAuthRefreshExtra: true,
+                _authRetryCountExtra: retryCount + 1,
+              },
+            );
+
+            try {
+              final response = await _dio.request<dynamic>(
+                requestOptions.path,
+                data: requestOptions.data,
+                queryParameters: requestOptions.queryParameters,
+                options: retryOptions,
+                cancelToken: requestOptions.cancelToken,
+                onReceiveProgress: requestOptions.onReceiveProgress,
+                onSendProgress: requestOptions.onSendProgress,
+              );
+              handler.resolve(response);
+              return;
+            } on DioException catch (retryError) {
+              handler.next(retryError);
+              return;
+            }
+          }
+
           handler.next(error);
         },
       ),
@@ -100,6 +151,7 @@ class ApiClient {
   static const _refreshTokenKey = 'auth.refresh_token';
   static const _tokenExpiresAtKey = 'auth.expires_at';
   static const _skipAuthRefreshExtra = 'skip_auth_refresh';
+  static const _authRetryCountExtra = 'auth_retry_count';
   static const _requestStartedAtExtra = 'request_started_at';
   static const _refreshLeeway = Duration(minutes: 5);
 
@@ -260,6 +312,15 @@ class ApiClient {
         return ApiResult.success(parser == null ? data as T : parser(data));
       }
 
+      // Log completo cuando el servidor no devuelve exito:true
+      final rawEnvelope = _safePayload(envelope);
+      debugPrint(
+        '[API][NO_EXITO] status=${response.statusCode} '
+        'path=${response.requestOptions.path} '
+        'envelope=$rawEnvelope',
+        wrapWidth: 2048,
+      );
+
       final apiError = envelope is Map ? envelope['error'] as Map? : null;
       return ApiResult.failure(
         _normalizeFailure(
@@ -271,6 +332,14 @@ class ApiClient {
       );
     } on DioException catch (error) {
       final data = error.response?.data;
+      debugPrint(
+        '[API][DIO_ERR] type=${error.type.name} '
+        'status=${error.response?.statusCode} '
+        'path=${error.requestOptions.path} '
+        'message=${error.message} '
+        'data=${_safePayload(data)}',
+        wrapWidth: 2048,
+      );
       final apiError = data is Map ? data['error'] as Map? : null;
       return ApiResult.failure(
         _normalizeFailure(
@@ -283,6 +352,7 @@ class ApiClient {
         ),
       );
     } catch (error) {
+      debugPrint('[API][ERR] type=${error.runtimeType} message=$error');
       return ApiResult.failure(
         ApiFailure(code: 'ERROR_DESCONOCIDO', message: error.toString()),
       );
@@ -296,6 +366,16 @@ class ApiClient {
     Map<String, dynamic>? details,
   }) {
     final normalizedCode = code.toUpperCase();
+
+    if (normalizedCode == 'SIN_TOKEN') {
+      return ApiFailure(
+        code: code,
+        message:
+            'No se pudo validar tu sesion en este momento. Intenta de nuevo en unos segundos.',
+        statusCode: statusCode,
+        details: details,
+      );
+    }
 
     if (normalizedCode == 'CREDENCIALES_INVALIDAS' ||
         normalizedCode == 'EMAIL_NO_CONFIRMADO' ||
@@ -366,6 +446,31 @@ class ApiClient {
     return options.extra[_skipAuthRefreshExtra] == true || _skipsAuth(options);
   }
 
+  String? _extractApiErrorCode(Object? data) {
+    if (data is! Map) return null;
+    final error = data['error'];
+    if (error is! Map) return null;
+    final code = error['codigo'];
+    if (code == null) return null;
+    return code.toString().toUpperCase();
+  }
+
+  bool _hasAuthHeader(Map<String, dynamic> headers) {
+    for (final entry in headers.entries) {
+      if (entry.key.toLowerCase() == 'authorization') {
+        final value = entry.value?.toString() ?? '';
+        if (value.trim().isNotEmpty) return true;
+      }
+    }
+    return false;
+  }
+
+  bool _shouldTryRefresh(String? apiErrorCode) {
+    if (apiErrorCode == null || apiErrorCode.isEmpty) return true;
+    if (apiErrorCode == 'SIN_TOKEN') return false;
+    return true;
+  }
+
   int _elapsed(RequestOptions options) {
     final startedAt = options.extra[_requestStartedAtExtra];
     if (startedAt is! int) return 0;
@@ -373,33 +478,50 @@ class ApiClient {
   }
 
   void _debugApi(String message) {
-    if (kDebugMode) {
-      debugPrint('[API] $message', wrapWidth: 1024);
-    }
+    debugPrint('[API] $message', wrapWidth: 1024);
   }
 
   String _safePayload(Object? value) {
-    final sanitized = _sanitizePayload(value);
+    final sanitized = _sanitizePayload(value, depth: 0);
     final raw = sanitized.toString();
     if (raw.length <= 900) return raw;
     return '${raw.substring(0, 900)}...';
   }
 
-  Object? _sanitizePayload(Object? value) {
+  Object? _sanitizePayload(Object? value, {required int depth}) {
+    if (depth >= 3) return '...';
+
     if (value is Map) {
-      return value.map((key, item) {
-        final keyText = key.toString().toLowerCase();
+      final result = <Object?, Object?>{};
+      var index = 0;
+      for (final entry in value.entries) {
+        index++;
+        if (index > 18) {
+          result['...'] = '(${value.length} keys)';
+          break;
+        }
+        final keyText = entry.key.toString().toLowerCase();
         if (keyText.contains('password') ||
             keyText.contains('token') ||
             keyText == 'authorization') {
-          return MapEntry(key, '***');
+          result[entry.key] = '***';
+          continue;
         }
-        return MapEntry(key, _sanitizePayload(item));
-      });
+        result[entry.key] = _sanitizePayload(entry.value, depth: depth + 1);
+      }
+      return result;
     }
 
     if (value is List) {
-      return value.map(_sanitizePayload).toList();
+      final maxItems = math.min(value.length, 5);
+      final items = <Object?>[];
+      for (var i = 0; i < maxItems; i++) {
+        items.add(_sanitizePayload(value[i], depth: depth + 1));
+      }
+      if (value.length > maxItems) {
+        items.add('...(${value.length} items)');
+      }
+      return items;
     }
 
     return value;

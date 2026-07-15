@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -42,6 +43,13 @@ class ScannerCubit extends Cubit<ScannerState> {
       return;
     }
 
+    final orderQrToken = _extractOrderQrToken(code);
+    if (orderQrToken != null) {
+      await _validateOrderQr(orderQrToken);
+      _processing = false;
+      return;
+    }
+
     emit(
       state.copyWith(
         status: ScannerStatus.failure,
@@ -50,6 +58,53 @@ class ScannerCubit extends Cubit<ScannerState> {
       ),
     );
     _processing = false;
+  }
+
+  Future<void> _validateOrderQr(String token) async {
+    final result = await _apiClient.post<Map<String, dynamic>>(
+      '/ordenes/validar-qr',
+      data: {'token': token},
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: ScannerStatus.failure,
+          message:
+              result.error?.message ??
+              'No se pudo validar el QR de la orden.',
+        ),
+      );
+      return;
+    }
+
+    final payload = result.data ?? const <String, dynamic>{};
+    final nextStatus = payload['estado_nuevo']?.toString();
+    final previousStatus = payload['estado_anterior']?.toString();
+    final order = payload['orden'];
+    final orderId = order is Map ? order['id']?.toString() : null;
+
+    final statusMessage = nextStatus == null || nextStatus.isEmpty
+        ? 'QR validado correctamente.'
+        : previousStatus == null || previousStatus.isEmpty
+        ? 'Pedido actualizado a: $nextStatus.'
+        : 'Pedido actualizado: $previousStatus -> $nextStatus.';
+
+    emit(
+      state.copyWith(
+        status: ScannerStatus.success,
+        message:
+            orderId == null || orderId.isEmpty
+            ? statusMessage
+            : '$statusMessage Orden: ${orderId.substring(0, math.min(8, orderId.length))}',
+      ),
+    );
   }
 
   Future<void> pickAndSearchProduct(ImageSource source) async {
@@ -194,6 +249,25 @@ class ScannerCubit extends Cubit<ScannerState> {
     }
 
     if (_uuidRegex.hasMatch(code)) return '/product/$code';
+    return null;
+  }
+
+  String? _extractOrderQrToken(String code) {
+    final trimmed = code.trim();
+    if (trimmed.isEmpty) return null;
+    if (trimmed.toLowerCase().startsWith('qrt')) return trimmed;
+
+    final uri = Uri.tryParse(trimmed);
+    if (uri == null) return null;
+    final segments = uri.pathSegments;
+    for (var index = 0; index < segments.length - 2; index++) {
+      if (segments[index].toLowerCase() == 'ordenes' &&
+          segments[index + 1].toLowerCase() == 'qr') {
+        final token = segments[index + 2].trim();
+        if (token.isNotEmpty) return token;
+      }
+    }
+
     return null;
   }
 

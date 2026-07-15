@@ -11,6 +11,7 @@ import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../common/services/share_service.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../../config/http/api_client.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../config/theme/store_brand_theme.dart';
@@ -18,6 +19,7 @@ import '../../../business/data/models/store_customization_model.dart';
 import '../../../favorites/blocs/engagement/engagement_cubit.dart';
 import '../../../favorites/blocs/engagement/engagement_state.dart';
 import '../../../home/data/models/business_model.dart';
+import '../../../home/data/models/product_model.dart';
 import '../../../review_rating/data/models/review_model.dart';
 import '../../blocs/business_detail/business_detail_cubit.dart';
 import '../../blocs/business_detail/business_detail_state.dart';
@@ -74,6 +76,9 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
   final _searchController = TextEditingController();
   String _query = '';
   String _category = 'todas';
+  Future<bool>? _connectionExistsFuture;
+  String? _connectionSourceBusinessId;
+  String? _connectionTargetBusinessId;
 
   @override
   void dispose() {
@@ -230,15 +235,38 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                       const SizedBox(height: 10),
                       SizedBox(
                         width: double.infinity,
-                        child: FilledButton.tonalIcon(
-                          onPressed: () => _openConnectionSheet(
-                            context,
+                        child: FutureBuilder<bool>(
+                          future: _ensureConnectionExistsFuture(
                             sourceBusinessId: activeBusiness.id,
                             targetBusinessId: business.id,
-                            targetName: business.name,
                           ),
-                          icon: const Icon(Icons.hub_outlined),
-                          label: const Text('Conectar con mi negocio'),
+                          builder: (context, snapshot) {
+                            final isConnected = snapshot.data == true;
+                            return FilledButton.tonalIcon(
+                              onPressed: () {
+                                if (isConnected) {
+                                  context.go(AppRoutes.businessNetwork);
+                                  return;
+                                }
+                                _openConnectionSheet(
+                                  context,
+                                  sourceBusinessId: activeBusiness.id,
+                                  targetBusinessId: business.id,
+                                  targetName: business.name,
+                                );
+                              },
+                              icon: Icon(
+                                isConnected
+                                    ? Icons.visibility_outlined
+                                    : Icons.hub_outlined,
+                              ),
+                              label: Text(
+                                isConnected
+                                    ? 'Ver conexion'
+                                    : 'Conectar con mi negocio',
+                              ),
+                            );
+                          },
                         ),
                       ),
                     ],
@@ -443,6 +471,54 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
       ),
     );
   }
+
+  Future<bool> _ensureConnectionExistsFuture({
+    required String sourceBusinessId,
+    required String targetBusinessId,
+  }) {
+    if (_connectionExistsFuture != null &&
+        _connectionSourceBusinessId == sourceBusinessId &&
+        _connectionTargetBusinessId == targetBusinessId) {
+      return _connectionExistsFuture!;
+    }
+    _connectionSourceBusinessId = sourceBusinessId;
+    _connectionTargetBusinessId = targetBusinessId;
+    _connectionExistsFuture = _hasConnection(
+      sourceBusinessId: sourceBusinessId,
+      targetBusinessId: targetBusinessId,
+    );
+    return _connectionExistsFuture!;
+  }
+
+  Future<bool> _hasConnection({
+    required String sourceBusinessId,
+    required String targetBusinessId,
+  }) async {
+    final result = await sl<ApiClient>().get<List<Map<String, dynamic>>>(
+      '/red-negocios',
+      queryParameters: {'negocio_id': sourceBusinessId, 'limit': 120},
+      parser: (json) {
+        if (json is! List) return const <Map<String, dynamic>>[];
+        return json
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      },
+    );
+    if (!result.isSuccess) return false;
+    final rows = result.data ?? const <Map<String, dynamic>>[];
+    for (final row in rows) {
+      if ('${row['negocio_suscrito_id'] ?? ''}' != targetBusinessId) continue;
+      final status = '${row['estado'] ?? ''}'.toLowerCase();
+      if (status == 'cancelada' ||
+          status == 'rechazada' ||
+          status == 'eliminada') {
+        continue;
+      }
+      return true;
+    }
+    return false;
+  }
 }
 
 class _BusinessConnectionSheet extends StatefulWidget {
@@ -462,20 +538,37 @@ class _BusinessConnectionSheet extends StatefulWidget {
 }
 
 class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
-  final _productsController = TextEditingController();
+  final _productSearchController = TextEditingController();
   final _notesController = TextEditingController();
+  final Set<String> _selectedProductIds = <String>{};
   var _relationType = 'proveedor';
   var _notifications = true;
 
   @override
   void dispose() {
-    _productsController.dispose();
+    _productSearchController.dispose();
     _notesController.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final products = context.watch<BusinessDetailCubit>().state.products;
+    final search = _productSearchController.text.trim().toLowerCase();
+    final visibleProducts = products.where((product) {
+      if (search.isEmpty) return true;
+      final haystack = [
+        product.name,
+        product.brand,
+        product.description,
+        product.features['categoria'],
+        product.features['categoria_sugerida'],
+      ].whereType<Object>().join(' ').toLowerCase();
+      return haystack.contains(search);
+    }).toList();
+    final selectedProducts = products
+        .where((item) => _selectedProductIds.contains(item.id))
+        .toList();
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     return SafeArea(
       child: SingleChildScrollView(
@@ -517,12 +610,65 @@ class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
             ),
             const SizedBox(height: 10),
             TextField(
-              controller: _productsController,
+              controller: _productSearchController,
               decoration: const InputDecoration(
-                labelText: 'Productos o servicios',
-                hintText: 'arroz, bebidas, transporte...',
+                prefixIcon: Icon(Icons.search),
+                labelText: 'Buscar productos o servicios',
               ),
+              onChanged: (_) => setState(() {}),
             ),
+            const SizedBox(height: 10),
+            if (products.isEmpty)
+              const _ConnectionCatalogEmptyHint()
+            else ...[
+              if (selectedProducts.isNotEmpty) ...[
+                Text(
+                  'Seleccionados',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: selectedProducts
+                      .map(
+                        (product) => InputChip(
+                          label: Text(product.name),
+                          onDeleted: () => setState(
+                            () => _selectedProductIds.remove(product.id),
+                          ),
+                        ),
+                      )
+                      .toList(),
+                ),
+                const SizedBox(height: 10),
+              ],
+              SizedBox(
+                height: 240,
+                child: ListView.separated(
+                  itemCount: visibleProducts.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 6),
+                  itemBuilder: (context, index) {
+                    final product = visibleProducts[index];
+                    return _ConnectionCatalogTile(
+                      product: product,
+                      selected: _selectedProductIds.contains(product.id),
+                      onChanged: (selected) {
+                        setState(() {
+                          if (selected) {
+                            _selectedProductIds.add(product.id);
+                          } else {
+                            _selectedProductIds.remove(product.id);
+                          }
+                        });
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             TextField(
               controller: _notesController,
@@ -541,9 +687,9 @@ class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
             const SizedBox(height: 12),
             FilledButton.icon(
               onPressed: () {
-                final interests = _productsController.text
-                    .split(',')
-                    .map((item) => item.trim())
+                final interests = products
+                    .where((item) => _selectedProductIds.contains(item.id))
+                    .map((item) => item.name.trim())
                     .where((item) => item.isNotEmpty)
                     .toList();
                 context.read<BusinessDetailCubit>().connectBusiness(
@@ -561,6 +707,64 @@ class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _ConnectionCatalogTile extends StatelessWidget {
+  const _ConnectionCatalogTile({
+    required this.product,
+    required this.selected,
+    required this.onChanged,
+  });
+
+  final ProductModel product;
+  final bool selected;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final category =
+        product.features['categoria'] ??
+        product.features['categoria_sugerida'] ??
+        product.features['departamento'];
+    return CheckboxListTile(
+      dense: true,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 4),
+      value: selected,
+      controlAffinity: ListTileControlAffinity.leading,
+      onChanged: (value) => onChanged(value ?? false),
+      title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      subtitle: Text(
+        [
+          if ((product.brand ?? '').trim().isNotEmpty)
+            (product.brand ?? '').trim(),
+          if (category != null && '$category'.trim().isNotEmpty)
+            '$category'.trim(),
+        ].join(' • '),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
+class _ConnectionCatalogEmptyHint extends StatelessWidget {
+  const _ConnectionCatalogEmptyHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Text(
+        'Este negocio no tiene productos o servicios visibles por ahora.',
+        style: Theme.of(context).textTheme.bodySmall,
       ),
     );
   }
@@ -965,43 +1169,41 @@ class _ContactCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Column(
-        children: [
-          ListTile(
-            onTap: phone?.isNotEmpty == true
-                ? () => _openPhone(context, phone)
-                : null,
-            leading: Icon(
-              Icons.phone_outlined,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            title: const Text('Telefono'),
-            subtitle: Text(
-              phone?.isNotEmpty == true ? phone! : 'No configurado',
-            ),
-            trailing: phone?.isNotEmpty == true
-                ? const Icon(Icons.call_outlined)
-                : null,
+    return _AccordionCard(
+      title: 'Contactanos',
+      icon: Icons.contact_phone_outlined,
+      children: [
+        ListTile(
+          onTap: phone?.isNotEmpty == true
+              ? () => _openPhone(context, phone)
+              : null,
+          leading: Icon(
+            Icons.phone_outlined,
+            color: Theme.of(context).colorScheme.secondary,
           ),
-          ListTile(
-            onTap: whatsapp?.isNotEmpty == true
-                ? () => _openWhatsApp(context, whatsapp)
-                : null,
-            leading: Icon(
-              Icons.message_outlined,
-              color: Theme.of(context).colorScheme.secondary,
-            ),
-            title: const Text('WhatsApp'),
-            subtitle: Text(
-              whatsapp?.isNotEmpty == true ? whatsapp! : 'No configurado',
-            ),
-            trailing: whatsapp?.isNotEmpty == true
-                ? const Icon(Icons.open_in_new_rounded)
-                : null,
+          title: const Text('Telefono'),
+          subtitle: Text(phone?.isNotEmpty == true ? phone! : 'No configurado'),
+          trailing: phone?.isNotEmpty == true
+              ? const Icon(Icons.call_outlined)
+              : null,
+        ),
+        ListTile(
+          onTap: whatsapp?.isNotEmpty == true
+              ? () => _openWhatsApp(context, whatsapp)
+              : null,
+          leading: Icon(
+            Icons.message_outlined,
+            color: Theme.of(context).colorScheme.secondary,
           ),
-        ],
-      ),
+          title: const Text('WhatsApp'),
+          subtitle: Text(
+            whatsapp?.isNotEmpty == true ? whatsapp! : 'No configurado',
+          ),
+          trailing: whatsapp?.isNotEmpty == true
+              ? const Icon(Icons.open_in_new_rounded)
+              : null,
+        ),
+      ],
     );
   }
 
@@ -1037,84 +1239,74 @@ class _OperationalInfoCard extends StatelessWidget {
       business.province,
     ].where((value) => value != null && value.isNotEmpty).join(', ');
 
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              business.isServiceLike
-                  ? 'Disponibilidad y cobertura'
-                  : 'Horario y disponibilidad',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-            ),
-            const SizedBox(height: 12),
-            _InfoRow(
-              icon: Icons.schedule_rounded,
-              label: 'Horario',
-              value: schedule.isEmpty ? 'No configurado' : schedule,
-            ),
-            _InfoRow(
-              icon: business.availableNow
-                  ? Icons.check_circle_outline_rounded
-                  : Icons.pause_circle_outline_rounded,
-              label: 'Estado',
-              value: business.availableNow
-                  ? 'Disponible ahora'
-                  : 'No disponible en este momento',
-            ),
-            _InfoRow(
-              icon: business.acceptsTransfer
-                  ? Icons.account_balance_outlined
-                  : Icons.payments_outlined,
-              label: 'Pagos',
-              value: business.acceptsTransfer
-                  ? 'Acepta pagos por transferencia'
-                  : 'Pago presencial o coordinado con el negocio',
-            ),
-            if (location.isNotEmpty)
-              _InfoRow(
-                icon: Icons.location_on_outlined,
-                label: 'Ubicacion',
-                value: location,
-              ),
-            if (business.requiresElectricity) ...[
-              _InfoRow(
-                icon: Icons.electric_bolt_outlined,
-                label: 'Red electrica',
-                value: business.hasElectricService
-                    ? 'Con corriente de la red'
-                    : 'Sin corriente de la red',
-              ),
-              _InfoRow(
-                icon: Icons.battery_charging_full_rounded,
-                label: 'Respaldo',
-                value: business.hasElectricBackup
-                    ? 'Tiene respaldo${business.electricBackupType?.isNotEmpty == true ? ' (${business.electricBackupType})' : ''}'
-                    : 'Sin respaldo configurado',
-              ),
-              if (business.electricBlock?.isNotEmpty == true ||
-                  business.electricCircuit?.isNotEmpty == true)
-                _InfoRow(
-                  icon: Icons.grid_4x4_rounded,
-                  label: 'Bloque / circuito',
-                  value: [business.electricBlock, business.electricCircuit]
-                      .where((value) => value != null && value.isNotEmpty)
-                      .join(' / '),
-                ),
-            ],
-            if (business.businessTypeName?.isNotEmpty == true)
-              _InfoRow(
-                icon: Icons.storefront_rounded,
-                label: 'Tipo',
-                value: business.businessTypeName!,
-              ),
-          ],
+    return _AccordionCard(
+      title: business.isServiceLike
+          ? 'Disponibilidad y cobertura'
+          : 'Horario y disponibilidad',
+      icon: Icons.schedule_rounded,
+      children: [
+        _InfoRow(
+          icon: Icons.schedule_rounded,
+          label: 'Horario',
+          value: schedule.isEmpty ? 'No configurado' : schedule,
         ),
-      ),
+        _InfoRow(
+          icon: business.availableNow
+              ? Icons.check_circle_outline_rounded
+              : Icons.pause_circle_outline_rounded,
+          label: 'Estado',
+          value: business.availableNow
+              ? 'Disponible ahora'
+              : 'No disponible en este momento',
+        ),
+        _InfoRow(
+          icon: business.acceptsTransfer
+              ? Icons.account_balance_outlined
+              : Icons.payments_outlined,
+          label: 'Pagos',
+          value: business.acceptsTransfer
+              ? 'Acepta pagos por transferencia'
+              : 'Pago presencial o coordinado con el negocio',
+        ),
+        if (location.isNotEmpty)
+          _InfoRow(
+            icon: Icons.location_on_outlined,
+            label: 'Ubicacion',
+            value: location,
+          ),
+        if (business.requiresElectricity) ...[
+          _InfoRow(
+            icon: Icons.electric_bolt_outlined,
+            label: 'Red electrica',
+            value: business.hasElectricService
+                ? 'Con corriente de la red'
+                : 'Sin corriente de la red',
+          ),
+          _InfoRow(
+            icon: Icons.battery_charging_full_rounded,
+            label: 'Respaldo',
+            value: business.hasElectricBackup
+                ? 'Tiene respaldo${business.electricBackupType?.isNotEmpty == true ? ' (${business.electricBackupType})' : ''}'
+                : 'Sin respaldo configurado',
+          ),
+          if (business.electricBlock?.isNotEmpty == true ||
+              business.electricCircuit?.isNotEmpty == true)
+            _InfoRow(
+              icon: Icons.grid_4x4_rounded,
+              label: 'Bloque / circuito',
+              value: [
+                business.electricBlock,
+                business.electricCircuit,
+              ].where((value) => value != null && value.isNotEmpty).join(' / '),
+            ),
+        ],
+        if (business.businessTypeName?.isNotEmpty == true)
+          _InfoRow(
+            icon: Icons.storefront_rounded,
+            label: 'Tipo',
+            value: business.businessTypeName!,
+          ),
+      ],
     );
   }
 
@@ -1124,6 +1316,38 @@ class _OperationalInfoCard extends StatelessWidget {
     final match = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?$').firstMatch(trimmed);
     if (match == null) return trimmed;
     return '${match.group(1)!.padLeft(2, '0')}:${match.group(2)}';
+  }
+}
+
+class _AccordionCard extends StatelessWidget {
+  const _AccordionCard({
+    required this.title,
+    required this.children,
+    this.icon,
+  });
+
+  final String title;
+  final IconData? icon;
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ExpansionTile(
+        tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+        childrenPadding: const EdgeInsets.only(bottom: 6),
+        leading: icon == null
+            ? null
+            : Icon(icon, color: Theme.of(context).colorScheme.secondary),
+        title: Text(
+          title,
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+        ),
+        children: children,
+      ),
+    );
   }
 }
 

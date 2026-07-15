@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -7,6 +9,7 @@ import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
+import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
 import '../widgets/business_switcher.dart';
 
@@ -95,7 +98,10 @@ class _BusinessDashboardView extends StatelessWidget {
                   else ...[
                     _HeroSummary(summary: state.summary!),
                     const SizedBox(height: 14),
-                    _PerformancePanel(summary: state.summary!),
+                    _PerformancePanel(
+                      summary: state.summary!,
+                      references: state.operationalReferences,
+                    ),
                     const SizedBox(height: 14),
                     _MetricsGrid(summary: state.summary!),
                     const SizedBox(height: 18),
@@ -340,21 +346,46 @@ class _MetricsGrid extends StatelessWidget {
 }
 
 class _PerformancePanel extends StatelessWidget {
-  const _PerformancePanel({required this.summary});
+  const _PerformancePanel({required this.summary, this.references});
 
   final BusinessDashboardSummary summary;
+  final BusinessOperationalReferences? references;
 
   @override
   Widget build(BuildContext context) {
-    final bars = [
-      _BarData('Ventas', summary.sales, Icons.payments_outlined),
-      _BarData('Productos', summary.products, Icons.inventory_2_outlined),
-      _BarData('Resenas', summary.reviews, Icons.star_rate_outlined),
-      _BarData('Promos', summary.promotions, Icons.campaign_outlined),
+    final refs =
+        references ?? _referencesFor(summary.business.businessParentCategory);
+    final metrics = [
+      _OperationalMetricData(
+        label: 'Ventas',
+        value: summary.sales,
+        icon: Icons.payments_outlined,
+        reference: refs.sales,
+        scale: _MetricScale.logarithmic,
+        context: 'Movimiento comercial total',
+      ),
+      _OperationalMetricData(
+        label: 'Productos',
+        value: summary.products,
+        icon: Icons.inventory_2_outlined,
+        reference: refs.products,
+        context: 'Catalogo activo',
+      ),
+      _OperationalMetricData(
+        label: 'Resenas',
+        value: summary.reviews,
+        icon: Icons.star_rate_outlined,
+        reference: refs.reviews,
+        context: 'Validacion social del negocio',
+      ),
+      _OperationalMetricData(
+        label: 'Promos',
+        value: summary.promotions,
+        icon: Icons.campaign_outlined,
+        reference: refs.promotions,
+        context: 'Actividad promocional reciente',
+      ),
     ];
-    final maxValue = bars
-        .map((item) => item.value)
-        .fold<int>(1, (max, item) => item > max ? item : max);
 
     return Card(
       child: Padding(
@@ -380,41 +411,203 @@ class _PerformancePanel extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            ...bars.map(
+            ...metrics.map(
               (item) => Padding(
                 padding: const EdgeInsets.only(bottom: 10),
-                child: Row(
-                  children: [
-                    Icon(item.icon, size: 18),
-                    const SizedBox(width: 8),
-                    SizedBox(width: 82, child: Text(item.label)),
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(999),
-                        child: LinearProgressIndicator(
-                          value: item.value <= 0 ? 0.03 : item.value / maxValue,
-                          minHeight: 9,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Text(
-                      '${item.value}',
-                      style: const TextStyle(fontWeight: FontWeight.w900),
-                    ),
-                  ],
-                ),
+                child: _OperationalMetricRow(item: item),
               ),
             ),
             const SizedBox(height: 4),
             Text(
-              'Las graficas se actualizan al cambiar el negocio activo o refrescar.',
+              'Cada indicador usa su propia referencia para una lectura visual mas estable.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
       ),
     );
+  }
+
+  BusinessOperationalReferences _referencesFor(String? category) {
+    return switch (category) {
+      'gastronomia' => const BusinessOperationalReferences(
+        sales: 90000,
+        products: 120,
+        reviews: 90,
+        promotions: 20,
+      ),
+      'transporte' => const BusinessOperationalReferences(
+        sales: 45000,
+        products: 35,
+        reviews: 55,
+        promotions: 8,
+      ),
+      'inmobiliaria' => const BusinessOperationalReferences(
+        sales: 180000,
+        products: 28,
+        reviews: 35,
+        promotions: 6,
+      ),
+      'servicio' => const BusinessOperationalReferences(
+        sales: 70000,
+        products: 45,
+        reviews: 70,
+        promotions: 10,
+      ),
+      _ => const BusinessOperationalReferences(
+        sales: 50000,
+        products: 80,
+        reviews: 40,
+        promotions: 12,
+      ),
+    };
+  }
+}
+
+class _OperationalMetricRow extends StatelessWidget {
+  const _OperationalMetricRow({required this.item});
+
+  final _OperationalMetricData item;
+
+  @override
+  Widget build(BuildContext context) {
+    final ratio = item.normalized;
+    final ratioColor = _colorForRatio(context, ratio);
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: Theme.of(context).dividerColor.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(item.icon, size: 18),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  item.label,
+                  style: Theme.of(context).textTheme.titleSmall,
+                ),
+              ),
+              Text(
+                item.formattedValue,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          _SegmentedScaleBar(ratio: ratio, color: ratioColor),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  item.context,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Ref ${item.formattedReference}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Color _colorForRatio(BuildContext context, double ratio) {
+    if (ratio < 0.25) return Theme.of(context).colorScheme.error;
+    if (ratio < 0.6) return Theme.of(context).colorScheme.secondary;
+    return Theme.of(context).colorScheme.primary;
+  }
+}
+
+class _SegmentedScaleBar extends StatelessWidget {
+  const _SegmentedScaleBar({required this.ratio, required this.color});
+
+  final double ratio;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    const segments = 12;
+    final filled = (ratio * segments).round().clamp(0, segments);
+    return Row(
+      children: List.generate(segments, (index) {
+        final isFilled = index < filled;
+        return Expanded(
+          child: Container(
+            margin: EdgeInsets.only(right: index == segments - 1 ? 0 : 4),
+            height: 10,
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(999),
+              color: isFilled
+                  ? color.withValues(alpha: 0.92)
+                  : Theme.of(
+                      context,
+                    ).colorScheme.outline.withValues(alpha: 0.25),
+            ),
+          ),
+        );
+      }),
+    );
+  }
+}
+
+enum _MetricScale { linear, logarithmic }
+
+class _OperationalMetricData {
+  const _OperationalMetricData({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.reference,
+    required this.context,
+    this.scale = _MetricScale.linear,
+  });
+
+  final String label;
+  final int value;
+  final IconData icon;
+  final int reference;
+  final String context;
+  final _MetricScale scale;
+
+  double get normalized {
+    if (reference <= 0 || value <= 0) return 0;
+    final v = value.toDouble();
+    final r = reference.toDouble();
+    if (scale == _MetricScale.logarithmic) {
+      return (math.log(v + 1) / math.log(r + 1)).clamp(0, 1);
+    }
+    return (v / r).clamp(0, 1);
+  }
+
+  String get formattedValue => _formatCompact(value);
+
+  String get formattedReference => _formatCompact(reference);
+
+  static String _formatCompact(int n) {
+    if (n >= 1000000) {
+      final value = (n / 1000000).toStringAsFixed(n % 1000000 == 0 ? 0 : 1);
+      return '${value}M';
+    }
+    if (n >= 1000) {
+      final value = (n / 1000).toStringAsFixed(n % 1000 == 0 ? 0 : 1);
+      return '${value}K';
+    }
+    return '$n';
   }
 }
 
@@ -467,6 +660,7 @@ class _ActionsGrid extends StatelessWidget {
       ('Negocio', Icons.storefront_outlined, AppRoutes.businessStore),
       ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
       ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
+      ('Mis pedidos', Icons.shopping_cart_outlined, AppRoutes.businessMyOrders),
       ('Conexiones', Icons.hub_outlined, AppRoutes.businessNetwork),
       ('Empleos', Icons.work_outline_rounded, AppRoutes.businessJobs),
     ];
@@ -513,12 +707,4 @@ class _BusinessMetric {
   final int value;
   final IconData icon;
   final String route;
-}
-
-class _BarData {
-  const _BarData(this.label, this.value, this.icon);
-
-  final String label;
-  final int value;
-  final IconData icon;
 }

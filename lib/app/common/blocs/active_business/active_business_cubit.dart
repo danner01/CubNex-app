@@ -69,6 +69,8 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
       emit(
         state.copyWith(
           status: ActiveBusinessStatus.failure,
+          businesses: const [],
+          clearActiveBusiness: true,
           message:
               result.error?.message ??
               'No se pudieron cargar tus negocios. Revisa la conexion.',

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 
 import 'common/blocs/app_session/app_session_cubit.dart';
 import 'common/blocs/app_theme/app_theme_cubit.dart';
@@ -52,6 +53,12 @@ class CubNexApp extends StatelessWidget {
                   title: 'CubNex',
                   debugShowCheckedModeBanner: false,
                   scaffoldMessengerKey: PushNotificationService.messengerKey,
+                  localizationsDelegates: const [
+                    GlobalMaterialLocalizations.delegate,
+                    GlobalWidgetsLocalizations.delegate,
+                    GlobalCupertinoLocalizations.delegate,
+                  ],
+                  supportedLocales: const [Locale('es'), Locale('en')],
                   theme: AppTheme.light,
                   darkTheme: AppTheme.dark,
                   themeMode: themeMode,

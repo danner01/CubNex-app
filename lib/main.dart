@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 
 import 'app/app.dart';
@@ -85,9 +86,9 @@ class _BootstrapAppState extends State<_BootstrapApp> {
       FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
 
       await Hive.initFlutter().timeout(const Duration(seconds: 8));
-      await Hive.openBox<dynamic>('cart_items').timeout(
-        const Duration(seconds: 8),
-      );
+      await Hive.openBox<dynamic>(
+        'cart_items',
+      ).timeout(const Duration(seconds: 8));
       await configureDependencies().timeout(const Duration(seconds: 12));
 
       if (!mounted) return;
@@ -111,6 +112,12 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
     return MaterialApp(
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: const [
+        GlobalMaterialLocalizations.delegate,
+        GlobalWidgetsLocalizations.delegate,
+        GlobalCupertinoLocalizations.delegate,
+      ],
+      supportedLocales: const [Locale('es'), Locale('en')],
       home: Scaffold(
         body: SafeArea(
           child: Center(
@@ -122,7 +129,9 @@ class _BootstrapAppState extends State<_BootstrapApp> {
                   const CircularProgressIndicator(),
                   const SizedBox(height: 16),
                   Text(
-                    _error == null ? 'Iniciando aplicacion...' : 'No se pudo iniciar la app',
+                    _error == null
+                        ? 'Iniciando aplicacion...'
+                        : 'No se pudo iniciar la app',
                     textAlign: TextAlign.center,
                   ),
                   if (_error != null) ...[
@@ -130,7 +139,10 @@ class _BootstrapAppState extends State<_BootstrapApp> {
                     Text(
                       _error!,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(fontSize: 12, color: Colors.redAccent),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: Colors.redAccent,
+                      ),
                     ),
                     const SizedBox(height: 14),
                     ElevatedButton(
@@ -147,7 +159,6 @@ class _BootstrapAppState extends State<_BootstrapApp> {
     );
   }
 }
-
 
 Future<void> _initializeForegroundServices() async {
   try {

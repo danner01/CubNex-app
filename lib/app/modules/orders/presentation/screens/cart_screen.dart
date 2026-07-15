@@ -3,12 +3,16 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../business_network/data/models/business_connection_model.dart';
+import '../../../home/data/models/business_model.dart';
 import '../../blocs/cart/cart_cubit.dart';
 import '../../blocs/cart/cart_state.dart';
+import '../../data/models/cart_delivery_selection_model.dart';
 import '../../data/models/cart_item_model.dart';
 
 class CartScreen extends StatelessWidget {
@@ -34,7 +38,9 @@ class _CartViewState extends State<_CartView> {
   final _emailController = TextEditingController();
   final _messageController = TextEditingController();
   final _deliveryAddressController = TextEditingController();
+  final _deliveryReferenceController = TextEditingController();
   final _discountController = TextEditingController();
+  final Map<String, BusinessModel> _businessDetailsCache = {};
   bool _prefilled = false;
 
   @override
@@ -44,6 +50,7 @@ class _CartViewState extends State<_CartView> {
     _emailController.dispose();
     _messageController.dispose();
     _deliveryAddressController.dispose();
+    _deliveryReferenceController.dispose();
     _discountController.dispose();
     super.dispose();
   }
@@ -93,9 +100,15 @@ class _CartViewState extends State<_CartView> {
                     items: entry.value,
                     requestDelivery:
                         state.deliveryByBusiness[entry.key] ?? false,
-                    onRequestDeliveryChanged: (value) => context
-                        .read<CartCubit>()
-                        .setDeliveryForBusiness(entry.key, value),
+                    selectedDelivery:
+                        state.deliverySelectionByBusiness[entry.key],
+                    onRequestDeliveryChanged: (value) {
+                      context.read<CartCubit>().setDeliveryForBusiness(
+                        entry.key,
+                        value,
+                      );
+                    },
+                    onSelectDelivery: () => _selectDeliveryForBusiness(entry.key),
                   ),
                 ),
                 const SizedBox(height: 18),
@@ -106,6 +119,7 @@ class _CartViewState extends State<_CartView> {
                   emailController: _emailController,
                   messageController: _messageController,
                   deliveryAddressController: _deliveryAddressController,
+                  deliveryReferenceController: _deliveryReferenceController,
                   discountController: _discountController,
                   requiresDelivery: state.deliveryByBusiness.values.any(
                     (value) => value,
@@ -140,7 +154,7 @@ class _CartViewState extends State<_CartView> {
                 FilledButton.icon(
                   onPressed: state.status == CartStatus.submitting
                       ? null
-                      : () => _submit(context),
+                      : _submit,
                   icon: state.status == CartStatus.submitting
                       ? const SizedBox(
                           width: 18,
@@ -181,11 +195,63 @@ class _CartViewState extends State<_CartView> {
     );
     setIfEmpty(_phoneController, profile['telefono'] ?? profile['phone']);
     setIfEmpty(_emailController, profile['email']);
+    setIfEmpty(
+      _deliveryAddressController,
+      profile['direccion'] ??
+          profile['direccion_entrega'] ??
+          profile['address'] ??
+          profile['ubicacion_texto'],
+    );
   }
 
-  void _submit(BuildContext context) {
+  Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    context.read<CartCubit>().submit(
+    final cartCubit = context.read<CartCubit>();
+    final activeBusinessCubit = context.read<ActiveBusinessCubit>();
+    final cartState = cartCubit.state;
+    final grouped = _groupItems(cartCubit.state.items);
+    final nextDeliverySelections = Map<String, CartDeliverySelection>.from(
+      cartState.deliverySelectionByBusiness,
+    );
+    final autoAssignedSelections = <String, CartDeliverySelection>{};
+    final activeBusinessId = activeBusinessCubit.state.activeBusiness?.id;
+    var autoAssigned = 0;
+    for (final businessId in grouped.keys) {
+      if (businessId == 'sin-negocio') continue;
+      final requestDelivery = cartState.deliveryByBusiness[businessId] ?? false;
+      if (!requestDelivery) continue;
+      if (nextDeliverySelections.containsKey(businessId)) continue;
+
+      final candidates = await _loadDeliveryCandidates(
+        targetBusinessId: businessId,
+        activeBusinessId: activeBusinessId,
+      );
+      final preferred = await _pickBestDeliveryCandidate(
+        targetBusinessId: businessId,
+        candidates: candidates,
+      );
+      if (preferred != null) {
+        final autoSelected = preferred.copyWith(assignmentMode: 'auto');
+        nextDeliverySelections[businessId] = autoSelected;
+        autoAssignedSelections[businessId] = autoSelected;
+        autoAssigned++;
+      }
+    }
+    if (!mounted) return;
+    if (autoAssigned > 0) {
+      for (final entry in autoAssignedSelections.entries) {
+        cartCubit.setDeliverySelectionForBusiness(entry.key, entry.value);
+      }
+      showSnackOrAuthDialog(
+        context,
+        autoAssigned == 1
+            ? 'Se autoasigno 1 delivery preferente.'
+            : 'Se autoasignaron $autoAssigned deliveries preferentes.',
+      );
+    }
+
+    final requesterBusinessId = activeBusinessCubit.state.activeBusiness?.id;
+    await cartCubit.submit(
       contactName: _nameController.text.trim(),
       phone: _phoneController.text.trim().isEmpty
           ? null
@@ -199,10 +265,230 @@ class _CartViewState extends State<_CartView> {
       deliveryAddress: _deliveryAddressController.text.trim().isEmpty
           ? null
           : _deliveryAddressController.text.trim(),
+      deliveryReference: _deliveryReferenceController.text.trim().isEmpty
+          ? null
+          : _deliveryReferenceController.text.trim(),
       discountCode: _discountController.text.trim().isEmpty
           ? null
           : _discountController.text.trim(),
+      requesterBusinessId: requesterBusinessId,
+      deliverySelectionByBusiness:
+          cartCubit.state.deliverySelectionByBusiness,
     );
+  }
+
+  Future<void> _selectDeliveryForBusiness(String targetBusinessId) async {
+    if (targetBusinessId == 'sin-negocio') {
+      showSnackOrAuthDialog(
+        context,
+        'No se puede asociar delivery para productos sin negocio.',
+      );
+      return;
+    }
+
+    final activeBusinessId = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness
+        ?.id;
+    final candidates = await _loadDeliveryCandidates(
+      targetBusinessId: targetBusinessId,
+      activeBusinessId: activeBusinessId,
+    );
+    if (!mounted) return;
+    if (candidates.isEmpty) {
+      showSnackOrAuthDialog(
+        context,
+        'No se encontraron deliveries disponibles ahora.',
+      );
+      return;
+    }
+
+    final selected = await showModalBottomSheet<CartDeliverySelection>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _DeliverySelectionSheet(
+        candidates: candidates,
+        selected: context
+            .read<CartCubit>()
+            .state
+            .deliverySelectionByBusiness[targetBusinessId],
+      ),
+    );
+    if (!mounted || selected == null) return;
+    final previous = context
+        .read<CartCubit>()
+        .state
+        .deliverySelectionByBusiness[targetBusinessId];
+    context.read<CartCubit>().setDeliverySelectionForBusiness(
+      targetBusinessId,
+      selected.copyWith(assignmentMode: 'manual'),
+    );
+    showSnackOrAuthDialog(
+      context,
+      previous == null
+          ? 'Delivery asociado y guardado.'
+          : 'Delivery actualizado y guardado.',
+    );
+  }
+
+  Future<List<CartDeliverySelection>> _loadDeliveryCandidates({
+    required String targetBusinessId,
+    String? activeBusinessId,
+  }) async {
+    final api = sl<ApiClient>();
+    final byId = <String, CartDeliverySelection>{};
+
+    if (activeBusinessId != null && activeBusinessId.isNotEmpty) {
+      final connectedResult = await api.get<List<BusinessConnectionModel>>(
+        '/red-negocios',
+        queryParameters: {'negocio_id': activeBusinessId, 'limit': 80},
+        parser: (json) {
+          if (json is! List) return const <BusinessConnectionModel>[];
+          return json
+              .whereType<Map>()
+              .map(
+                (item) => BusinessConnectionModel.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        },
+      );
+      if (connectedResult.isSuccess) {
+        for (final connection in connectedResult.data ?? const <BusinessConnectionModel>[]) {
+          if (!connection.isActive) continue;
+          if (connection.connectedBusinessId == targetBusinessId) continue;
+          final type = connection.relationType.trim().toLowerCase();
+          final business = connection.connectedBusiness;
+          final isDeliveryConnection =
+              type == 'delivery' ||
+              business?.businessParentCategory == 'transporte' ||
+              (business?.businessTypeName?.toLowerCase().contains('delivery') ?? false);
+          if (!isDeliveryConnection) continue;
+          final name =
+              business?.name ??
+              connection.notes ??
+              'Delivery conectado ${connection.connectedBusinessId.substring(0, 6)}';
+          byId[connection.connectedBusinessId] = CartDeliverySelection(
+            deliveryBusinessId: connection.connectedBusinessId,
+            deliveryBusinessName: name,
+            source: 'conexion',
+            province: business?.province,
+            municipality: business?.municipality,
+          );
+        }
+      }
+    }
+
+    final systemResult = await api.get<List<BusinessModel>>(
+      '/negocios',
+      queryParameters: {'limit': 60, 'order': 'destacado.desc,created_at.desc'},
+      parser: (json) {
+        if (json is! List) return const <BusinessModel>[];
+        return json
+            .whereType<Map>()
+            .map((item) => BusinessModel.fromJson(Map<String, dynamic>.from(item)))
+            .toList();
+      },
+    );
+    if (systemResult.isSuccess) {
+      for (final business in systemResult.data ?? const <BusinessModel>[]) {
+        if (business.id == targetBusinessId) continue;
+        final isDeliveryBusiness =
+            business.businessParentCategory == 'transporte' ||
+            (business.businessTypeName?.toLowerCase().contains('delivery') ??
+                false) ||
+            business.name.toLowerCase().contains('delivery');
+        if (!isDeliveryBusiness) continue;
+        byId.putIfAbsent(
+          business.id,
+          () => CartDeliverySelection(
+            deliveryBusinessId: business.id,
+            deliveryBusinessName: business.name,
+            source: 'sistema',
+            province: business.province,
+            municipality: business.municipality,
+          ),
+        );
+      }
+    }
+
+    return byId.values.toList()
+      ..sort((a, b) {
+        if (a.source == b.source) {
+          return a.deliveryBusinessName.compareTo(b.deliveryBusinessName);
+        }
+        return a.source == 'conexion' ? -1 : 1;
+      });
+  }
+
+  Future<CartDeliverySelection?> _pickBestDeliveryCandidate({
+    required String targetBusinessId,
+    required List<CartDeliverySelection> candidates,
+  }) async {
+    if (candidates.isEmpty) return null;
+    if (candidates.length == 1) return candidates.first;
+
+    final target = await _loadBusinessDetails(targetBusinessId);
+    final targetMunicipality = _normalizeZone(target?.municipality);
+    final targetProvince = _normalizeZone(target?.province);
+
+    int proximityRank(CartDeliverySelection candidate) {
+      final candidateMunicipality = _normalizeZone(candidate.municipality);
+      final candidateProvince = _normalizeZone(candidate.province);
+      if (targetMunicipality.isNotEmpty &&
+          candidateMunicipality.isNotEmpty &&
+          targetMunicipality == candidateMunicipality) {
+        return 0;
+      }
+      if (targetProvince.isNotEmpty &&
+          candidateProvince.isNotEmpty &&
+          targetProvince == candidateProvince) {
+        return 1;
+      }
+      if (candidate.source == 'conexion') return 2;
+      return 3;
+    }
+
+    final sorted = [...candidates]..sort((a, b) {
+      final proximityA = proximityRank(a);
+      final proximityB = proximityRank(b);
+      if (proximityA != proximityB) return proximityA.compareTo(proximityB);
+      final sourceRankA = a.source == 'conexion' ? 0 : 1;
+      final sourceRankB = b.source == 'conexion' ? 0 : 1;
+      if (sourceRankA != sourceRankB) return sourceRankA.compareTo(sourceRankB);
+      return a.deliveryBusinessName.compareTo(b.deliveryBusinessName);
+    });
+    return sorted.first;
+  }
+
+  Future<BusinessModel?> _loadBusinessDetails(String businessId) async {
+    final cached = _businessDetailsCache[businessId];
+    if (cached != null) return cached;
+    final result = await sl<ApiClient>().get<BusinessModel?>(
+      '/negocios/$businessId',
+      parser: (json) {
+        if (json is List && json.isNotEmpty && json.first is Map) {
+          return BusinessModel.fromJson(
+            Map<String, dynamic>.from(json.first as Map),
+          );
+        }
+        if (json is Map) {
+          return BusinessModel.fromJson(Map<String, dynamic>.from(json));
+        }
+        return null;
+      },
+    );
+    final business = result.data;
+    if (business != null) {
+      _businessDetailsCache[businessId] = business;
+    }
+    return business;
+  }
+
+  String _normalizeZone(String? value) {
+    return (value ?? '').trim().toLowerCase();
   }
 
   Map<String, List<CartItemModel>> _groupItems(List<CartItemModel> items) {
@@ -220,13 +506,17 @@ class _BusinessCartGroup extends StatelessWidget {
     required this.businessId,
     required this.items,
     required this.requestDelivery,
+    required this.selectedDelivery,
     required this.onRequestDeliveryChanged,
+    required this.onSelectDelivery,
   });
 
   final String businessId;
   final List<CartItemModel> items;
   final bool requestDelivery;
+  final CartDeliverySelection? selectedDelivery;
   final ValueChanged<bool> onRequestDeliveryChanged;
+  final VoidCallback onSelectDelivery;
 
   @override
   Widget build(BuildContext context) {
@@ -285,6 +575,76 @@ class _BusinessCartGroup extends StatelessWidget {
               onSelectionChanged: (selection) =>
                   onRequestDeliveryChanged(selection.first),
             ),
+            if (requestDelivery && businessId != 'sin-negocio') ...[
+              const SizedBox(height: 10),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      selectedDelivery == null
+                          ? 'Delivery: auto-asignado por el negocio'
+                          : 'Delivery: ${selectedDelivery!.deliveryBusinessName}',
+                      style: Theme.of(context).textTheme.bodySmall,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  TextButton.icon(
+                    onPressed: onSelectDelivery,
+                    icon: const Icon(Icons.local_shipping_outlined),
+                    label: Text(
+                      selectedDelivery == null ? 'Asociar' : 'Cambiar',
+                    ),
+                  ),
+                ],
+              ),
+              if (selectedDelivery != null)
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        selectedDelivery!.source == 'conexion'
+                            ? 'Fuente: conexiones del negocio'
+                            : 'Fuente: sistema',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 8,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Theme.of(
+                          context,
+                        ).colorScheme.secondary.withValues(alpha: 0.14),
+                        borderRadius: BorderRadius.circular(999),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.check_circle_rounded,
+                            size: 14,
+                            color: Theme.of(context).colorScheme.secondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            selectedDelivery!.assignmentMode == 'auto'
+                                ? 'Autoasignado'
+                                : 'Manual',
+                            style: Theme.of(context).textTheme.bodySmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+            ],
             const SizedBox(height: 10),
             ...items.map(_CartItemTile.new),
           ],
@@ -441,6 +801,7 @@ class _ContactForm extends StatelessWidget {
     required this.emailController,
     required this.messageController,
     required this.deliveryAddressController,
+    required this.deliveryReferenceController,
     required this.discountController,
     required this.requiresDelivery,
   });
@@ -451,6 +812,7 @@ class _ContactForm extends StatelessWidget {
   final TextEditingController emailController;
   final TextEditingController messageController;
   final TextEditingController deliveryAddressController;
+  final TextEditingController deliveryReferenceController;
   final TextEditingController discountController;
   final bool requiresDelivery;
 
@@ -515,9 +877,20 @@ class _ContactForm extends StatelessWidget {
                         : null;
                   },
                 ),
+                const SizedBox(height: 10),
+                TextFormField(
+                  controller: deliveryReferenceController,
+                  minLines: 1,
+                  maxLines: 2,
+                  decoration: const InputDecoration(
+                    labelText: 'Referencia de entrega',
+                    hintText: 'Ej: edificio azul, apto 3B, entre calles...',
+                    prefixIcon: Icon(Icons.pin_drop_outlined),
+                  ),
+                ),
                 const SizedBox(height: 8),
                 Text(
-                  'Pendiente: selector de mapa y transportistas disponibles.',
+                  'Si la tienda no tiene delivery, puedes asociar uno en cada bloque de negocio.',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 const SizedBox(height: 12),
@@ -541,6 +914,114 @@ class _ContactForm extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _DeliverySelectionSheet extends StatefulWidget {
+  const _DeliverySelectionSheet({
+    required this.candidates,
+    this.selected,
+  });
+
+  final List<CartDeliverySelection> candidates;
+  final CartDeliverySelection? selected;
+
+  @override
+  State<_DeliverySelectionSheet> createState() => _DeliverySelectionSheetState();
+}
+
+class _DeliverySelectionSheetState extends State<_DeliverySelectionSheet> {
+  final _searchController = TextEditingController();
+  String _query = '';
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final filtered = widget.candidates.where((candidate) {
+      final query = _query.trim().toLowerCase();
+      if (query.isEmpty) return true;
+      return candidate.deliveryBusinessName.toLowerCase().contains(query);
+    }).toList();
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Seleccionar delivery',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _searchController,
+              decoration: const InputDecoration(
+                prefixIcon: Icon(Icons.search_rounded),
+                hintText: 'Buscar delivery...',
+              ),
+              onChanged: (value) => setState(() => _query = value),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 360),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: filtered.length,
+                separatorBuilder: (_, __) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final candidate = filtered[index];
+                  final selected =
+                      widget.selected?.deliveryBusinessId ==
+                      candidate.deliveryBusinessId;
+                  return ListTile(
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                      side: BorderSide(
+                        color: selected
+                            ? Theme.of(context).colorScheme.secondary
+                            : Theme.of(context).dividerColor,
+                      ),
+                    ),
+                    leading: Icon(
+                      candidate.source == 'conexion'
+                          ? Icons.hub_outlined
+                          : Icons.public_rounded,
+                    ),
+                    title: Text(
+                      candidate.deliveryBusinessName,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      candidate.source == 'conexion'
+                          ? 'Conectado a tu negocio'
+                          : 'Disponible en el sistema',
+                    ),
+                    trailing: selected
+                        ? Icon(
+                            Icons.check_circle_rounded,
+                            color: Theme.of(context).colorScheme.secondary,
+                          )
+                        : null,
+                    onTap: () => Navigator.of(context).pop(candidate),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );

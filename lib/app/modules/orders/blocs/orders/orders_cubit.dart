@@ -14,26 +14,65 @@ class OrdersCubit extends Cubit<OrdersState> {
       super(const OrdersState());
 
   final ApiClient _apiClient;
-  static const _loadTimeout = Duration(seconds: 12);
+  static const _groupedLoadTimeout = Duration(seconds: 6);
+  static const _legacyLoadTimeout = Duration(seconds: 6);
   String? _businessId;
   Set<String> _groupedOrderIds = const <String>{};
+  Set<String> _requestOrderIds = const <String>{};
 
   Future<void> load({String? businessId}) async {
     _businessId = businessId;
     emit(state.copyWith(status: OrdersStatus.loading));
-    final results = await Future.wait<ApiResult<List<OrderModel>>>([
-      _loadFrom('/ordenes', businessId: businessId),
-      _loadFrom('/pedidos', businessId: businessId),
-    ]);
+    final futures = <Future<ApiResult<List<OrderModel>>>>[
+      _loadFrom(
+        '/ordenes',
+        businessId: businessId,
+        timeout: _groupedLoadTimeout,
+      ),
+      _loadFrom(
+        '/pedidos',
+        businessId: businessId,
+        timeout: _legacyLoadTimeout,
+      ),
+    ];
+    if (businessId != null) {
+      futures.add(
+        _loadFrom(
+          '/solicitudes-red',
+          businessId: businessId,
+          timeout: _legacyLoadTimeout,
+          extraQuery: const {'scope': 'received'},
+        ),
+      );
+    }
+
+    final results = await Future.wait<ApiResult<List<OrderModel>>>(
+      futures,
+      eagerError: false,
+    );
 
     final groupedResult = results[0];
     final legacyResult = results[1];
-    if (groupedResult.isSuccess || legacyResult.isSuccess) {
-      final groupedOrders = groupedResult.data ?? const <OrderModel>[];
-      final legacyOrders = legacyResult.data ?? const <OrderModel>[];
+    final requestsResult = results.length > 2
+        ? results[2]
+        : const ApiResult.success(<OrderModel>[]);
+    final groupedOrders = groupedResult.data ?? const <OrderModel>[];
+    final legacyOrders = legacyResult.data ?? const <OrderModel>[];
+    final requestOrders = requestsResult.data ?? const <OrderModel>[];
+    final hasAnyOrders =
+        groupedOrders.isNotEmpty ||
+        legacyOrders.isNotEmpty ||
+        requestOrders.isNotEmpty;
+    final allSourcesSucceeded =
+        groupedResult.isSuccess &&
+        legacyResult.isSuccess &&
+        requestsResult.isSuccess;
+
+    if (hasAnyOrders || allSourcesSucceeded) {
       _groupedOrderIds = groupedOrders.map((order) => order.id).toSet();
+      _requestOrderIds = requestOrders.map((order) => order.id).toSet();
       final byId = <String, OrderModel>{};
-      for (final order in [...groupedOrders, ...legacyOrders]) {
+      for (final order in [...groupedOrders, ...legacyOrders, ...requestOrders]) {
         if (order.id.isNotEmpty) {
           byId[order.id] = order;
         }
@@ -48,9 +87,7 @@ class OrdersCubit extends Cubit<OrdersState> {
         state.copyWith(
           status: OrdersStatus.success,
           items: items,
-          errorMessage: groupedResult.isSuccess
-              ? null
-              : groupedResult.error?.message,
+          errorMessage: null,
         ),
       );
       return;
@@ -58,11 +95,12 @@ class OrdersCubit extends Cubit<OrdersState> {
 
     emit(
       state.copyWith(
-        status: OrdersStatus.success,
+        status: OrdersStatus.failure,
         items: const [],
         errorMessage:
             groupedResult.error?.message ??
             legacyResult.error?.message ??
+            requestsResult.error?.message ??
             'No se pudieron cargar pedidos.',
       ),
     );
@@ -71,6 +109,8 @@ class OrdersCubit extends Cubit<OrdersState> {
   Future<ApiResult<List<OrderModel>>> _loadFrom(
     String path, {
     String? businessId,
+    Duration timeout = _legacyLoadTimeout,
+    Map<String, dynamic>? extraQuery,
   }) {
     return _apiClient
         .get<List<OrderModel>>(
@@ -79,6 +119,7 @@ class OrdersCubit extends Cubit<OrdersState> {
             'limit': 50,
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
+            ...?extraQuery,
           },
           parser: (json) {
             return _asList(
@@ -87,7 +128,7 @@ class OrdersCubit extends Cubit<OrdersState> {
           },
         )
         .timeout(
-          _loadTimeout,
+          timeout,
           onTimeout: () => const ApiResult.failure(
             ApiFailure(
               code: 'ORDERS_TIMEOUT',
@@ -112,7 +153,7 @@ class OrdersCubit extends Cubit<OrdersState> {
           },
         )
         .timeout(
-          _loadTimeout,
+          _legacyLoadTimeout,
           onTimeout: () => const ApiResult.failure(
             ApiFailure(
               code: 'BUSINESS_TIMEOUT',
@@ -159,7 +200,9 @@ class OrdersCubit extends Cubit<OrdersState> {
     emit(state.copyWith(status: OrdersStatus.saving));
     final path = _groupedOrderIds.contains(orderId)
         ? '/ordenes/$orderId/estado'
-        : '/pedidos/$orderId';
+        : _requestOrderIds.contains(orderId)
+            ? '/solicitudes-red/$orderId'
+            : '/pedidos/$orderId';
     final result = await _apiClient.put<void>(
       path,
       data: {'estado': status},
