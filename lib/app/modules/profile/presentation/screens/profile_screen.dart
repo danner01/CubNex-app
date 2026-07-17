@@ -1,13 +1,134 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../common/services/apk_update_service.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
+import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 
-class ProfileScreen extends StatelessWidget {
+class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
+
+  @override
+  State<ProfileScreen> createState() => _ProfileScreenState();
+}
+
+class _ProfileScreenState extends State<ProfileScreen> {
+  String? _installedVersion;
+  bool _checkingUpdates = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadInstalledVersion();
+  }
+
+  Future<void> _loadInstalledVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    final build = info.buildNumber.trim();
+    final value = build.isEmpty ? info.version : '${info.version}+$build';
+    if (!mounted) return;
+    setState(() => _installedVersion = value);
+  }
+
+  Future<void> _checkUpdates() async {
+    if (_checkingUpdates) return;
+    setState(() => _checkingUpdates = true);
+    try {
+      final status = await sl<ApkUpdateService>().checkForUpdateStatus();
+      if (!mounted) return;
+      await _showUpdateModal(status);
+    } catch (error) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('No se pudo verificar actualizaciones: $error'),
+        ),
+      );
+    } finally {
+      if (mounted) setState(() => _checkingUpdates = false);
+    }
+  }
+
+  Future<void> _showUpdateModal(ApkUpdateStatus status) async {
+    final latest = status.latest;
+    final changeText = latest?.notes?.trim();
+    final hasChanges = changeText != null && changeText.isNotEmpty;
+
+    final updateNow = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(status.hasUpdate ? 'Actualización disponible' : 'Estado de la APK'),
+          content: SizedBox(
+            width: 460,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('Versión instalada: ${status.currentVersion}'),
+                const SizedBox(height: 8),
+                Text(
+                  'Versión publicada: ${latest?.version ?? 'No disponible'}',
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  status.hasUpdate
+                      ? 'Se encontraron actualizaciones para instalar.'
+                      : 'Tu APK ya está actualizada.',
+                ),
+                if (hasChanges) ...[
+                  const SizedBox(height: 14),
+                  const Text(
+                    'Cambios / commits',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  const SizedBox(height: 6),
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(maxHeight: 220),
+                    child: SingleChildScrollView(
+                      child: SelectableText(changeText),
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Cerrar'),
+            ),
+            if (status.hasUpdate && latest != null)
+              FilledButton(
+                onPressed: () => Navigator.of(dialogContext).pop(true),
+                child: const Text('Actualizar'),
+              ),
+          ],
+        );
+      },
+    );
+
+    if (!mounted) return;
+    if (updateNow != true || latest == null) return;
+    final uri = Uri.tryParse(latest.downloadUrl);
+    if (uri == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Enlace de actualización inválido.')),
+      );
+      return;
+    }
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (launched) return;
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo abrir el enlace de actualización.')),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -80,6 +201,13 @@ class ProfileScreen extends StatelessWidget {
             ),
           const SizedBox(height: 18),
           ..._profileTilesForMode(context, activeMode),
+          const SizedBox(height: 10),
+          const _SectionLabel('Aplicación'),
+          _ApkVersionCard(
+            installedVersion: _installedVersion,
+            checkingUpdates: _checkingUpdates,
+            onCheckUpdates: _checkUpdates,
+          ),
           const SizedBox(height: 10),
           const _SectionLabel('Configuracion'),
           _ProfileTile(
@@ -292,6 +420,56 @@ class _ModeSwitcher extends StatelessWidget {
       RoleMode.business => AppRoutes.businessDashboard,
       RoleMode.delivery => AppRoutes.deliveryDashboard,
     };
+  }
+}
+
+class _ApkVersionCard extends StatelessWidget {
+  const _ApkVersionCard({
+    required this.installedVersion,
+    required this.checkingUpdates,
+    required this.onCheckUpdates,
+  });
+
+  final String? installedVersion;
+  final bool checkingUpdates;
+  final VoidCallback onCheckUpdates;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Versión APK',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              installedVersion == null
+                  ? 'Cargando versión instalada...'
+                  : 'Instalada: $installedVersion',
+            ),
+            const SizedBox(height: 12),
+            FilledButton.icon(
+              onPressed: checkingUpdates ? null : onCheckUpdates,
+              icon: checkingUpdates
+                  ? const SizedBox(
+                      width: 18,
+                      height: 18,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.system_update_alt_rounded),
+              label: const Text('Buscar actualizaciones'),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

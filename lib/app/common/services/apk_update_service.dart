@@ -23,12 +23,30 @@ class ApkUpdateInfo {
   final String source;
 }
 
+class ApkUpdateStatus {
+  const ApkUpdateStatus({
+    required this.currentVersion,
+    this.latest,
+    required this.hasUpdate,
+  });
+
+  final String currentVersion;
+  final ApkUpdateInfo? latest;
+  final bool hasUpdate;
+}
+
 class ApkUpdateService {
   ApkUpdateService({Dio? dio}) : _dio = dio ?? Dio();
 
   final Dio _dio;
 
   Future<ApkUpdateInfo?> checkForUpdate() async {
+    final status = await checkForUpdateStatus();
+    if (!status.hasUpdate) return null;
+    return status.latest;
+  }
+
+  Future<ApkUpdateStatus> checkForUpdateStatus() async {
     final current = await PackageInfo.fromPlatform();
     final response = await _dio.get<Map<String, dynamic>>(
       AppEnvironment.apkUpdateManifestUrl,
@@ -40,7 +58,13 @@ class ApkUpdateService {
     );
 
     final data = response.data;
-    if (data == null) return null;
+    if (data == null) {
+      return ApkUpdateStatus(
+        currentVersion: _formatCurrentVersion(current),
+        latest: null,
+        hasUpdate: false,
+      );
+    }
 
     final version = _cleanVersion(
       '${data['version'] ?? data['tag_name'] ?? data['name'] ?? ''}',
@@ -48,17 +72,27 @@ class ApkUpdateService {
     final downloadUrl =
         '${data['downloadUrl'] ?? data['browser_download_url'] ?? data['asset_url'] ?? ''}'
             .trim();
-    if (version.isEmpty || downloadUrl.isEmpty) return null;
+    if (version.isEmpty || downloadUrl.isEmpty) {
+      return ApkUpdateStatus(
+        currentVersion: _formatCurrentVersion(current),
+        latest: null,
+        hasUpdate: false,
+      );
+    }
 
-    if (!_isNewerVersion(current.version, version)) return null;
-
-    return ApkUpdateInfo(
+    final latest = ApkUpdateInfo(
       version: version,
       downloadUrl: downloadUrl,
       releaseUrl: _stringOrNull(data['releaseUrl'] ?? data['html_url']),
       notes: _stringOrNull(data['notes'] ?? data['body']),
       publishedAt: DateTime.tryParse(_stringOrNull(data['publishedAt']) ?? ''),
       source: _stringOrNull(data['source']) ?? 'remote',
+    );
+
+    return ApkUpdateStatus(
+      currentVersion: _formatCurrentVersion(current),
+      latest: latest,
+      hasUpdate: _isNewerVersion(current.version, version),
     );
   }
 
@@ -88,6 +122,12 @@ class ApkUpdateService {
 
   String _cleanVersion(String value) {
     return value.trim().replaceFirst(RegExp(r'^(apk[-_]?|v)', caseSensitive: false), '');
+  }
+
+  String _formatCurrentVersion(PackageInfo info) {
+    final build = info.buildNumber.trim();
+    if (build.isEmpty) return info.version;
+    return '${info.version}+$build';
   }
 
   _BuildSplit _splitBuild(String value) {
