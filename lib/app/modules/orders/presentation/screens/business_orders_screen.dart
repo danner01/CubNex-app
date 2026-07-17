@@ -48,6 +48,30 @@ const _typeFilters = [
 enum _DateFilter { all, today, last7, thisMonth }
 enum _DurationUnit { minutes, hours, days }
 
+// Top-level helpers shared by _BusinessOrderCard and _ReservationDurationDialog.
+(String, _DurationUnit) _durationSeed(int? minutes) {
+  if (minutes == null || minutes <= 0) return ('', _DurationUnit.minutes);
+  if (minutes % (60 * 24) == 0) {
+    return ('${minutes ~/ (60 * 24)}', _DurationUnit.days);
+  }
+  if (minutes % 60 == 0) return ('${minutes ~/ 60}', _DurationUnit.hours);
+  return ('$minutes', _DurationUnit.minutes);
+}
+
+int _durationToMinutes(int amount, _DurationUnit unit) {
+  return switch (unit) {
+    _DurationUnit.minutes => amount,
+    _DurationUnit.hours => amount * 60,
+    _DurationUnit.days => amount * 60 * 24,
+  };
+}
+
+int? _parseNullableInt(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse('$value');
+}
+
 class BusinessOrdersScreen extends StatelessWidget {
   const BusinessOrdersScreen({super.key});
 
@@ -1029,120 +1053,22 @@ class _BusinessOrderCard extends StatelessWidget {
     );
   }
 
-  Future<int?> _askReservationMinutes(BuildContext context) async {
+  Future<int?> _askReservationMinutes(BuildContext context) {
     // Prefer order-level minutes, then fall back to business default.
-    final orderMinutes = _toNullableInt(order.metadata?['reserva_minutos']);
-    final businessMinutes = _toNullableInt(
+    final orderMinutes = _parseNullableInt(order.metadata?['reserva_minutos']);
+    final businessMinutes = _parseNullableInt(
       context
           .read<ActiveBusinessCubit>()
           .state
           .activeBusiness
           ?.features['reserva_minutos_default'],
     );
-    final seed = _durationSeed(orderMinutes ?? businessMinutes);
-    // Use a local var instead of TextEditingController to avoid use-after-dispose
-    // crashes when StatefulBuilder rebuilds during the dialog exit animation.
-    var inputText = seed.$1;
-    var selectedUnit = seed.$2;
     return showDialog<int?>(
       context: context,
-      builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (dialogContext, setStateDialog) {
-            return AlertDialog(
-              title: const Text('Caducidad de reserva'),
-              content: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      initialValue: inputText,
-                      keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(
-                        labelText: 'Tiempo',
-                        hintText: 'Ej: 2',
-                      ),
-                      onChanged: (v) => inputText = v,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 130,
-                    child: DropdownButtonFormField<_DurationUnit>(
-                      initialValue: selectedUnit,
-                      decoration: const InputDecoration(labelText: 'Unidad'),
-                      items: const [
-                        DropdownMenuItem(
-                          value: _DurationUnit.minutes,
-                          child: Text('Minutos'),
-                        ),
-                        DropdownMenuItem(
-                          value: _DurationUnit.hours,
-                          child: Text('Horas'),
-                        ),
-                        DropdownMenuItem(
-                          value: _DurationUnit.days,
-                          child: Text('Dias'),
-                        ),
-                      ],
-                      onChanged: (value) {
-                        if (value == null) return;
-                        setStateDialog(() => selectedUnit = value);
-                      },
-                    ),
-                  ),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(dialogContext).pop(null),
-                  child: const Text('Cancelar'),
-                ),
-                FilledButton(
-                  onPressed: () {
-                    final amount = int.tryParse(inputText.trim());
-                    if (amount == null || amount <= 0) {
-                      showSnackOrAuthDialog(
-                        dialogContext,
-                        'Indica un tiempo valido.',
-                      );
-                      return;
-                    }
-                    Navigator.of(dialogContext).pop(
-                      _toMinutes(amount, selectedUnit),
-                    );
-                  },
-                  child: const Text('Guardar'),
-                ),
-              ],
-            );
-          },
-        );
-      },
+      builder: (_) => _ReservationDurationDialog(
+        initialMinutes: orderMinutes ?? businessMinutes,
+      ),
     );
-  }
-
-  (String, _DurationUnit) _durationSeed(int? minutes) {
-    if (minutes == null || minutes <= 0) return ('', _DurationUnit.minutes);
-    if (minutes % (60 * 24) == 0) {
-      return ('${minutes ~/ (60 * 24)}', _DurationUnit.days);
-    }
-    if (minutes % 60 == 0) return ('${minutes ~/ 60}', _DurationUnit.hours);
-    return ('$minutes', _DurationUnit.minutes);
-  }
-
-  int _toMinutes(int amount, _DurationUnit unit) {
-    return switch (unit) {
-      _DurationUnit.minutes => amount,
-      _DurationUnit.hours => amount * 60,
-      _DurationUnit.days => amount * 60 * 24,
-    };
-  }
-
-  int? _toNullableInt(Object? value) {
-    if (value == null) return null;
-    if (value is int) return value;
-    return int.tryParse('$value');
   }
 }
 
@@ -1419,5 +1345,110 @@ class _MessageCard extends StatelessWidget {
         child: Text(message, textAlign: TextAlign.center),
       ),
     );
+  }
+}
+
+/// Dialog that lets the business owner set or adjust the reservation expiry
+/// time. Using a proper [StatefulWidget] ensures the [TextEditingController]
+/// is created in [initState] and disposed in [dispose], eliminating the
+/// "used after being disposed" crash that occurred with the previous
+/// [StatefulBuilder] approach.
+class _ReservationDurationDialog extends StatefulWidget {
+  const _ReservationDurationDialog({this.initialMinutes});
+
+  final int? initialMinutes;
+
+  @override
+  State<_ReservationDurationDialog> createState() =>
+      _ReservationDurationDialogState();
+}
+
+class _ReservationDurationDialogState
+    extends State<_ReservationDurationDialog> {
+  late final TextEditingController _controller;
+  late _DurationUnit _unit;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = _durationSeed(widget.initialMinutes);
+    _controller = TextEditingController(text: seed.$1);
+    _unit = seed.$2;
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Caducidad de reserva'),
+      content: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextField(
+              controller: _controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: const InputDecoration(
+                labelText: 'Tiempo',
+                hintText: 'Ej: 2',
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 130,
+            child: DropdownButtonFormField<_DurationUnit>(
+              initialValue: _unit,
+              decoration: const InputDecoration(labelText: 'Unidad'),
+              items: const [
+                DropdownMenuItem(
+                  value: _DurationUnit.minutes,
+                  child: Text('Minutos'),
+                ),
+                DropdownMenuItem(
+                  value: _DurationUnit.hours,
+                  child: Text('Horas'),
+                ),
+                DropdownMenuItem(
+                  value: _DurationUnit.days,
+                  child: Text('Dias'),
+                ),
+              ],
+              onChanged: (value) {
+                if (value == null) return;
+                setState(() => _unit = value);
+              },
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(null),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _submit,
+          child: const Text('Guardar'),
+        ),
+      ],
+    );
+  }
+
+  void _submit() {
+    final amount = int.tryParse(_controller.text.trim());
+    if (amount == null || amount <= 0) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Indica un tiempo válido.')),
+      );
+      return;
+    }
+    Navigator.of(context).pop(_durationToMinutes(amount, _unit));
   }
 }
