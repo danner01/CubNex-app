@@ -85,8 +85,11 @@ jobs:
           generateReleaseNotes: true
 
       - name: Trigger SuperAdmin redeploy
-        if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != '' || vars.VERCEL_DEPLOY_HOOK_URL != '' }}
         env:
           VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL || vars.VERCEL_DEPLOY_HOOK_URL }}
         run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not configured. Skipping redeploy."
+            exit 0
+          fi
           curl -X POST "$VERCEL_DEPLOY_HOOK_URL"
