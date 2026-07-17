@@ -14,12 +14,17 @@ class PushNotificationService {
        _apiClient = apiClient;
 
   static final messengerKey = GlobalKey<ScaffoldMessengerState>();
+  final StreamController<void> _notificationsChangedController =
+      StreamController<void>.broadcast();
 
   final FirebaseMessaging _firebaseMessaging;
   final ApiClient _apiClient;
   StreamSubscription<RemoteMessage>? _foregroundSubscription;
   StreamSubscription<String>? _tokenSubscription;
   bool _initialized = false;
+
+  Stream<void> get notificationsChanged =>
+      _notificationsChangedController.stream;
 
   Future<void> init() async {
     if (_initialized) return;
@@ -45,6 +50,11 @@ class PushNotificationService {
     await _foregroundSubscription?.cancel();
     await _tokenSubscription?.cancel();
     _initialized = false;
+  }
+
+  void notifyNotificationsChanged() {
+    if (_notificationsChangedController.isClosed) return;
+    _notificationsChangedController.add(null);
   }
 
   Future<void> _syncCurrentToken() async {
@@ -77,6 +87,7 @@ class PushNotificationService {
         'Nueva notificacion recibida.';
 
     SystemSound.play(SystemSoundType.alert);
+    notifyNotificationsChanged();
     messengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('$title\n$body'),

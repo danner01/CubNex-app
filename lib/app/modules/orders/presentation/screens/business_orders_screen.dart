@@ -1366,19 +1366,21 @@ class _ReservationDurationDialog extends StatefulWidget {
 class _ReservationDurationDialogState
     extends State<_ReservationDurationDialog> {
   late final TextEditingController _controller;
-  late _DurationUnit _unit;
+  late final ValueNotifier<_DurationUnit> _unitNotifier;
+  String? _errorText;
 
   @override
   void initState() {
     super.initState();
     final seed = _durationSeed(widget.initialMinutes);
     _controller = TextEditingController(text: seed.$1);
-    _unit = seed.$2;
+    _unitNotifier = ValueNotifier<_DurationUnit>(seed.$2);
   }
 
   @override
   void dispose() {
     _controller.dispose();
+    _unitNotifier.dispose();
     super.dispose();
   }
 
@@ -1386,48 +1388,6 @@ class _ReservationDurationDialogState
   Widget build(BuildContext context) {
     return AlertDialog(
       title: const Text('Caducidad de reserva'),
-      content: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: TextField(
-              controller: _controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              decoration: const InputDecoration(
-                labelText: 'Tiempo',
-                hintText: 'Ej: 2',
-              ),
-            ),
-          ),
-          const SizedBox(width: 10),
-          SizedBox(
-            width: 130,
-            child: DropdownButtonFormField<_DurationUnit>(
-              initialValue: _unit,
-              decoration: const InputDecoration(labelText: 'Unidad'),
-              items: const [
-                DropdownMenuItem(
-                  value: _DurationUnit.minutes,
-                  child: Text('Minutos'),
-                ),
-                DropdownMenuItem(
-                  value: _DurationUnit.hours,
-                  child: Text('Horas'),
-                ),
-                DropdownMenuItem(
-                  value: _DurationUnit.days,
-                  child: Text('Dias'),
-                ),
-              ],
-              onChanged: (value) {
-                if (value == null) return;
-                setState(() => _unit = value);
-              },
-            ),
-          ),
-        ],
-      ),
       actions: [
         TextButton(
           onPressed: () => Navigator.of(context).pop(null),
@@ -1438,17 +1398,87 @@ class _ReservationDurationDialogState
           child: const Text('Guardar'),
         ),
       ],
+      contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  keyboardType: TextInputType.number,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Tiempo',
+                    hintText: 'Ej: 2',
+                  ),
+                  onChanged: (value) {
+                    if (_errorText != null) {
+                      setState(() => _errorText = null);
+                    }
+                  },
+                ),
+              ),
+              const SizedBox(width: 10),
+              SizedBox(
+                width: 130,
+                child: ValueListenableBuilder<_DurationUnit>(
+                  valueListenable: _unitNotifier,
+                  builder: (context, selectedUnit, _) {
+                    return DropdownButtonFormField<_DurationUnit>(
+                      initialValue: selectedUnit,
+                      decoration: const InputDecoration(labelText: 'Unidad'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: _DurationUnit.minutes,
+                          child: Text('Minutos'),
+                        ),
+                        DropdownMenuItem(
+                          value: _DurationUnit.hours,
+                          child: Text('Horas'),
+                        ),
+                        DropdownMenuItem(
+                          value: _DurationUnit.days,
+                          child: Text('Dias'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        _unitNotifier.value = value;
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
+          ),
+          if (_errorText != null) ...[
+            const SizedBox(height: 10),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                _errorText!,
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.error,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 
   void _submit() {
     final amount = int.tryParse(_controller.text.trim());
     if (amount == null || amount <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Indica un tiempo válido.')),
-      );
+      setState(() => _errorText = 'Indica un tiempo valido.');
       return;
     }
-    Navigator.of(context).pop(_durationToMinutes(amount, _unit));
+    Navigator.of(context).pop(_durationToMinutes(amount, _unitNotifier.value));
   }
 }

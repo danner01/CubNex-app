@@ -5,6 +5,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../common/blocs/role_mode/role_mode_cubit.dart';
+import '../../../common/services/push_notification_service.dart';
 import '../../../config/http/api_client.dart';
 import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
@@ -113,16 +114,23 @@ class _UnreadNotificationsButton extends StatefulWidget {
       _UnreadNotificationsButtonState();
 }
 
-class _UnreadNotificationsButtonState
-    extends State<_UnreadNotificationsButton> {
+class _UnreadNotificationsButtonState extends State<_UnreadNotificationsButton>
+    with WidgetsBindingObserver {
   final ApiClient _apiClient = sl<ApiClient>();
+  final PushNotificationService _pushNotificationService =
+      sl<PushNotificationService>();
   Timer? _timer;
+  StreamSubscription<void>? _pushSubscription;
   int _unreadCount = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _loadUnreadCount();
+    _pushSubscription = _pushNotificationService.notificationsChanged.listen(
+      (_) => _loadUnreadCount(),
+    );
     _timer = Timer.periodic(
       const Duration(seconds: 45),
       (_) => _loadUnreadCount(),
@@ -131,8 +139,17 @@ class _UnreadNotificationsButtonState
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _timer?.cancel();
+    _pushSubscription?.cancel();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _loadUnreadCount();
+    }
   }
 
   Future<void> _loadUnreadCount() async {

@@ -108,7 +108,12 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => MapCubit(apiClient: sl()))
     ..registerFactory(() => HomeCubit(apiClient: sl()))
     ..registerFactory(() => MenusCubit(apiClient: sl()))
-    ..registerFactory(() => NotificationsCubit(apiClient: sl()))
+    ..registerFactory(
+      () => NotificationsCubit(
+        apiClient: sl(),
+        pushNotificationService: sl(),
+      ),
+    )
     ..registerFactory(() => SearchCubit(apiClient: sl()))
     ..registerFactory(() => ProductDetailCubit(apiClient: sl()))
     ..registerFactory(() => PostsCubit(apiClient: sl()))

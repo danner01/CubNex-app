@@ -1,15 +1,21 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/services/push_notification_service.dart';
 import '../../../../config/http/api_client.dart';
 import '../../data/models/notification_model.dart';
 import 'notifications_state.dart';
 
 class NotificationsCubit extends Cubit<NotificationsState> {
-  NotificationsCubit({required ApiClient apiClient})
+  NotificationsCubit({
+    required ApiClient apiClient,
+    required PushNotificationService pushNotificationService,
+  })
     : _apiClient = apiClient,
+      _pushNotificationService = pushNotificationService,
       super(const NotificationsState());
 
   final ApiClient _apiClient;
+  final PushNotificationService _pushNotificationService;
 
   Future<void> load() async {
     emit(state.copyWith(status: NotificationsStatus.loading));
@@ -46,6 +52,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
         items: result.data ?? const [],
       ),
     );
+    _pushNotificationService.notifyNotificationsChanged();
   }
 
   Future<void> markAsRead(String id) async {
@@ -62,6 +69,7 @@ class NotificationsCubit extends Cubit<NotificationsState> {
             .toList(),
       ),
     );
+    _pushNotificationService.notifyNotificationsChanged();
   }
 
   Future<void> markAllAsRead() async {
@@ -88,5 +96,6 @@ class NotificationsCubit extends Cubit<NotificationsState> {
         message: 'Notificaciones marcadas como leidas.',
       ),
     );
+    _pushNotificationService.notifyNotificationsChanged();
   }
 }
