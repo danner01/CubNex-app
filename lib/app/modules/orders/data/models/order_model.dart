@@ -160,7 +160,8 @@ class OrderModel {
       'recibida' ||
       'confirmado_negocio' ||
       'preparando' ||
-      'listo_para_recoger' => true,
+      'listo_para_recoger' ||
+      'delivery_asignado' => true,
       _ => false,
     };
   }

@@ -1030,11 +1030,21 @@ class _BusinessOrderCard extends StatelessWidget {
   }
 
   Future<int?> _askReservationMinutes(BuildContext context) async {
-    final currentMinutes = _toNullableInt(order.metadata?['reserva_minutos']);
-    final seed = _durationSeed(currentMinutes);
-    final controller = TextEditingController(text: seed.$1);
+    // Prefer order-level minutes, then fall back to business default.
+    final orderMinutes = _toNullableInt(order.metadata?['reserva_minutos']);
+    final businessMinutes = _toNullableInt(
+      context
+          .read<ActiveBusinessCubit>()
+          .state
+          .activeBusiness
+          ?.features['reserva_minutos_default'],
+    );
+    final seed = _durationSeed(orderMinutes ?? businessMinutes);
+    // Use a local var instead of TextEditingController to avoid use-after-dispose
+    // crashes when StatefulBuilder rebuilds during the dialog exit animation.
+    var inputText = seed.$1;
     var selectedUnit = seed.$2;
-    final result = await showDialog<int?>(
+    return showDialog<int?>(
       context: context,
       builder: (dialogContext) {
         return StatefulBuilder(
@@ -1045,13 +1055,14 @@ class _BusinessOrderCard extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
-                    child: TextField(
-                      controller: controller,
+                    child: TextFormField(
+                      initialValue: inputText,
                       keyboardType: TextInputType.number,
                       decoration: const InputDecoration(
                         labelText: 'Tiempo',
                         hintText: 'Ej: 2',
                       ),
+                      onChanged: (v) => inputText = v,
                     ),
                   ),
                   const SizedBox(width: 10),
@@ -1089,7 +1100,7 @@ class _BusinessOrderCard extends StatelessWidget {
                 ),
                 FilledButton(
                   onPressed: () {
-                    final amount = int.tryParse(controller.text.trim());
+                    final amount = int.tryParse(inputText.trim());
                     if (amount == null || amount <= 0) {
                       showSnackOrAuthDialog(
                         dialogContext,
@@ -1109,8 +1120,6 @@ class _BusinessOrderCard extends StatelessWidget {
         );
       },
     );
-    controller.dispose();
-    return result;
   }
 
   (String, _DurationUnit) _durationSeed(int? minutes) {

@@ -1,7 +1,7 @@
 name: cubnex_app
 description: "CubNex mobile app for clients, guests, and business owners."
 publish_to: "none"
-version: 0.1.1+3
+version: 0.1.1+4
 
 environment:
   sdk: ^3.9.2
