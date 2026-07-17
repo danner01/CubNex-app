@@ -46,6 +46,7 @@ const _typeFilters = [
 ];
 
 enum _DateFilter { all, today, last7, thisMonth }
+enum _DurationUnit { minutes, hours, days }
 
 class BusinessOrdersScreen extends StatelessWidget {
   const BusinessOrdersScreen({super.key});
@@ -1029,45 +1030,110 @@ class _BusinessOrderCard extends StatelessWidget {
   }
 
   Future<int?> _askReservationMinutes(BuildContext context) async {
-    final controller = TextEditingController();
+    final currentMinutes = _toNullableInt(order.metadata?['reserva_minutos']);
+    final seed = _durationSeed(currentMinutes);
+    final controller = TextEditingController(text: seed.$1);
+    var selectedUnit = seed.$2;
     final result = await showDialog<int?>(
       context: context,
       builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Caducidad de reserva'),
-          content: TextField(
-            controller: controller,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(
-              labelText: 'Minutos',
-              hintText: 'Ej: 120',
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(null),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () {
-                final minutes = int.tryParse(controller.text.trim());
-                if (minutes == null || minutes <= 0) {
-                  showSnackOrAuthDialog(
-                    dialogContext,
-                    'Indica un tiempo valido en minutos.',
-                  );
-                  return;
-                }
-                Navigator.of(dialogContext).pop(minutes);
-              },
-              child: const Text('Guardar'),
-            ),
-          ],
+        return StatefulBuilder(
+          builder: (dialogContext, setStateDialog) {
+            return AlertDialog(
+              title: const Text('Caducidad de reserva'),
+              content: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: controller,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Tiempo',
+                        hintText: 'Ej: 2',
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 130,
+                    child: DropdownButtonFormField<_DurationUnit>(
+                      initialValue: selectedUnit,
+                      decoration: const InputDecoration(labelText: 'Unidad'),
+                      items: const [
+                        DropdownMenuItem(
+                          value: _DurationUnit.minutes,
+                          child: Text('Minutos'),
+                        ),
+                        DropdownMenuItem(
+                          value: _DurationUnit.hours,
+                          child: Text('Horas'),
+                        ),
+                        DropdownMenuItem(
+                          value: _DurationUnit.days,
+                          child: Text('Dias'),
+                        ),
+                      ],
+                      onChanged: (value) {
+                        if (value == null) return;
+                        setStateDialog(() => selectedUnit = value);
+                      },
+                    ),
+                  ),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(dialogContext).pop(null),
+                  child: const Text('Cancelar'),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final amount = int.tryParse(controller.text.trim());
+                    if (amount == null || amount <= 0) {
+                      showSnackOrAuthDialog(
+                        dialogContext,
+                        'Indica un tiempo valido.',
+                      );
+                      return;
+                    }
+                    Navigator.of(dialogContext).pop(
+                      _toMinutes(amount, selectedUnit),
+                    );
+                  },
+                  child: const Text('Guardar'),
+                ),
+              ],
+            );
+          },
         );
       },
     );
     controller.dispose();
     return result;
+  }
+
+  (String, _DurationUnit) _durationSeed(int? minutes) {
+    if (minutes == null || minutes <= 0) return ('', _DurationUnit.minutes);
+    if (minutes % (60 * 24) == 0) {
+      return ('${minutes ~/ (60 * 24)}', _DurationUnit.days);
+    }
+    if (minutes % 60 == 0) return ('${minutes ~/ 60}', _DurationUnit.hours);
+    return ('$minutes', _DurationUnit.minutes);
+  }
+
+  int _toMinutes(int amount, _DurationUnit unit) {
+    return switch (unit) {
+      _DurationUnit.minutes => amount,
+      _DurationUnit.hours => amount * 60,
+      _DurationUnit.days => amount * 60 * 24,
+    };
+  }
+
+  int? _toNullableInt(Object? value) {
+    if (value == null) return null;
+    if (value is int) return value;
+    return int.tryParse('$value');
   }
 }
 
@@ -1110,7 +1176,7 @@ class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
         : Colors.green.shade700;
     final label = expired
         ? 'Reserva caducada'
-        : 'Caduca en ${_formatDuration(remaining)}';
+        : 'Caduca en ${_formatDuration(remaining)} · ${_friendlyRemainingLabel(remaining)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -1142,6 +1208,20 @@ class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
     return '${hours.toString().padLeft(2, '0')}:'
         '${minutes.toString().padLeft(2, '0')}:'
         '${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _friendlyRemainingLabel(Duration value) {
+    final safe = value.isNegative ? Duration.zero : value;
+    if (safe.inDays >= 1) {
+      final days = safe.inDays;
+      return '$days ${days == 1 ? 'dia' : 'dias'} restantes';
+    }
+    if (safe.inHours >= 1) {
+      final hours = safe.inHours;
+      return '$hours ${hours == 1 ? 'hora' : 'horas'} restantes';
+    }
+    final minutes = safe.inMinutes;
+    return '$minutes ${minutes == 1 ? 'minuto' : 'minutos'} restantes';
   }
 }
 

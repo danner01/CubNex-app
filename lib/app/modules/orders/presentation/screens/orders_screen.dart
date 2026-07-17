@@ -634,7 +634,7 @@ class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
         : Colors.green.shade700;
     final label = expired
         ? 'Reserva caducada'
-        : 'Caduca en ${_formatDuration(remaining)}';
+        : 'Caduca en ${_formatDuration(remaining)} · ${_friendlyRemainingLabel(remaining)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
@@ -666,6 +666,20 @@ class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
     return '${hours.toString().padLeft(2, '0')}:'
         '${minutes.toString().padLeft(2, '0')}:'
         '${seconds.toString().padLeft(2, '0')}';
+  }
+
+  String _friendlyRemainingLabel(Duration value) {
+    final safe = value.isNegative ? Duration.zero : value;
+    if (safe.inDays >= 1) {
+      final days = safe.inDays;
+      return '$days ${days == 1 ? 'dia' : 'dias'} restantes';
+    }
+    if (safe.inHours >= 1) {
+      final hours = safe.inHours;
+      return '$hours ${hours == 1 ? 'hora' : 'horas'} restantes';
+    }
+    final minutes = safe.inMinutes;
+    return '$minutes ${minutes == 1 ? 'minuto' : 'minutos'} restantes';
   }
 }
 

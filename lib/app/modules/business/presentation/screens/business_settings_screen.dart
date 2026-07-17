@@ -272,21 +272,15 @@ class _OperationsSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
-            TextFormField(
-              initialValue:
-                  item?.features['reserva_minutos_default']?.toString() ?? '',
-              enabled: enabled,
-              keyboardType: TextInputType.number,
-              decoration: const InputDecoration(
-                labelText: 'Reserva por defecto (minutos)',
-                hintText: 'Ej: 1440 para 24 horas',
-                prefixIcon: Icon(Icons.timer_outlined),
+            _DurationWithUnitField(
+              initialMinutes: _toNullableInt(
+                item?.features['reserva_minutos_default'],
               ),
-              onChanged: (value) => context
+              enabled: enabled,
+              labelText: 'Reserva por defecto',
+              onMinutesChanged: (minutes) => context
                   .read<BusinessSettingsCubit>()
-                  .updateReservationDefaultMinutes(
-                    int.tryParse(value.trim()),
-                  ),
+                  .updateReservationDefaultMinutes(minutes),
             ),
             const SizedBox(height: 8),
             SwitchListTile(
@@ -1005,6 +999,133 @@ class _ColorFineTuneSection extends StatelessWidget {
   String _validStoreFont(String value) {
     return _storeFontOptions.contains(value) ? value : 'Inter';
   }
+}
+
+enum _DurationUnit { minutes, hours, days }
+
+class _DurationWithUnitField extends StatefulWidget {
+  const _DurationWithUnitField({
+    required this.initialMinutes,
+    required this.enabled,
+    required this.labelText,
+    required this.onMinutesChanged,
+  });
+
+  final int? initialMinutes;
+  final bool enabled;
+  final String labelText;
+  final ValueChanged<int?> onMinutesChanged;
+
+  @override
+  State<_DurationWithUnitField> createState() => _DurationWithUnitFieldState();
+}
+
+class _DurationWithUnitFieldState extends State<_DurationWithUnitField> {
+  late final TextEditingController _controller;
+  late _DurationUnit _unit;
+
+  @override
+  void initState() {
+    super.initState();
+    final seed = _durationSeed(widget.initialMinutes);
+    _controller = TextEditingController(text: seed.$1);
+    _unit = seed.$2;
+  }
+
+  @override
+  void didUpdateWidget(covariant _DurationWithUnitField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.initialMinutes != widget.initialMinutes) {
+      final seed = _durationSeed(widget.initialMinutes);
+      _controller.text = seed.$1;
+      _unit = seed.$2;
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          child: TextFormField(
+            controller: _controller,
+            enabled: widget.enabled,
+            keyboardType: TextInputType.number,
+            decoration: InputDecoration(
+              labelText: widget.labelText,
+              hintText: 'Ej: 24',
+              prefixIcon: const Icon(Icons.timer_outlined),
+            ),
+            onChanged: (_) => _emitMinutes(),
+          ),
+        ),
+        const SizedBox(width: 10),
+        SizedBox(
+          width: 130,
+          child: DropdownButtonFormField<_DurationUnit>(
+            initialValue: _unit,
+            decoration: const InputDecoration(labelText: 'Unidad'),
+            items: const [
+              DropdownMenuItem(
+                value: _DurationUnit.minutes,
+                child: Text('Minutos'),
+              ),
+              DropdownMenuItem(value: _DurationUnit.hours, child: Text('Horas')),
+              DropdownMenuItem(value: _DurationUnit.days, child: Text('Dias')),
+            ],
+            onChanged: widget.enabled
+                ? (value) {
+                    if (value == null) return;
+                    setState(() => _unit = value);
+                    _emitMinutes();
+                  }
+                : null,
+          ),
+        ),
+      ],
+    );
+  }
+
+  void _emitMinutes() {
+    final amount = int.tryParse(_controller.text.trim());
+    if (amount == null || amount <= 0) {
+      widget.onMinutesChanged(null);
+      return;
+    }
+    widget.onMinutesChanged(_toMinutes(amount, _unit));
+  }
+
+  (String, _DurationUnit) _durationSeed(int? minutes) {
+    if (minutes == null || minutes <= 0) return ('', _DurationUnit.minutes);
+    if (minutes % (60 * 24) == 0) {
+      return ('${minutes ~/ (60 * 24)}', _DurationUnit.days);
+    }
+    if (minutes % 60 == 0) {
+      return ('${minutes ~/ 60}', _DurationUnit.hours);
+    }
+    return ('$minutes', _DurationUnit.minutes);
+  }
+
+  int _toMinutes(int amount, _DurationUnit unit) {
+    return switch (unit) {
+      _DurationUnit.minutes => amount,
+      _DurationUnit.hours => amount * 60,
+      _DurationUnit.days => amount * 60 * 24,
+    };
+  }
+}
+
+int? _toNullableInt(Object? value) {
+  if (value == null) return null;
+  if (value is int) return value;
+  return int.tryParse('$value');
 }
 
 class _PaletteColorField extends StatelessWidget {
