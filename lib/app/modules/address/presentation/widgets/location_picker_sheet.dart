@@ -309,21 +309,39 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   }
 
   Future<String?> _resolveAddress() async {
-    final result = await sl<ApiClient>().get<Map<String, dynamic>>(
-      '/mapbox/geocodificar-inverso',
-      queryParameters: {'lat': _latitude, 'lng': _longitude},
-      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
-    );
-    if (!result.isSuccess || result.data == null) return null;
-    final data = result.data!;
-    final raw =
-        data['direccion'] ??
-        data['place_name'] ??
-        data['placeName'] ??
-        data['nombre'] ??
-        data['address'];
-    if (raw is! String) return null;
-    final normalized = raw.trim();
-    return normalized.isEmpty ? null : normalized;
+    try {
+      final result = await sl<ApiClient>().get<Map<String, dynamic>>(
+        '/mapbox/geocodificar-inverso',
+        queryParameters: {'lat': _latitude, 'lng': _longitude},
+        parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+      );
+      if (!result.isSuccess || result.data == null) return null;
+      final data = result.data!;
+
+      // Preferred: backend extracts and returns { direccion: "..." }
+      String? raw =
+          data['direccion'] as String? ??
+          data['place_name'] as String? ??
+          data['placeName'] as String? ??
+          data['nombre'] as String? ??
+          data['address'] as String?;
+
+      // Fallback: raw Mapbox FeatureCollection shape
+      if (raw == null || raw.trim().isEmpty) {
+        final features = data['features'];
+        if (features is List && features.isNotEmpty) {
+          final first = features.first;
+          if (first is Map) {
+            raw = (first['place_name_es'] ?? first['place_name']) as String?;
+          }
+        }
+      }
+
+      if (raw == null) return null;
+      final normalized = raw.trim();
+      return normalized.isEmpty ? null : normalized;
+    } catch (_) {
+      return null;
+    }
   }
 }
