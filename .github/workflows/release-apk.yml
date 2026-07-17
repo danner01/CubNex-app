@@ -49,6 +49,31 @@ jobs:
           mkdir -p dist
           cp build/app/outputs/flutter-apk/app-release.apk dist/Cubanex.apk
 
+      - name: Upload APK to Vercel Blob
+        env:
+          BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN || vars.BLOB_READ_WRITE_TOKEN }}
+        run: |
+          if [ -z "$BLOB_READ_WRITE_TOKEN" ]; then
+            echo "BLOB_READ_WRITE_TOKEN not configured. Skipping Blob upload."
+            exit 0
+          fi
+          npm init -y > /dev/null
+          npm i @vercel/blob > /dev/null
+          cat > upload-blob.mjs << 'EOF'
+          import { put } from "@vercel/blob";
+          import fs from "node:fs";
+          const token = process.env.BLOB_READ_WRITE_TOKEN;
+          const stream = fs.createReadStream("dist/Cubanex.apk");
+          const blob = await put("Cubanex.apk", stream, {
+            access: "public",
+            addRandomSuffix: false,
+            allowOverwrite: true,
+            token,
+          });
+          console.log(`Uploaded to: ${blob.url}`);
+          EOF
+          node upload-blob.mjs
+
       - name: Publish GitHub release
         uses: ncipollo/release-action@v1
         with:
@@ -58,3 +83,10 @@ jobs:
           allowUpdates: true
           replacesArtifacts: true
           generateReleaseNotes: true
+
+      - name: Trigger SuperAdmin redeploy
+        if: ${{ secrets.VERCEL_DEPLOY_HOOK_URL != '' || vars.VERCEL_DEPLOY_HOOK_URL != '' }}
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL || vars.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          curl -X POST "$VERCEL_DEPLOY_HOOK_URL"
