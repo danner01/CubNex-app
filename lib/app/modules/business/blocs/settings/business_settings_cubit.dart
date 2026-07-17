@@ -137,6 +137,23 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
     );
   }
 
+  void updateReservationDefaultMinutes(int? minutes) {
+    final business = state.business;
+    if (business == null) return;
+    final nextFeatures = Map<String, dynamic>.from(business.features);
+    if (minutes == null || minutes <= 0) {
+      nextFeatures.remove('reserva_minutos_default');
+    } else {
+      nextFeatures['reserva_minutos_default'] = minutes;
+    }
+    emit(
+      state.copyWith(
+        status: BusinessSettingsStatus.ready,
+        business: business.copyWith(features: nextFeatures),
+      ),
+    );
+  }
+
   Future<void> save() async {
     final customization = state.customization;
     if (customization == null) return;
@@ -197,6 +214,9 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
             'texto_secundario': customization.secondaryTextColor,
             'fondo': customization.backgroundColor,
             'fuente': customization.fontFamily,
+          },
+          'caracteristicas': {
+            ...business.features,
           },
         },
         parser: (_) {},

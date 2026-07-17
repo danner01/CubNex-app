@@ -147,8 +147,38 @@ class OrderModel {
       'recibido_cliente' => 'Recibido',
       'vendido_en_tienda' => 'Vendido',
       'completado' => 'Completado',
+      'caducado' => 'Caducado',
       _ => status ?? 'Nuevo',
     };
+  }
+
+  bool get supportsReservationExpiry {
+    return switch (status) {
+      'reservado_recogida' ||
+      'reservado_delivery' ||
+      'solicitada' ||
+      'recibida' ||
+      'confirmado_negocio' ||
+      'preparando' ||
+      'listo_para_recoger' => true,
+      _ => false,
+    };
+  }
+
+  DateTime? get reservationExpiresAt {
+    final raw =
+        metadata?['reserva_expira_at'] ??
+        metadata?['reservaExpiraAt'] ??
+        metadata?['reservation_expires_at'];
+    if (raw == null) return null;
+    if (raw is String) return DateTime.tryParse(raw)?.toLocal();
+    return DateTime.tryParse('$raw')?.toLocal();
+  }
+
+  Duration? get reservationTimeRemaining {
+    final expiresAt = reservationExpiresAt;
+    if (expiresAt == null) return null;
+    return expiresAt.difference(DateTime.now());
   }
 
   String? get primaryImageUrl {

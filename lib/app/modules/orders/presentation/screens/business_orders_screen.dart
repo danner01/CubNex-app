@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -26,6 +28,7 @@ const _statusFilters = [
   _FilterOption('entregado_por_delivery', 'Entregado'),
   _FilterOption('recibido_cliente', 'Recibido por cliente'),
   _FilterOption('completado', 'Completado'),
+  _FilterOption('caducado', 'Caducado'),
   _FilterOption('nuevo', 'Nuevo'),
   _FilterOption('contactado', 'Contactado'),
   _FilterOption('en_proceso', 'En proceso'),
@@ -717,6 +720,11 @@ class _BusinessOrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
+            if (order.supportsReservationExpiry &&
+                order.reservationExpiresAt != null) ...[
+              _ReservationCountdownChip(order: order),
+              const SizedBox(height: 10),
+            ],
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -847,6 +855,24 @@ class _BusinessOrderCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 10),
+                  if (order.supportsReservationExpiry)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: OutlinedButton.icon(
+                        onPressed: () async {
+                          final minutes = await _askReservationMinutes(context);
+                          if (minutes == null || !context.mounted) return;
+                          await context.read<OrdersCubit>().updateStatusWithOptions(
+                            order.id,
+                            status: order.status ?? 'listo_para_recoger',
+                            reservationMinutes: minutes,
+                          );
+                        },
+                        icon: const Icon(Icons.timer_outlined, size: 18),
+                        label: const Text('Ajustar caducidad'),
+                      ),
+                    ),
+                  if (order.supportsReservationExpiry) const SizedBox(height: 10),
                   if (selectedStatus != null)
                     DropdownButtonFormField<String>(
                       initialValue: selectedStatus,
@@ -861,10 +887,11 @@ class _BusinessOrderCard extends StatelessWidget {
                           .toList(),
                       onChanged: (value) {
                         if (value == null || value == order.status) return;
-                        context.read<OrdersCubit>().updateStatus(
-                          order.id,
-                          value,
-                        );
+                        if (value == 'listo_para_recoger') {
+                          _handleStatusUpdateWithExpiry(context, value);
+                          return;
+                        }
+                        context.read<OrdersCubit>().updateStatus(order.id, value);
                       },
                     ),
                 ],
@@ -891,6 +918,7 @@ class _BusinessOrderCard extends StatelessWidget {
     'recibido_cliente': 'Recibido por cliente',
     'vendido_en_tienda': 'Vendido en tienda',
     'completado': 'Completado',
+    'caducado': 'Caducado',
     'cancelado': 'Cancelado',
   };
 
@@ -985,6 +1013,135 @@ class _BusinessOrderCard extends StatelessWidget {
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }
+  }
+
+  Future<void> _handleStatusUpdateWithExpiry(
+    BuildContext context,
+    String nextStatus,
+  ) async {
+    final minutes = await _askReservationMinutes(context);
+    if (minutes == null || !context.mounted) return;
+    await context.read<OrdersCubit>().updateStatusWithOptions(
+      order.id,
+      status: nextStatus,
+      reservationMinutes: minutes,
+    );
+  }
+
+  Future<int?> _askReservationMinutes(BuildContext context) async {
+    final controller = TextEditingController();
+    final result = await showDialog<int?>(
+      context: context,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Caducidad de reserva'),
+          content: TextField(
+            controller: controller,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Minutos',
+              hintText: 'Ej: 120',
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () {
+                final minutes = int.tryParse(controller.text.trim());
+                if (minutes == null || minutes <= 0) {
+                  showSnackOrAuthDialog(
+                    dialogContext,
+                    'Indica un tiempo valido en minutos.',
+                  );
+                  return;
+                }
+                Navigator.of(dialogContext).pop(minutes);
+              },
+              child: const Text('Guardar'),
+            ),
+          ],
+        );
+      },
+    );
+    controller.dispose();
+    return result;
+  }
+}
+
+class _ReservationCountdownChip extends StatefulWidget {
+  const _ReservationCountdownChip({required this.order});
+
+  final OrderModel order;
+
+  @override
+  State<_ReservationCountdownChip> createState() =>
+      _ReservationCountdownChipState();
+}
+
+class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = widget.order.reservationTimeRemaining;
+    final expired = remaining == null || remaining.inSeconds <= 0;
+    final danger = !expired && remaining.inMinutes <= 60;
+    final color = expired
+        ? Theme.of(context).colorScheme.error
+        : danger
+        ? Colors.orange.shade700
+        : Colors.green.shade700;
+    final label = expired
+        ? 'Reserva caducada'
+        : 'Caduca en ${_formatDuration(remaining)}';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration value) {
+    final safe = value.isNegative ? Duration.zero : value;
+    final hours = safe.inHours;
+    final minutes = safe.inMinutes.remainder(60);
+    final seconds = safe.inSeconds.remainder(60);
+    return '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
   }
 }
 

@@ -211,77 +211,85 @@ class _CartViewState extends State<_CartView> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final cartCubit = context.read<CartCubit>();
-    final activeBusinessCubit = context.read<ActiveBusinessCubit>();
-    final cartState = cartCubit.state;
-    final grouped = _groupItems(cartCubit.state.items);
-    final nextDeliverySelections = Map<String, CartDeliverySelection>.from(
-      cartState.deliverySelectionByBusiness,
-    );
-    final autoAssignedSelections = <String, CartDeliverySelection>{};
-    final activeBusinessId = activeBusinessCubit.state.activeBusiness?.id;
-    var autoAssigned = 0;
-    for (final businessId in grouped.keys) {
-      if (businessId == 'sin-negocio') continue;
-      final requestDelivery = cartState.deliveryByBusiness[businessId] ?? false;
-      if (!requestDelivery) continue;
-      if (nextDeliverySelections.containsKey(businessId)) continue;
+    try {
+      final cartCubit = context.read<CartCubit>();
+      final activeBusinessCubit = context.read<ActiveBusinessCubit>();
+      final cartState = cartCubit.state;
+      final grouped = _groupItems(cartCubit.state.items);
+      final nextDeliverySelections = Map<String, CartDeliverySelection>.from(
+        cartState.deliverySelectionByBusiness,
+      );
+      final autoAssignedSelections = <String, CartDeliverySelection>{};
+      final activeBusinessId = activeBusinessCubit.state.activeBusiness?.id;
+      var autoAssigned = 0;
+      for (final businessId in grouped.keys) {
+        if (businessId == 'sin-negocio') continue;
+        final requestDelivery =
+            cartState.deliveryByBusiness[businessId] ?? false;
+        if (!requestDelivery) continue;
+        if (nextDeliverySelections.containsKey(businessId)) continue;
 
-      final candidates = await _loadDeliveryCandidates(
-        targetBusinessId: businessId,
-        activeBusinessId: activeBusinessId,
-      );
-      final preferred = await _pickBestDeliveryCandidate(
-        targetBusinessId: businessId,
-        candidates: candidates,
-      );
-      if (preferred != null) {
-        final autoSelected = preferred.copyWith(assignmentMode: 'auto');
-        nextDeliverySelections[businessId] = autoSelected;
-        autoAssignedSelections[businessId] = autoSelected;
-        autoAssigned++;
+        final candidates = await _loadDeliveryCandidates(
+          targetBusinessId: businessId,
+          activeBusinessId: activeBusinessId,
+        );
+        final preferred = await _pickBestDeliveryCandidate(
+          targetBusinessId: businessId,
+          candidates: candidates,
+        );
+        if (preferred != null) {
+          final autoSelected = preferred.copyWith(assignmentMode: 'auto');
+          nextDeliverySelections[businessId] = autoSelected;
+          autoAssignedSelections[businessId] = autoSelected;
+          autoAssigned++;
+        }
       }
-    }
-    if (!mounted) return;
-    if (autoAssigned > 0) {
-      for (final entry in autoAssignedSelections.entries) {
-        cartCubit.setDeliverySelectionForBusiness(entry.key, entry.value);
+      if (!mounted) return;
+      if (autoAssigned > 0) {
+        for (final entry in autoAssignedSelections.entries) {
+          cartCubit.setDeliverySelectionForBusiness(entry.key, entry.value);
+        }
+        showSnackOrAuthDialog(
+          context,
+          autoAssigned == 1
+              ? 'Se autoasigno 1 delivery preferente.'
+              : 'Se autoasignaron $autoAssigned deliveries preferentes.',
+        );
       }
+
+      final requesterBusinessId = activeBusinessCubit.state.activeBusiness?.id;
+      await cartCubit.submit(
+        contactName: _nameController.text.trim(),
+        phone: _phoneController.text.trim().isEmpty
+            ? null
+            : _phoneController.text.trim(),
+        email: _emailController.text.trim().isEmpty
+            ? null
+            : _emailController.text.trim(),
+        message: _messageController.text.trim().isEmpty
+            ? null
+            : _messageController.text.trim(),
+        deliveryAddress: _deliveryAddressController.text.trim().isEmpty
+            ? null
+            : _deliveryAddressController.text.trim(),
+        deliveryReference: _deliveryReferenceController.text.trim().isEmpty
+            ? null
+            : _deliveryReferenceController.text.trim(),
+        deliveryLatitude: _deliveryLocation?.latitude,
+        deliveryLongitude: _deliveryLocation?.longitude,
+        discountCode: _discountController.text.trim().isEmpty
+            ? null
+            : _discountController.text.trim(),
+        requesterBusinessId: requesterBusinessId,
+        deliverySelectionByBusiness: cartCubit.state.deliverySelectionByBusiness,
+      );
+    } catch (error) {
+      if (!mounted) return;
       showSnackOrAuthDialog(
         context,
-        autoAssigned == 1
-            ? 'Se autoasigno 1 delivery preferente.'
-            : 'Se autoasignaron $autoAssigned deliveries preferentes.',
+        'No se pudo procesar el envio con delivery. Intenta de nuevo. Detalle: $error',
       );
     }
-
-    final requesterBusinessId = activeBusinessCubit.state.activeBusiness?.id;
-    await cartCubit.submit(
-      contactName: _nameController.text.trim(),
-      phone: _phoneController.text.trim().isEmpty
-          ? null
-          : _phoneController.text.trim(),
-      email: _emailController.text.trim().isEmpty
-          ? null
-          : _emailController.text.trim(),
-      message: _messageController.text.trim().isEmpty
-          ? null
-          : _messageController.text.trim(),
-      deliveryAddress: _deliveryAddressController.text.trim().isEmpty
-          ? null
-          : _deliveryAddressController.text.trim(),
-      deliveryReference: _deliveryReferenceController.text.trim().isEmpty
-          ? null
-          : _deliveryReferenceController.text.trim(),
-      deliveryLatitude: _deliveryLocation?.latitude,
-      deliveryLongitude: _deliveryLocation?.longitude,
-      discountCode: _discountController.text.trim().isEmpty
-          ? null
-          : _discountController.text.trim(),
-      requesterBusinessId: requesterBusinessId,
-      deliverySelectionByBusiness:
-          cartCubit.state.deliverySelectionByBusiness,
-    );
   }
 
   Future<void> _pickDeliveryLocation() async {
@@ -395,13 +403,13 @@ class _CartViewState extends State<_CartView> {
           final business = connection.connectedBusiness;
           final isDeliveryConnection =
               type == 'delivery' ||
-              business?.businessParentCategory == 'transporte' ||
-              (business?.businessTypeName?.toLowerCase().contains('delivery') ?? false);
+              _isDeliveryRelationType(type) ||
+              _isLikelyDeliveryBusiness(business);
           if (!isDeliveryConnection) continue;
           final name =
               business?.name ??
               connection.notes ??
-              'Delivery conectado ${connection.connectedBusinessId.substring(0, 6)}';
+              'Delivery conectado ${_shortId(connection.connectedBusinessId)}';
           byId[connection.connectedBusinessId] = CartDeliverySelection(
             deliveryBusinessId: connection.connectedBusinessId,
             deliveryBusinessName: name,
@@ -427,11 +435,7 @@ class _CartViewState extends State<_CartView> {
     if (systemResult.isSuccess) {
       for (final business in systemResult.data ?? const <BusinessModel>[]) {
         if (business.id == targetBusinessId) continue;
-        final isDeliveryBusiness =
-            business.businessParentCategory == 'transporte' ||
-            (business.businessTypeName?.toLowerCase().contains('delivery') ??
-                false) ||
-            business.name.toLowerCase().contains('delivery');
+        final isDeliveryBusiness = _isLikelyDeliveryBusiness(business);
         if (!isDeliveryBusiness) continue;
         byId.putIfAbsent(
           business.id,
@@ -521,6 +525,42 @@ class _CartViewState extends State<_CartView> {
 
   String _normalizeZone(String? value) {
     return (value ?? '').trim().toLowerCase();
+  }
+
+  bool _isDeliveryRelationType(String relationType) {
+    final type = relationType.trim().toLowerCase();
+    return type.contains('delivery') ||
+        type.contains('reparto') ||
+        type.contains('mensaj') ||
+        type.contains('logistic') ||
+        type.contains('envio') ||
+        type.contains('transporte');
+  }
+
+  bool _isLikelyDeliveryBusiness(BusinessModel? business) {
+    if (business == null) return false;
+    final parent = (business.businessParentCategory ?? '').trim().toLowerCase();
+    final type = (business.businessTypeName ?? '').trim().toLowerCase();
+    final name = business.name.trim().toLowerCase();
+    final featureDelivery = business.features['delivery'] == true;
+    return parent == 'transporte' ||
+        type.contains('delivery') ||
+        type.contains('reparto') ||
+        type.contains('mensaj') ||
+        type.contains('logistic') ||
+        type.contains('envio') ||
+        type.contains('transporte') ||
+        name.contains('delivery') ||
+        name.contains('reparto') ||
+        name.contains('mensaj') ||
+        featureDelivery;
+  }
+
+  String _shortId(String value) {
+    final text = value.trim();
+    if (text.isEmpty) return 'sistema';
+    if (text.length <= 6) return text;
+    return text.substring(0, 6);
   }
 
   Map<String, List<CartItemModel>> _groupItems(List<CartItemModel> items) {

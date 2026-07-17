@@ -272,6 +272,23 @@ class _OperationsSection extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 8),
+            TextFormField(
+              initialValue:
+                  item?.features['reserva_minutos_default']?.toString() ?? '',
+              enabled: enabled,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Reserva por defecto (minutos)',
+                hintText: 'Ej: 1440 para 24 horas',
+                prefixIcon: Icon(Icons.timer_outlined),
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateReservationDefaultMinutes(
+                    int.tryParse(value.trim()),
+                  ),
+            ),
+            const SizedBox(height: 8),
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
               value: item?.availableNow ?? true,

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../config/http/api_client.dart';
 
@@ -75,6 +76,7 @@ class PushNotificationService {
         message.data['mensaje'] ??
         'Nueva notificacion recibida.';
 
+    SystemSound.play(SystemSoundType.alert);
     messengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('$title\n$body'),

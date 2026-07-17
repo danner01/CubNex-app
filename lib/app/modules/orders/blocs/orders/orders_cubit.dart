@@ -197,15 +197,27 @@ class OrdersCubit extends Cubit<OrdersState> {
   }
 
   Future<void> updateStatus(String orderId, String status) async {
+    return updateStatusWithOptions(orderId, status: status);
+  }
+
+  Future<void> updateStatusWithOptions(
+    String orderId, {
+    required String status,
+    int? reservationMinutes,
+  }) async {
     emit(state.copyWith(status: OrdersStatus.saving));
     final path = _groupedOrderIds.contains(orderId)
         ? '/ordenes/$orderId/estado'
         : _requestOrderIds.contains(orderId)
             ? '/solicitudes-red/$orderId'
             : '/pedidos/$orderId';
+    final payload = <String, dynamic>{'estado': status};
+    if (reservationMinutes != null && reservationMinutes > 0) {
+      payload['caduca_en_minutos'] = reservationMinutes;
+    }
     final result = await _apiClient.put<void>(
       path,
-      data: {'estado': status},
+      data: payload,
       parser: (_) {},
     );
 

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -50,6 +52,7 @@ const _clientStatusFilters = [
   _StatusFilterOption('recibido_cliente', 'Recibido'),
   _StatusFilterOption('vendido_en_tienda', 'Vendido'),
   _StatusFilterOption('completado', 'Completado'),
+  _StatusFilterOption('caducado', 'Caducado'),
   _StatusFilterOption('cancelado', 'Cancelado'),
 ];
 
@@ -68,6 +71,7 @@ const _statusShortLabels = {
   'recibido_cliente': 'Recibido',
   'vendido_en_tienda': 'Vendido',
   'completado': 'Completado',
+  'caducado': 'Caducado',
   'cancelado': 'Cancelado',
 };
 
@@ -531,6 +535,11 @@ class _OrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
+            if (order.supportsReservationExpiry &&
+                order.reservationExpiresAt != null) ...[
+              _ReservationCountdownChip(order: order),
+              const SizedBox(height: 10),
+            ],
             Wrap(
               spacing: 6,
               runSpacing: 6,
@@ -583,6 +592,80 @@ class _OrderCard extends StatelessWidget {
       'servicio' => Icons.handyman_outlined,
       _ => Icons.receipt_long_outlined,
     };
+  }
+}
+
+class _ReservationCountdownChip extends StatefulWidget {
+  const _ReservationCountdownChip({required this.order});
+
+  final OrderModel order;
+
+  @override
+  State<_ReservationCountdownChip> createState() =>
+      _ReservationCountdownChipState();
+}
+
+class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final remaining = widget.order.reservationTimeRemaining;
+    final expired = remaining == null || remaining.inSeconds <= 0;
+    final danger = !expired && remaining.inMinutes <= 60;
+    final color = expired
+        ? Theme.of(context).colorScheme.error
+        : danger
+        ? Colors.orange.shade700
+        : Colors.green.shade700;
+    final label = expired
+        ? 'Reserva caducada'
+        : 'Caduca en ${_formatDuration(remaining)}';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.timer_outlined, size: 14, color: color),
+          const SizedBox(width: 6),
+          Flexible(
+            child: Text(
+              label,
+              style: TextStyle(fontWeight: FontWeight.w700, color: color),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatDuration(Duration value) {
+    final safe = value.isNegative ? Duration.zero : value;
+    final hours = safe.inHours;
+    final minutes = safe.inMinutes.remainder(60);
+    final seconds = safe.inSeconds.remainder(60);
+    return '${hours.toString().padLeft(2, '0')}:'
+        '${minutes.toString().padLeft(2, '0')}:'
+        '${seconds.toString().padLeft(2, '0')}';
   }
 }
 
