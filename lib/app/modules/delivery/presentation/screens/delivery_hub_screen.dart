@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
@@ -83,6 +84,34 @@ class _DeliveryOrdersViewState extends State<_DeliveryOrdersView> {
   String? _statusFilter;
   DateTimeRange? _customRange;
   bool _showSearch = false;
+  bool _handledScanRefresh = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleScanRefresh());
+  }
+
+  void _handleScanRefresh() {
+    if (!mounted || _handledScanRefresh) return;
+    final currentUri = GoRouterState.of(context).uri;
+    final query = currentUri.queryParameters;
+    if (query['scan'] != 'ok') return;
+    _handledScanRefresh = true;
+
+    final message = query['scan_msg'] ?? 'Pedido actualizado correctamente.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    context.read<OrdersCubit>().load();
+
+    final cleanParams = Map<String, String>.from(query)
+      ..remove('scan')
+      ..remove('scan_msg');
+    final cleanUri = Uri(
+      path: currentUri.path,
+      queryParameters: cleanParams.isEmpty ? null : cleanParams,
+    );
+    context.replace(cleanUri.toString());
+  }
 
   @override
   Widget build(BuildContext context) {

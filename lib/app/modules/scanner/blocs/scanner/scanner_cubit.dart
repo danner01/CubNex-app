@@ -1,11 +1,8 @@
-import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:image_picker/image_picker.dart';
 
 import '../../../../config/http/api_client.dart';
-import '../../../home/data/models/product_model.dart';
 import 'scanner_state.dart';
 
 class ScannerCubit extends Cubit<ScannerState> {
@@ -14,7 +11,6 @@ class ScannerCubit extends Cubit<ScannerState> {
       super(const ScannerState());
 
   final ApiClient _apiClient;
-  final ImagePicker _picker = ImagePicker();
   bool _processing = false;
 
   Future<void> processCode(String rawValue) async {
@@ -26,37 +22,26 @@ class ScannerCubit extends Cubit<ScannerState> {
       state.copyWith(
         status: ScannerStatus.resolving,
         code: code,
-        products: const [],
+        orderQrValidated: false,
       ),
     );
     await _saveScan(code);
 
-    final directTarget = resolveDirectTarget(code);
-    if (directTarget != null) {
+    final orderQrToken = _extractOrderQrToken(code);
+    if (orderQrToken == null) {
       emit(
         state.copyWith(
-          status: ScannerStatus.success,
-          message: 'Enlace reconocido.',
+          status: ScannerStatus.failure,
+          message:
+              'QR no valido para pedidos. Escanea un QR de orden generado en la app.',
+          orderQrValidated: false,
         ),
       );
       _processing = false;
       return;
     }
 
-    final orderQrToken = _extractOrderQrToken(code);
-    if (orderQrToken != null) {
-      await _validateOrderQr(orderQrToken);
-      _processing = false;
-      return;
-    }
-
-    emit(
-      state.copyWith(
-        status: ScannerStatus.failure,
-        message:
-            'Para buscar productos usa una foto del producto o etiqueta. Los codigos solo abren enlaces directos.',
-      ),
-    );
+    await _validateOrderQr(orderQrToken);
     _processing = false;
   }
 
@@ -73,12 +58,18 @@ class ScannerCubit extends Cubit<ScannerState> {
     );
 
     if (!result.isSuccess) {
+      final serverMessage =
+          result.error?.message ?? 'No se pudo validar el QR de la orden.';
+      final normalized = serverMessage.toLowerCase();
+      final message =
+          normalized.contains('no puede cambiar el estado para tu rol')
+          ? '$serverMessage Verifica que el QR se escanee por el rol correcto en esta etapa.'
+          : serverMessage;
       emit(
         state.copyWith(
           status: ScannerStatus.failure,
-          message:
-              result.error?.message ??
-              'No se pudo validar el QR de la orden.',
+          message: message,
+          orderQrValidated: false,
         ),
       );
       return;
@@ -90,7 +81,8 @@ class ScannerCubit extends Cubit<ScannerState> {
     final order = payload['orden'];
     final orderId = order is Map ? order['id']?.toString() : null;
 
-    final statusMessage = nextStatus == null || nextStatus.isEmpty
+    final statusMessage =
+        nextStatus == null || nextStatus.isEmpty
         ? 'QR validado correctamente.'
         : previousStatus == null || previousStatus.isEmpty
         ? 'Pedido actualizado a: $nextStatus.'
@@ -99,6 +91,7 @@ class ScannerCubit extends Cubit<ScannerState> {
     emit(
       state.copyWith(
         status: ScannerStatus.success,
+        orderQrValidated: true,
         message:
             orderId == null || orderId.isEmpty
             ? statusMessage
@@ -107,165 +100,34 @@ class ScannerCubit extends Cubit<ScannerState> {
     );
   }
 
-  Future<void> pickAndSearchProduct(ImageSource source) async {
-    if (_processing) return;
-
-    final image = await _picker.pickImage(
-      source: source,
-      imageQuality: 72,
-      maxWidth: 1280,
-    );
-    if (image == null) return;
-
-    _processing = true;
-    emit(
-      state.copyWith(
-        status: ScannerStatus.resolving,
-        code: 'Imagen de producto',
-        products: const [],
-      ),
-    );
-
-    try {
-      final bytes = await image.readAsBytes();
-      final imageBase64 = base64Encode(bytes);
-      await _saveVisualScan(image.name);
-      await _searchVisual(
-        {
-          'imagen_base64': imageBase64,
-          'tipo_deteccion': 'producto_visual',
-          'guardar_historial': true,
-          'limite': 30,
-          'min_score': 10,
-        },
-        emptyMessage:
-            'No encontramos productos parecidos. Prueba con una foto mas clara de la etiqueta o empaque.',
-      );
-    } catch (error) {
-      emit(
-        state.copyWith(
-          status: ScannerStatus.failure,
-          message: 'No se pudo analizar la imagen. Intenta de nuevo.',
-        ),
-      );
-    } finally {
-      _processing = false;
-    }
-  }
-
-  Future<void> searchByDetectedText(String text) async {
-    final query = text.trim();
-    if (query.isEmpty || _processing) return;
-
-    _processing = true;
-    emit(
-      state.copyWith(
-        status: ScannerStatus.resolving,
-        code: query,
-        products: const [],
-      ),
-    );
-    await _saveVisualScan(query);
-    await _searchVisual({
-      'texto_detectado': query,
-      'limite': 30,
-      'min_score': 6,
-    }, emptyMessage: 'No encontramos productos parecidos a ese texto.');
-    _processing = false;
-  }
-
-  Future<void> _searchVisual(
-    Map<String, dynamic> payload, {
-    required String emptyMessage,
-  }) async {
-    final result = await _apiClient.post<List<ProductModel>>(
-      '/productos/buscar-visual',
-      data: payload,
-      parser: (json) {
-        if (json is List) {
-          return json
-              .whereType<Map>()
-              .map(
-                (item) =>
-                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
-              )
-              .toList();
-        }
-        if (json is Map) {
-          final products = json['productos'] ?? json['datos'] ?? json['items'];
-          if (products is List) {
-            return products
-                .whereType<Map>()
-                .map(
-                  (item) =>
-                      ProductModel.fromJson(Map<String, dynamic>.from(item)),
-                )
-                .toList();
-          }
-        }
-        return const [];
-      },
-    );
-
-    if (!result.isSuccess) {
-      emit(
-        state.copyWith(
-          status: ScannerStatus.failure,
-          message: result.error?.message ?? 'No se pudo analizar el producto.',
-        ),
-      );
-      return;
-    }
-
-    final products = result.data ?? const [];
-    emit(
-      state.copyWith(
-        status: ScannerStatus.success,
-        products: products,
-        message: products.isEmpty
-            ? emptyMessage
-            : products.length == 1
-            ? 'Producto parecido encontrado.'
-            : 'Encontramos ${products.length} productos parecidos.',
-      ),
-    );
-  }
-
-  String? resolveDirectTarget(String code) {
-    final uri = Uri.tryParse(code);
-    if (uri == null) return null;
-
-    final segments = uri.pathSegments;
-    for (var index = 0; index < segments.length; index++) {
-      final segment = segments[index].toLowerCase();
-      final next = index + 1 < segments.length ? segments[index + 1] : null;
-      if (next == null || next.isEmpty) continue;
-      if (segment == 'product' || segment == 'producto') {
-        return '/product/$next';
-      }
-      if (segment == 'store' || segment == 'tienda' || segment == 'negocio') {
-        return '/store/$next';
-      }
-    }
-
-    if (_uuidRegex.hasMatch(code)) return '/product/$code';
-    return null;
-  }
-
   String? _extractOrderQrToken(String code) {
     final trimmed = code.trim();
     if (trimmed.isEmpty) return null;
-    if (trimmed.toLowerCase().startsWith('qrt')) return trimmed;
+
+    final directToken = RegExp(r'(qrt_[A-Za-z0-9_-]+)', caseSensitive: false)
+        .firstMatch(trimmed)
+        ?.group(1);
+    if (directToken != null && directToken.isNotEmpty) {
+      return directToken;
+    }
 
     final uri = Uri.tryParse(trimmed);
     if (uri == null) return null;
-    final segments = uri.pathSegments;
-    for (var index = 0; index < segments.length - 2; index++) {
-      if (segments[index].toLowerCase() == 'ordenes' &&
-          segments[index + 1].toLowerCase() == 'qr') {
-        final token = segments[index + 2].trim();
+
+    for (var index = 0; index < uri.pathSegments.length - 2; index++) {
+      if (uri.pathSegments[index].toLowerCase() == 'ordenes' &&
+          uri.pathSegments[index + 1].toLowerCase() == 'qr') {
+        final token = uri.pathSegments[index + 2].trim();
         if (token.isNotEmpty) return token;
       }
+    }
+
+    final queryToken =
+        uri.queryParameters['token'] ??
+        uri.queryParameters['qr'] ??
+        uri.queryParameters['qr_codigo'];
+    if (queryToken != null && queryToken.trim().isNotEmpty) {
+      return queryToken.trim();
     }
 
     return null;
@@ -284,21 +146,9 @@ class ScannerCubit extends Cubit<ScannerState> {
     );
   }
 
-  Future<void> _saveVisualScan(String content) async {
-    await _apiClient.post<void>(
-      '/historial/escaneos',
-      data: {'tipo': 'etiqueta_ia', 'contenido': content},
-      parser: (_) {},
-    );
-  }
-
   String _scanType(String code) {
     final lower = code.toLowerCase();
     if (lower.contains('qr') || lower.startsWith('http')) return 'qr_producto';
     return 'codigo_barras';
   }
-
-  static final _uuidRegex = RegExp(
-    r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$',
-  );
 }

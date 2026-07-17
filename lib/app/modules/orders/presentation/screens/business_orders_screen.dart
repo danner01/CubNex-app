@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
@@ -82,6 +83,46 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
   String _clientQuery = '';
   DateTimeRange? _customRange;
   bool _showSearch = false;
+  bool _handledScanRefresh = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _handleScanRefresh());
+  }
+
+  Future<void> _reloadOrders() {
+    final businessId = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness
+        ?.id;
+    if (businessId == null) {
+      return context.read<OrdersCubit>().loadBusinessOrders();
+    }
+    return context.read<OrdersCubit>().load(businessId: businessId);
+  }
+
+  void _handleScanRefresh() {
+    if (!mounted || _handledScanRefresh) return;
+    final currentUri = GoRouterState.of(context).uri;
+    final query = currentUri.queryParameters;
+    if (query['scan'] != 'ok') return;
+    _handledScanRefresh = true;
+
+    final message = query['scan_msg'] ?? 'Pedido actualizado correctamente.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    _reloadOrders();
+
+    final cleanParams = Map<String, String>.from(query)
+      ..remove('scan')
+      ..remove('scan_msg');
+    final cleanUri = Uri(
+      path: currentUri.path,
+      queryParameters: cleanParams.isEmpty ? null : cleanParams,
+    );
+    context.replace(cleanUri.toString());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -175,21 +216,7 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
                       }
 
                       return RefreshIndicator(
-                        onRefresh: () {
-                          final businessId = context
-                              .read<ActiveBusinessCubit>()
-                              .state
-                              .activeBusiness
-                              ?.id;
-                          if (businessId == null) {
-                            return context
-                                .read<OrdersCubit>()
-                                .loadBusinessOrders();
-                          }
-                          return context.read<OrdersCubit>().load(
-                            businessId: businessId,
-                          );
-                        },
+                      onRefresh: _reloadOrders,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
                           children: [
@@ -591,6 +618,7 @@ class _BusinessOrderCard extends StatelessWidget {
         ? order.status
         : (editableStatuses.isEmpty ? null : editableStatuses.first);
     final imageUrl = order.primaryImageUrl;
+    final hasQr = order.canShowQrAction;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -650,7 +678,33 @@ class _BusinessOrderCard extends StatelessWidget {
                     ],
                   ),
                 ),
-                _StatusPill(status: order.status, label: order.statusLabel),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
+                  children: [
+                    _StatusPill(status: order.status, label: order.statusLabel),
+                    if (hasQr) ...[
+                      const SizedBox(height: 6),
+                      _QrActionChip(
+                        onTap: () async {
+                          await showOrderQrDialogForOrder(context, order);
+                          if (!context.mounted) return;
+                          final businessId = context
+                              .read<ActiveBusinessCubit>()
+                              .state
+                              .activeBusiness
+                              ?.id;
+                          if (businessId == null) {
+                            await context.read<OrdersCubit>().loadBusinessOrders();
+                            return;
+                          }
+                          await context.read<OrdersCubit>().load(
+                            businessId: businessId,
+                          );
+                        },
+                      ),
+                    ],
+                  ],
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -994,6 +1048,42 @@ class _MetaChip extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _QrActionChip extends StatelessWidget {
+  const _QrActionChip({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.secondary;
+    return Material(
+      color: color.withValues(alpha: 0.16),
+      borderRadius: BorderRadius.circular(999),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(999),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.qr_code_2_rounded, size: 14, color: color),
+              const SizedBox(width: 4),
+              Text(
+                'Ver QR',
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                  color: color,
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

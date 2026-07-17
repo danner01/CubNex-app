@@ -9,6 +9,12 @@ class AppEnvironment {
     defaultValue: productionApiBaseUrl,
   );
 
+  static const apkUpdateManifestUrl = String.fromEnvironment(
+    'APK_UPDATE_MANIFEST_URL',
+    defaultValue:
+        'https://supermarket-superadmin-rfz6.vercel.app/api/apk/latest',
+  );
+
   static const mapboxAccessToken = String.fromEnvironment(
     'MAPBOX_ACCESS_TOKEN',
     defaultValue:

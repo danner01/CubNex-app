@@ -3,8 +3,11 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../blocs/app_session/app_session_cubit.dart';
+import '../../services/apk_update_service.dart';
+import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../entities/user_role.dart';
@@ -43,7 +46,18 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _goToOnboarding() async {
+    final updateFuture = _checkForUpdate()
+        .timeout(
+          const Duration(seconds: 4),
+          onTimeout: () => null,
+        )
+        .catchError((_) => null);
     await Future<void>.delayed(_totalDuration);
+    if (!mounted) return;
+    final update = await updateFuture;
+    if (mounted && update != null) {
+      await _showUpdateDialog(update);
+    }
     if (!mounted) return;
     final session = context.read<AppSessionCubit>().state;
     final target = switch (session.status) {
@@ -53,7 +67,52 @@ class _SplashScreenState extends State<SplashScreen>
         session.onboardingSeen ? AppRoutes.login : AppRoutes.onboarding,
       AppSessionStatus.loading => AppRoutes.onboarding,
     };
+    if (!mounted) return;
     context.go(target);
+  }
+
+  Future<ApkUpdateInfo?> _checkForUpdate() {
+    return sl<ApkUpdateService>().checkForUpdate();
+  }
+
+  Future<void> _showUpdateDialog(ApkUpdateInfo update) async {
+    final shouldOpen = await showDialog<bool>(
+      context: context,
+      barrierDismissible: true,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva version disponible'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Version ${update.version}'),
+              const SizedBox(height: 8),
+              Text(
+                update.notes?.isNotEmpty == true
+                    ? update.notes!
+                    : 'Hay una actualizacion lista para descargar.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Mas tarde'),
+            ),
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              child: const Text('Actualizar'),
+            ),
+          ],
+        );
+      },
+    );
+
+    if (shouldOpen != true) return;
+    final uri = Uri.tryParse(update.downloadUrl);
+    if (uri == null) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   String _defaultLocationForRole(UserRole role) {

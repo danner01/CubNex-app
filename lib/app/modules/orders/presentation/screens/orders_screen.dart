@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
+import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/orders/orders_cubit.dart';
@@ -86,6 +87,36 @@ class _OrdersViewState extends State<_OrdersView> {
   bool _showSearch = false;
   String _searchQuery = '';
   String? _statusFilter;
+  bool _handledScanRefresh = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _handleScanRefresh();
+    });
+  }
+
+  void _handleScanRefresh() {
+    if (!mounted || _handledScanRefresh) return;
+    final currentUri = GoRouterState.of(context).uri;
+    final query = currentUri.queryParameters;
+    if (query['scan'] != 'ok') return;
+    _handledScanRefresh = true;
+
+    final message = query['scan_msg'] ?? 'Pedido actualizado correctamente.';
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    context.read<OrdersCubit>().load(businessId: widget.businessId);
+
+    final cleanParams = Map<String, String>.from(query)
+      ..remove('scan')
+      ..remove('scan_msg');
+    final cleanUri = Uri(
+      path: currentUri.path,
+      queryParameters: cleanParams.isEmpty ? null : cleanParams,
+    );
+    context.replace(cleanUri.toString());
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +241,10 @@ class _OrdersViewState extends State<_OrdersView> {
                                   'No hay pedidos en el rango de fecha seleccionado.',
                             )
                           else
-                            ...visibleItems.map(_OrderCard.new),
+                          ...visibleItems.map(
+                            (order) =>
+                                _OrderCard(order, businessId: widget.businessId),
+                          ),
                         ],
                       ),
                     );
@@ -390,9 +424,10 @@ class _CustomDateRangeBar extends StatelessWidget {
 }
 
 class _OrderCard extends StatelessWidget {
-  const _OrderCard(this.order);
+  const _OrderCard(this.order, {required this.businessId});
 
   final OrderModel order;
+  final String? businessId;
 
   @override
   Widget build(BuildContext context) {
@@ -403,7 +438,7 @@ class _OrderCard extends StatelessWidget {
         ? null
         : '${order.createdAt!.day.toString().padLeft(2, '0')}/${order.createdAt!.month.toString().padLeft(2, '0')}/${order.createdAt!.year}';
     final imageUrl = order.primaryImageUrl;
-    final hasQr = order.qrUrl != null && order.qrUrl!.isNotEmpty;
+    final hasQr = order.canShowQrAction;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -473,7 +508,13 @@ class _OrderCard extends StatelessWidget {
                     if (hasQr) ...[
                       const SizedBox(height: 6),
                       _QrActionChip(
-                        onTap: () => _showOrderQr(context, order.qrUrl!),
+                        onTap: () async {
+                          await showOrderQrDialogForOrder(context, order);
+                          if (!context.mounted) return;
+                          await context.read<OrdersCubit>().load(
+                            businessId: businessId,
+                          );
+                        },
                       ),
                     ],
                   ],
@@ -542,45 +583,6 @@ class _OrderCard extends StatelessWidget {
       'servicio' => Icons.handyman_outlined,
       _ => Icons.receipt_long_outlined,
     };
-  }
-
-  Future<void> _showOrderQr(BuildContext context, String qrUrl) {
-    return showDialog<void>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('QR del pedido'),
-          content: SizedBox(
-            width: 260,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                AspectRatio(
-                  aspectRatio: 1,
-                  child: Image.network(
-                    qrUrl,
-                    fit: BoxFit.contain,
-                    errorBuilder: (_, _, _) =>
-                        const Center(child: Text('No se pudo cargar el QR.')),
-                  ),
-                ),
-                const SizedBox(height: 8),
-                const Text(
-                  'Muestra este QR al negocio o delivery para avanzar el estado del pedido.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(),
-              child: const Text('Cerrar'),
-            ),
-          ],
-        );
-      },
-    );
   }
 }
 

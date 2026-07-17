@@ -1,3 +1,5 @@
+import '../../../../config/environment/app_environment.dart';
+
 class OrderModel {
   const OrderModel({
     required this.id,
@@ -40,6 +42,48 @@ class OrderModel {
   final String? qrCode;
   final String? qrUrl;
   final DateTime? createdAt;
+
+  bool get hasQr => qrValue != null;
+
+  bool get canShowQrAction {
+    if (hasQr) return true;
+    return switch (status) {
+      'reservado_recogida' ||
+      'reservado_delivery' ||
+      'solicitada' ||
+      'recibida' ||
+      'confirmado_negocio' ||
+      'preparando' ||
+      'listo_para_recoger' ||
+      'delivery_asignado' ||
+      'recogido_por_delivery' ||
+      'en_ruta' ||
+      'entregado_por_delivery' ||
+      'recibido_cliente' ||
+      'vendido_en_tienda' ||
+      'completado' => true,
+      _ => false,
+    };
+  }
+
+  String? get qrValue {
+    final url = _normalizedQrValue(
+      qrUrl ??
+          metadata?['qr_url'] ??
+          metadata?['qrUrl'] ??
+          metadata?['codigo_qr_url'],
+    );
+    if (url != null) return url;
+
+    final code = _normalizedQrValue(
+      qrCode ??
+          metadata?['qr_codigo'] ??
+          metadata?['qrCode'] ??
+          metadata?['token_qr'],
+    );
+    if (code == null) return null;
+    return '${AppEnvironment.apiBaseUrl}/api/v1/ordenes/qr/$code';
+  }
 
   String get title {
     if (items.isNotEmpty) {
@@ -141,6 +185,13 @@ class OrderModel {
     final rawMetadata = json['metadata'] is Map
         ? Map<String, dynamic>.from(json['metadata'] as Map)
         : <String, dynamic>{};
+    final qrRelation = json['qr'];
+    final qrEntry = qrRelation is List && qrRelation.isNotEmpty
+        ? qrRelation.first
+        : qrRelation;
+    final qrMap = qrEntry is Map
+        ? Map<String, dynamic>.from(qrEntry)
+        : <String, dynamic>{};
     final synthesizedMetadata = <String, dynamic>{
       if (json['nombre_producto'] != null)
         'nombre_producto': json['nombre_producto'],
@@ -158,6 +209,9 @@ class OrderModel {
       if (json['precio_referencia'] != null)
         'precio_referencia': json['precio_referencia'],
       if (json['cantidad'] != null) 'cantidad': json['cantidad'],
+      if (json['qr_url'] != null) 'qr_url': json['qr_url'],
+      if (json['qr_codigo'] != null) 'qr_codigo': json['qr_codigo'],
+      if (qrMap['token'] != null) 'token_qr': qrMap['token'],
     };
     final mergedMetadata = <String, dynamic>{
       ...rawMetadata,
@@ -196,10 +250,20 @@ class OrderModel {
         '${json['total_estimado'] ?? json['precio_referencia'] ?? ''}',
       ),
       metadata: mergedMetadata.isEmpty ? null : mergedMetadata,
-      qrCode: json['qr_codigo']?.toString(),
-      qrUrl: json['qr_url']?.toString(),
+      qrCode: _normalizedQrValue(
+        json['qr_codigo'] ?? json['qrCode'] ?? qrMap['token'],
+      ),
+      qrUrl: _normalizedQrValue(
+        json['qr_url'] ?? json['qrUrl'] ?? qrMap['qr_url'] ?? qrMap['data_url'],
+      ),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     );
+  }
+
+  static String? _normalizedQrValue(Object? value) {
+    if (value == null) return null;
+    final normalized = '$value'.trim();
+    return normalized.isEmpty ? null : normalized;
   }
 }
 

@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import 'dart:math' as math;
 
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
-import '../../../home/data/models/product_model.dart';
 import '../../blocs/scanner/scanner_cubit.dart';
 import '../../blocs/scanner/scanner_state.dart';
 
@@ -30,36 +28,45 @@ class _ScannerView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: BlocConsumer<ScannerCubit, ScannerState>(
-        listener: (context, state) {
-          final message = state.message;
-          if (message != null) {
-            showSnackOrAuthDialog(context, message);
-          }
-
-          if (state.status == ScannerStatus.success && state.code != null) {
-            final directTarget = context
-                .read<ScannerCubit>()
-                .resolveDirectTarget(state.code!);
-            if (directTarget != null) {
-              context.go(directTarget);
+      body: SafeArea(
+        child: BlocConsumer<ScannerCubit, ScannerState>(
+          listener: (context, state) {
+            if (state.status == ScannerStatus.success && state.orderQrValidated) {
+              final target = _ordersRouteForMode(
+                context.read<RoleModeCubit>().state.activeMode,
+              );
+              final destination = Uri(
+                path: target,
+                queryParameters: {
+                  'scan': 'ok',
+                  if (state.message != null && state.message!.isNotEmpty)
+                    'scan_msg': state.message,
+                },
+              ).toString();
+              context.go(destination);
               return;
             }
-            if (state.products.length == 1) {
-              context.go(AppRoutes.product(state.products.first.id));
-            }
-          }
-        },
-        builder: (context, state) {
-          final resolving = state.status == ScannerStatus.resolving;
-          final showingProductResults = state.products.length > 1;
 
-          return Column(
-            children: [
-              if (!showingProductResults)
+            final message = state.message;
+            if (message != null) {
+              showSnackOrAuthDialog(context, message);
+            }
+          },
+          builder: (context, state) {
+            final resolving = state.status == ScannerStatus.resolving;
+            return Column(
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                  child: _HeaderCard(
+                    onRestart: resolving
+                        ? null
+                        : () => context.read<ScannerCubit>().restart(),
+                  ),
+                ),
                 Expanded(
                   child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+                    padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(24),
                       child: Stack(
@@ -78,15 +85,7 @@ class _ScannerView extends StatelessWidget {
                                     );
                                   },
                           ),
-                          DecoratedBox(
-                            decoration: BoxDecoration(
-                              border: Border.all(
-                                color: Theme.of(context).colorScheme.secondary,
-                                width: 3,
-                              ),
-                              borderRadius: BorderRadius.circular(24),
-                            ),
-                          ),
+                          const _QrFocusOverlay(),
                           if (resolving)
                             ColoredBox(
                               color: Colors.black.withValues(alpha: 0.45),
@@ -99,253 +98,152 @@ class _ScannerView extends StatelessWidget {
                     ),
                   ),
                 ),
-              Flexible(
-                fit: showingProductResults ? FlexFit.tight : FlexFit.loose,
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Card(
-                    child: SingleChildScrollView(
-                      padding: const EdgeInsets.all(16),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Escaneo inteligente',
-                            style: Theme.of(context).textTheme.titleMedium
-                                ?.copyWith(fontWeight: FontWeight.w900),
-                          ),
-                          const SizedBox(height: 6),
-                          const Text(
-                            'Escanea QR de pedidos para validar entregas o usa foto para buscar productos por etiqueta/empaque.',
-                            textAlign: TextAlign.center,
-                          ),
-                          if (state.code != null) ...[
-                            const SizedBox(height: 12),
-                            SelectableText(
-                              state.code!,
-                              textAlign: TextAlign.center,
-                              style: Theme.of(context).textTheme.bodySmall,
-                            ),
-                          ],
-                          if (showingProductResults) ...[
-                            const SizedBox(height: 12),
-                            _PagedScannerResults(
-                              key: ValueKey(
-                                state.products.map((item) => item.id).join('|'),
-                              ),
-                              products: state.products,
-                            ),
-                          ],
-                          const SizedBox(height: 12),
-                          SafeArea(
-                            top: false,
-                            minimum: const EdgeInsets.only(bottom: 8),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: FilledButton.icon(
-                                        onPressed: resolving
-                                            ? null
-                                            : () => context
-                                                  .read<ScannerCubit>()
-                                                  .pickAndSearchProduct(
-                                                    ImageSource.camera,
-                                                  ),
-                                        icon: const Icon(
-                                          Icons.camera_alt_rounded,
-                                        ),
-                                        label: const Text('Foto'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Expanded(
-                                      child: OutlinedButton.icon(
-                                        onPressed: resolving
-                                            ? null
-                                            : () => context
-                                                  .read<ScannerCubit>()
-                                                  .pickAndSearchProduct(
-                                                    ImageSource.gallery,
-                                                  ),
-                                        icon: const Icon(
-                                          Icons.photo_library_outlined,
-                                        ),
-                                        label: const Text('Galeria'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 10),
-                                OutlinedButton.icon(
-                                  onPressed: resolving
-                                      ? null
-                                      : () => context
-                                            .read<ScannerCubit>()
-                                            .restart(),
-                                  icon: const Icon(Icons.refresh),
-                                  label: const Text('Escanear otro'),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ],
-          );
-        },
+              ],
+            );
+          },
+        ),
       ),
     );
   }
 }
 
-class _PagedScannerResults extends StatefulWidget {
-  const _PagedScannerResults({super.key, required this.products});
+class _HeaderCard extends StatelessWidget {
+  const _HeaderCard({this.onRestart});
 
-  final List<ProductModel> products;
-
-  @override
-  State<_PagedScannerResults> createState() => _PagedScannerResultsState();
-}
-
-class _PagedScannerResultsState extends State<_PagedScannerResults> {
-  static const _pageSize = 10;
-  static const _initialPageSize = 5;
-  final _controller = ScrollController();
-  int _visibleCount = _initialPageSize;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller.addListener(_loadMoreNearBottom);
-  }
-
-  @override
-  void didUpdateWidget(covariant _PagedScannerResults oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.products != widget.products) {
-      _visibleCount = _initialPageSize;
-      if (_controller.hasClients) {
-        _controller.jumpTo(0);
-      }
-    }
-  }
-
-  @override
-  void dispose() {
-    _controller
-      ..removeListener(_loadMoreNearBottom)
-      ..dispose();
-    super.dispose();
-  }
-
-  void _loadMoreNearBottom() {
-    if (!_controller.hasClients) return;
-    final position = _controller.position;
-    if (position.pixels < position.maxScrollExtent - 72) return;
-    if (_visibleCount >= widget.products.length) return;
-    setState(() {
-      _visibleCount = math.min(
-        _visibleCount + _pageSize,
-        widget.products.length,
-      );
-    });
-  }
+  final VoidCallback? onRestart;
 
   @override
   Widget build(BuildContext context) {
-    final visible = widget.products.take(_visibleCount).toList();
-    final height = math.min(
-      MediaQuery.sizeOf(context).height * 0.28,
-      math.max(148.0, visible.length * 72.0),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Text(
-          '${visible.length} de ${widget.products.length} coincidencias',
-          style: Theme.of(context).textTheme.bodySmall,
-          textAlign: TextAlign.center,
-        ),
-        const SizedBox(height: 8),
-        SizedBox(
-          height: height,
-          child: ListView.separated(
-            controller: _controller,
-            primary: false,
-            itemCount: visible.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final product = visible[index];
-              return ListTile(
-                contentPadding: EdgeInsets.zero,
-                leading: _ProductThumb(product),
-                title: Text(
-                  product.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  [
-                        product.brand,
-                        product.businessName,
-                        product.currentPrice == null
-                            ? null
-                            : '${product.currentPrice!.toStringAsFixed(0)} ${product.currency ?? 'CUP'}',
-                      ]
-                      .whereType<String>()
-                      .where((item) => item.isNotEmpty)
-                      .join(' · '),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                trailing: const Icon(Icons.chevron_right),
-                onTap: () => context.go(AppRoutes.product(product.id)),
-              );
-            },
-          ),
-        ),
-        if (_visibleCount < widget.products.length)
-          Padding(
-            padding: const EdgeInsets.only(top: 8),
-            child: Text(
-              'Desliza para cargar 10 mas.',
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
+        child: Column(
+          children: [
+            Text(
+              'Escanear QR de pedido',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodySmall,
             ),
-          ),
-      ],
+            const SizedBox(height: 6),
+            const Text(
+              'Coloca el codigo dentro del marco para validar automaticamente el estado del pedido.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 10),
+            OutlinedButton.icon(
+              onPressed: onRestart,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Escanear otro'),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
 
-class _ProductThumb extends StatelessWidget {
-  const _ProductThumb(this.product);
-
-  final ProductModel product;
+class _QrFocusOverlay extends StatelessWidget {
+  const _QrFocusOverlay();
 
   @override
   Widget build(BuildContext context) {
-    final image = product.imageUrl;
-    if (image == null || image.isEmpty) {
-      return const Icon(Icons.inventory_2_outlined);
-    }
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: Image.network(
-        image,
-        width: 42,
-        height: 42,
-        fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => const Icon(Icons.inventory_2_outlined),
-      ),
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final side = (constraints.maxWidth * 0.72).clamp(180.0, 300.0);
+        final rect = Rect.fromCenter(
+          center: Offset(
+            constraints.maxWidth / 2,
+            constraints.maxHeight / 2,
+          ),
+          width: side,
+          height: side,
+        );
+        return Stack(
+          children: [
+            CustomPaint(
+              size: Size(constraints.maxWidth, constraints.maxHeight),
+              painter: _QrMaskPainter(cutout: rect, radius: 18),
+            ),
+            Positioned.fromRect(
+              rect: rect,
+              child: CustomPaint(painter: _QrCornersPainter()),
+            ),
+          ],
+        );
+      },
     );
   }
+}
+
+class _QrMaskPainter extends CustomPainter {
+  _QrMaskPainter({required this.cutout, required this.radius});
+
+  final Rect cutout;
+  final double radius;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final outer = Path()..addRect(Offset.zero & size);
+    final inner = Path()
+      ..addRRect(RRect.fromRectAndRadius(cutout, Radius.circular(radius)));
+    final overlay = Path.combine(PathOperation.difference, outer, inner);
+    canvas.drawPath(
+      overlay,
+      Paint()..color = Colors.black.withValues(alpha: 0.35),
+    );
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(cutout, Radius.circular(radius)),
+      Paint()
+        ..color = Colors.white.withValues(alpha: 0.25)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 1.5,
+    );
+  }
+
+  @override
+  bool shouldRepaint(covariant _QrMaskPainter oldDelegate) {
+    return oldDelegate.cutout != cutout || oldDelegate.radius != radius;
+  }
+}
+
+class _QrCornersPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    const corner = 28.0;
+    const stroke = 5.0;
+    final paint = Paint()
+      ..color = const Color(0xFF5FE8C7)
+      ..strokeWidth = stroke
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
+
+    final p = Path()
+      ..moveTo(0, corner)
+      ..lineTo(0, 0)
+      ..lineTo(corner, 0)
+      ..moveTo(size.width - corner, 0)
+      ..lineTo(size.width, 0)
+      ..lineTo(size.width, corner)
+      ..moveTo(size.width, size.height - corner)
+      ..lineTo(size.width, size.height)
+      ..lineTo(size.width - corner, size.height)
+      ..moveTo(corner, size.height)
+      ..lineTo(0, size.height)
+      ..lineTo(0, size.height - corner);
+    canvas.drawPath(p, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
+}
+
+String _ordersRouteForMode(RoleMode mode) {
+  return switch (mode) {
+    RoleMode.client => AppRoutes.orders,
+    RoleMode.business => AppRoutes.businessOrders,
+    RoleMode.delivery => AppRoutes.deliveryRequests,
+  };
 }

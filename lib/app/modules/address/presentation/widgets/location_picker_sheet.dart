@@ -3,15 +3,19 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../config/environment/app_environment.dart';
+import '../../../../config/http/api_client.dart';
+import '../../../../config/injection/injection.dart';
 
 class PickedLocation {
   const PickedLocation({
     required this.latitude,
     required this.longitude,
+    this.address,
   });
 
   final double latitude;
   final double longitude;
+  final String? address;
 }
 
 class LocationPickerSheet extends StatefulWidget {
@@ -37,15 +41,21 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
   static const _defaultLongitude = -82.3666;
 
   MapboxMap? _mapboxMap;
+  late final CameraViewportState _cameraViewport;
   late double _latitude = widget.initialLatitude ?? _defaultLatitude;
   late double _longitude = widget.initialLongitude ?? _defaultLongitude;
   late final bool _tokenReady;
+  bool _resolvingAddress = false;
   bool _locating = false;
 
   @override
   void initState() {
     super.initState();
     _tokenReady = AppEnvironment.mapboxAccessToken.isNotEmpty;
+    _cameraViewport = CameraViewportState(
+      center: Point(coordinates: Position(_longitude, _latitude)),
+      zoom: 13,
+    );
     if (_tokenReady) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
@@ -88,22 +98,33 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                     ? Stack(
                         children: [
                           MapWidget(
-                            viewport: CameraViewportState(
-                              center: Point(
-                                coordinates: Position(_longitude, _latitude),
-                              ),
-                              zoom: 13,
-                            ),
+                            viewport: _cameraViewport,
                             onMapCreated: (mapboxMap) {
                               _mapboxMap = mapboxMap;
                               mapboxMap.addInteraction(
-                                TapInteraction.onMap((gesture) {
+                                TapInteraction.onMap((gesture) async {
                                   final coordinates =
                                       gesture.point.coordinates;
                                   setState(() {
                                     _longitude = coordinates.lng.toDouble();
                                     _latitude = coordinates.lat.toDouble();
                                   });
+                                  final cameraState =
+                                      await mapboxMap.getCameraState();
+                                  mapboxMap.flyTo(
+                                    CameraOptions(
+                                      center: Point(
+                                        coordinates: Position(
+                                          _longitude,
+                                          _latitude,
+                                        ),
+                                      ),
+                                      zoom: cameraState.zoom,
+                                      pitch: cameraState.pitch,
+                                      bearing: cameraState.bearing,
+                                    ),
+                                    MapAnimationOptions(duration: 140),
+                                  );
                                 }),
                                 interactionID: 'location_picker_tap',
                               );
@@ -114,6 +135,25 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                               Icons.location_pin,
                               color: theme.colorScheme.error,
                               size: 42,
+                            ),
+                          ),
+                          Positioned(
+                            right: 12,
+                            bottom: 12,
+                            child: Column(
+                              children: [
+                                FloatingActionButton.small(
+                                  heroTag: 'location_picker_zoom_in',
+                                  onPressed: () => _adjustZoom(0.9),
+                                  child: const Icon(Icons.add),
+                                ),
+                                const SizedBox(height: 8),
+                                FloatingActionButton.small(
+                                  heroTag: 'location_picker_zoom_out',
+                                  onPressed: () => _adjustZoom(-0.9),
+                                  child: const Icon(Icons.remove),
+                                ),
+                              ],
                             ),
                           ),
                         ],
@@ -150,12 +190,19 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
             Text(
               'Coordenadas: ${_latitude.toStringAsFixed(6)}, ${_longitude.toStringAsFixed(6)}',
             ),
+            const SizedBox(height: 4),
+            Text(
+              'Tip: usa dos dedos para acercar/alejar y toca el mapa para marcar.',
+              style: theme.textTheme.bodySmall,
+            ),
             const SizedBox(height: 14),
             Row(
               children: [
                 Expanded(
                   child: OutlinedButton.icon(
-                    onPressed: _locating ? null : _useCurrentLocation,
+                    onPressed: (_locating || _resolvingAddress)
+                        ? null
+                        : _useCurrentLocation,
                     icon: _locating
                         ? const SizedBox(
                             width: 16,
@@ -169,14 +216,19 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
                 const SizedBox(width: 10),
                 Expanded(
                   child: FilledButton.icon(
-                    onPressed: () => Navigator.of(context).pop(
-                      PickedLocation(
-                        latitude: _latitude,
-                        longitude: _longitude,
-                      ),
+                    onPressed: (_locating || _resolvingAddress)
+                        ? null
+                        : _confirmSelection,
+                    icon: _resolvingAddress
+                        ? const SizedBox(
+                            width: 16,
+                            height: 16,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.check),
+                    label: Text(
+                      _resolvingAddress ? 'Resolviendo direccion...' : 'Usar punto',
                     ),
-                    icon: const Icon(Icons.check),
-                    label: const Text('Usar punto'),
                   ),
                 ),
               ],
@@ -223,8 +275,55 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
     }
   }
 
+  Future<void> _confirmSelection() async {
+    setState(() => _resolvingAddress = true);
+    final address = await _resolveAddress();
+    if (!mounted) return;
+    setState(() => _resolvingAddress = false);
+    Navigator.of(context).pop(
+      PickedLocation(
+        latitude: _latitude,
+        longitude: _longitude,
+        address: address,
+      ),
+    );
+  }
+
   void _showMessage(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _adjustZoom(double delta) async {
+    final mapboxMap = _mapboxMap;
+    if (mapboxMap == null) return;
+    final cameraState = await mapboxMap.getCameraState();
+    final nextZoom = (cameraState.zoom + delta).clamp(3.0, 19.0);
+    await mapboxMap.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(_longitude, _latitude)),
+        zoom: nextZoom,
+      ),
+      MapAnimationOptions(duration: 220),
+    );
+  }
+
+  Future<String?> _resolveAddress() async {
+    final result = await sl<ApiClient>().get<Map<String, dynamic>>(
+      '/mapbox/geocodificar-inverso',
+      queryParameters: {'lat': _latitude, 'lng': _longitude},
+      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+    );
+    if (!result.isSuccess || result.data == null) return null;
+    final data = result.data!;
+    final raw =
+        data['direccion'] ??
+        data['place_name'] ??
+        data['placeName'] ??
+        data['nombre'] ??
+        data['address'];
+    if (raw is! String) return null;
+    final normalized = raw.trim();
+    return normalized.isEmpty ? null : normalized;
   }
 }

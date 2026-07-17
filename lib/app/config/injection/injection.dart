@@ -10,6 +10,7 @@ import '../../common/blocs/app_theme/app_theme_cubit.dart';
 import '../../common/blocs/active_business/active_business_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
+import '../../common/services/apk_update_service.dart';
 import '../../common/services/push_notification_service.dart';
 import '../../common/services/share_service.dart';
 import '../../modules/auth/data/datasources/auth_remote_data_source.dart';
@@ -60,6 +61,7 @@ Future<void> configureDependencies() async {
   sl
     ..registerLazySingleton<SharedPreferences>(() => sharedPreferences)
     ..registerLazySingleton(ApiClient.new)
+    ..registerLazySingleton(ApkUpdateService.new)
     ..registerLazySingleton(ContactService.new)
     ..registerLazySingleton(() => ShareService(apiClient: sl()))
     ..registerLazySingleton(() => FirebaseAuth.instance)

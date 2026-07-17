@@ -7,7 +7,6 @@ import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/scan_history/scan_history_cubit.dart';
 import '../../blocs/scan_history/scan_history_state.dart';
-import '../../blocs/scanner/scanner_cubit.dart';
 
 class ScanHistoryScreen extends StatelessWidget {
   const ScanHistoryScreen({super.key});
@@ -79,9 +78,7 @@ class _ScanHistoryView extends StatelessWidget {
                         subtitle: Text('${item.type} · $date'),
                         trailing: const Icon(Icons.chevron_right_rounded),
                         onTap: () {
-                          final target = sl<ScannerCubit>().resolveDirectTarget(
-                            item.content,
-                          );
+                          final target = _resolveDirectTarget(item.content);
                           if (target != null) {
                             context.go(target);
                             return;
@@ -106,4 +103,23 @@ class _ScanHistoryView extends StatelessWidget {
       ),
     );
   }
+}
+
+String? _resolveDirectTarget(String code) {
+  final uri = Uri.tryParse(code);
+  if (uri == null) return null;
+
+  final segments = uri.pathSegments;
+  for (var index = 0; index < segments.length; index++) {
+    final segment = segments[index].toLowerCase();
+    final next = index + 1 < segments.length ? segments[index + 1] : null;
+    if (next == null || next.isEmpty) continue;
+    if (segment == 'product' || segment == 'producto') {
+      return '/product/$next';
+    }
+    if (segment == 'store' || segment == 'tienda' || segment == 'negocio') {
+      return '/store/$next';
+    }
+  }
+  return null;
 }

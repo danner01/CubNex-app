@@ -8,6 +8,7 @@ import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../address/presentation/widgets/location_picker_sheet.dart';
 import '../../../business_network/data/models/business_connection_model.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../blocs/cart/cart_cubit.dart';
@@ -41,6 +42,7 @@ class _CartViewState extends State<_CartView> {
   final _deliveryReferenceController = TextEditingController();
   final _discountController = TextEditingController();
   final Map<String, BusinessModel> _businessDetailsCache = {};
+  PickedLocation? _deliveryLocation;
   bool _prefilled = false;
 
   @override
@@ -124,6 +126,9 @@ class _CartViewState extends State<_CartView> {
                   requiresDelivery: state.deliveryByBusiness.values.any(
                     (value) => value,
                   ),
+                  selectedDeliveryLocation: _deliveryLocation,
+                  onPickDeliveryLocation: () =>
+                      unawaited(_pickDeliveryLocation()),
                 ),
                 const SizedBox(height: 18),
                 Card(
@@ -268,6 +273,8 @@ class _CartViewState extends State<_CartView> {
       deliveryReference: _deliveryReferenceController.text.trim().isEmpty
           ? null
           : _deliveryReferenceController.text.trim(),
+      deliveryLatitude: _deliveryLocation?.latitude,
+      deliveryLongitude: _deliveryLocation?.longitude,
       discountCode: _discountController.text.trim().isEmpty
           ? null
           : _discountController.text.trim(),
@@ -275,6 +282,31 @@ class _CartViewState extends State<_CartView> {
       deliverySelectionByBusiness:
           cartCubit.state.deliverySelectionByBusiness,
     );
+  }
+
+  Future<void> _pickDeliveryLocation() async {
+    final picked = await showModalBottomSheet<PickedLocation>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => LocationPickerSheet(
+        initialLatitude: _deliveryLocation?.latitude,
+        initialLongitude: _deliveryLocation?.longitude,
+        title: 'Punto de entrega',
+        description:
+            'Toca el mapa para marcar la direccion de entrega. Puedes acercar o alejar con dos dedos.',
+      ),
+    );
+    if (!mounted || picked == null) return;
+    setState(() => _deliveryLocation = picked);
+    final resolvedAddress = picked.address?.trim();
+    if (resolvedAddress != null && resolvedAddress.isNotEmpty) {
+      _deliveryAddressController.text = resolvedAddress;
+      return;
+    }
+    if (_deliveryAddressController.text.trim().isEmpty) {
+      _deliveryAddressController.text =
+          'Ubicacion en mapa (${picked.latitude.toStringAsFixed(5)}, ${picked.longitude.toStringAsFixed(5)})';
+    }
   }
 
   Future<void> _selectDeliveryForBusiness(String targetBusinessId) async {
@@ -804,6 +836,8 @@ class _ContactForm extends StatelessWidget {
     required this.deliveryReferenceController,
     required this.discountController,
     required this.requiresDelivery,
+    required this.selectedDeliveryLocation,
+    required this.onPickDeliveryLocation,
   });
 
   final GlobalKey<FormState> formKey;
@@ -815,6 +849,8 @@ class _ContactForm extends StatelessWidget {
   final TextEditingController deliveryReferenceController;
   final TextEditingController discountController;
   final bool requiresDelivery;
+  final PickedLocation? selectedDeliveryLocation;
+  final VoidCallback onPickDeliveryLocation;
 
   @override
   Widget build(BuildContext context) {
@@ -876,6 +912,16 @@ class _ContactForm extends StatelessWidget {
                         ? 'Agrega la direccion de entrega'
                         : null;
                   },
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: onPickDeliveryLocation,
+                  icon: const Icon(Icons.map_outlined),
+                  label: Text(
+                    selectedDeliveryLocation == null
+                        ? 'Seleccionar direccion en mapa'
+                        : 'Mapa: ${selectedDeliveryLocation!.latitude.toStringAsFixed(4)}, ${selectedDeliveryLocation!.longitude.toStringAsFixed(4)}',
+                  ),
                 ),
                 const SizedBox(height: 10),
                 TextFormField(

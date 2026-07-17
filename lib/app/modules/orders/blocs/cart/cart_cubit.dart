@@ -164,6 +164,8 @@ class CartCubit extends Cubit<CartState> {
     String? message,
     String? deliveryAddress,
     String? deliveryReference,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     String? discountCode,
     String? requesterBusinessId,
     Map<String, CartDeliverySelection>? deliverySelectionByBusiness,
@@ -225,6 +227,8 @@ class CartCubit extends Cubit<CartState> {
         message: message,
         deliveryAddress: deliveryAddress,
         deliveryReference: deliveryReference,
+        deliveryLatitude: deliveryLatitude,
+        deliveryLongitude: deliveryLongitude,
         discountCode: discountCode,
         requestDelivery: state.deliveryByBusiness[entry.key] ?? false,
         requesterBusinessId: requesterBusinessId,
@@ -241,6 +245,8 @@ class CartCubit extends Cubit<CartState> {
             message: message,
             deliveryAddress: deliveryAddress,
             deliveryReference: deliveryReference,
+            deliveryLatitude: deliveryLatitude,
+            deliveryLongitude: deliveryLongitude,
             discountCode: discountCode,
             requestDelivery: state.deliveryByBusiness[entry.key] ?? false,
             requesterBusinessId: requesterBusinessId,
@@ -282,6 +288,8 @@ class CartCubit extends Cubit<CartState> {
     String? message,
     String? deliveryAddress,
     String? deliveryReference,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     String? discountCode,
     required bool requestDelivery,
     String? requesterBusinessId,
@@ -304,6 +312,13 @@ class CartCubit extends Cubit<CartState> {
         'total_estimado': total,
         'solicita_delivery': requestDelivery,
         'direccion_entrega': deliveryAddress,
+        if (requestDelivery &&
+            deliveryLatitude != null &&
+            deliveryLongitude != null)
+          'ubicacion_entrega': {
+            'lat': deliveryLatitude,
+            'lng': deliveryLongitude,
+          },
         'origen': 'apk',
         'metadata': {
           if (discountCode?.trim().isNotEmpty == true)
@@ -313,6 +328,11 @@ class CartCubit extends Cubit<CartState> {
               'direccion_entrega': deliveryAddress,
               if (deliveryReference?.trim().isNotEmpty == true)
                 'referencia_entrega': deliveryReference!.trim(),
+              if (deliveryLatitude != null && deliveryLongitude != null)
+                'ubicacion_entrega': {
+                  'lat': deliveryLatitude,
+                  'lng': deliveryLongitude,
+                },
               'negocio_recogida_id': businessId,
               if (requesterBusinessId?.isNotEmpty == true)
                 'negocio_solicitante_id': requesterBusinessId,
@@ -351,6 +371,8 @@ class CartCubit extends Cubit<CartState> {
     String? message,
     String? deliveryAddress,
     String? deliveryReference,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
     String? discountCode,
     required bool requestDelivery,
     String? requesterBusinessId,
@@ -379,6 +401,11 @@ class CartCubit extends Cubit<CartState> {
             'marca': item.product.brand,
             'solicita_delivery': requestDelivery,
             'direccion_entrega': deliveryAddress,
+            if (deliveryLatitude != null && deliveryLongitude != null)
+              'ubicacion_entrega': {
+                'lat': deliveryLatitude,
+                'lng': deliveryLongitude,
+              },
             if (deliveryReference?.trim().isNotEmpty == true)
               'referencia_entrega': deliveryReference!.trim(),
             if (requesterBusinessId?.isNotEmpty == true)
