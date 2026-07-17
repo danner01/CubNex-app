@@ -41,7 +41,7 @@ flutter run --dart-define=API_BASE_URL=http://IP_DE_TU_PC:3000 --dart-define=MAP
 Produccion:
 
 ```bash
-flutter build apk --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
+flutter build apk --release --split-per-abi --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 flutter build ios --release --dart-define=MAPBOX_ACCESS_TOKEN=TU_TOKEN_MAPBOX
 ```
 

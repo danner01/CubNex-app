@@ -31,8 +31,8 @@ jobs:
       - name: Install dependencies
         run: flutter pub get
 
-      - name: Build release APK
-        run: flutter build apk --release
+      - name: Build release APK (split per ABI)
+        run: flutter build apk --release --split-per-abi
 
       - name: Resolve version from pubspec
         id: version
@@ -47,9 +47,12 @@ jobs:
       - name: Prepare artifact
         run: |
           mkdir -p dist
-          cp build/app/outputs/flutter-apk/app-release.apk dist/Cubanex.apk
+          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk dist/Cubanex-arm64-v8a.apk
+          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk dist/Cubanex-armeabi-v7a.apk
+          cp build/app/outputs/flutter-apk/app-x86_64-release.apk dist/Cubanex-x86_64.apk
 
       - name: Upload APK to Vercel Blob
+        id: blob_upload
         env:
           BLOB_READ_WRITE_TOKEN: ${{ secrets.BLOB_READ_WRITE_TOKEN || vars.BLOB_READ_WRITE_TOKEN }}
         run: |
@@ -62,15 +65,41 @@ jobs:
           cat > upload-blob.mjs << 'EOF'
           import { put } from "@vercel/blob";
           import fs from "node:fs";
+          const outputPath = process.env.GITHUB_OUTPUT;
+          const files = [
+            "Cubanex-arm64-v8a.apk",
+            "Cubanex-armeabi-v7a.apk",
+            "Cubanex-x86_64.apk",
+          ];
+          const outputKeys = {
+            "Cubanex-arm64-v8a.apk": "arm64_url",
+            "Cubanex-armeabi-v7a.apk": "armeabi_v7a_url",
+            "Cubanex-x86_64.apk": "x86_64_url",
+          };
+          const urls = {};
           const token = process.env.BLOB_READ_WRITE_TOKEN;
-          const stream = fs.createReadStream("dist/Cubanex.apk");
-          const blob = await put("Cubanex.apk", stream, {
-            access: "public",
-            addRandomSuffix: false,
-            allowOverwrite: true,
-            token,
-          });
-          console.log(`Uploaded to: ${blob.url}`);
+          for (const fileName of files) {
+            const stream = fs.createReadStream(`dist/${fileName}`);
+            const blob = await put(fileName, stream, {
+              access: "public",
+              addRandomSuffix: false,
+              allowOverwrite: true,
+              token,
+            });
+            console.log(`${fileName}: ${blob.url}`);
+            urls[fileName] = blob.url;
+            if (outputPath) {
+              fs.appendFileSync(outputPath, `${outputKeys[fileName]}=${blob.url}\n`);
+            }
+          }
+          const primaryDownloadUrl =
+            urls["Cubanex-arm64-v8a.apk"] ||
+            urls["Cubanex-armeabi-v7a.apk"] ||
+            urls["Cubanex-x86_64.apk"] ||
+            "";
+          if (outputPath) {
+            fs.appendFileSync(outputPath, `primary_url=${primaryDownloadUrl}\n`);
+          }
           EOF
           node upload-blob.mjs
 
@@ -79,10 +108,87 @@ jobs:
         with:
           tag: ${{ steps.version.outputs.tag }}
           name: Cubanex APK v${{ steps.version.outputs.app_version }}+${{ steps.version.outputs.build_number }}
-          artifacts: "dist/Cubanex.apk"
+          artifacts: "dist/Cubanex-arm64-v8a.apk,dist/Cubanex-armeabi-v7a.apk,dist/Cubanex-x86_64.apk"
           allowUpdates: true
           replacesArtifacts: true
           generateReleaseNotes: true
+
+      - name: Update Vercel env vars for APK landing
+        env:
+          VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN || vars.VERCEL_TOKEN }}
+          VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID || vars.VERCEL_PROJECT_ID }}
+          VERCEL_TEAM_ID: ${{ secrets.VERCEL_TEAM_ID || vars.VERCEL_TEAM_ID }}
+          APK_RELEASE_VERSION: ${{ steps.version.outputs.app_version }}
+          APK_RELEASE_VERSION_CODE: ${{ steps.version.outputs.build_number }}
+          APK_DOWNLOAD_URL: ${{ steps.blob_upload.outputs.primary_url }}
+          APK_DOWNLOAD_URL_ARM64_V8A: ${{ steps.blob_upload.outputs.arm64_url }}
+          APK_DOWNLOAD_URL_ARMEABI_V7A: ${{ steps.blob_upload.outputs.armeabi_v7a_url }}
+          APK_DOWNLOAD_URL_X86_64: ${{ steps.blob_upload.outputs.x86_64_url }}
+        run: |
+          if [ -z "$VERCEL_TOKEN" ] || [ -z "$VERCEL_PROJECT_ID" ]; then
+            echo "VERCEL_TOKEN or VERCEL_PROJECT_ID not configured. Skipping env sync."
+            exit 0
+          fi
+          if [ -z "$APK_DOWNLOAD_URL" ]; then
+            echo "Blob upload URL is empty. Skipping env sync."
+            exit 0
+          fi
+          npm init -y > /dev/null
+          cat > sync-vercel-env.mjs << 'EOF'
+          const token = process.env.VERCEL_TOKEN;
+          const projectId = process.env.VERCEL_PROJECT_ID;
+          const teamId = process.env.VERCEL_TEAM_ID;
+          const apiBase = "https://api.vercel.com";
+          const scope = teamId ? `?teamId=${encodeURIComponent(teamId)}` : "";
+          const target = ["production"];
+
+          const desired = {
+            APK_RELEASE_VERSION: process.env.APK_RELEASE_VERSION,
+            APK_RELEASE_VERSION_CODE: process.env.APK_RELEASE_VERSION_CODE,
+            APK_RELEASE_ASSET_NAME: "Cubanex-arm64-v8a.apk",
+            APK_DOWNLOAD_URL: process.env.APK_DOWNLOAD_URL,
+            APK_DOWNLOAD_URL_ARM64_V8A: process.env.APK_DOWNLOAD_URL_ARM64_V8A,
+            APK_DOWNLOAD_URL_ARMEABI_V7A: process.env.APK_DOWNLOAD_URL_ARMEABI_V7A,
+            APK_DOWNLOAD_URL_X86_64: process.env.APK_DOWNLOAD_URL_X86_64,
+          };
+
+          async function api(path, init = {}) {
+            const response = await fetch(`${apiBase}${path}${scope}`, {
+              ...init,
+              headers: {
+                Authorization: `Bearer ${token}`,
+                "Content-Type": "application/json",
+                ...(init.headers || {}),
+              },
+            });
+            if (!response.ok) {
+              const body = await response.text();
+              throw new Error(`Vercel API ${response.status} ${path}: ${body}`);
+            }
+            return response.status === 204 ? null : response.json();
+          }
+
+          const existing = await api(`/v9/projects/${projectId}/env`);
+          const envs = existing?.envs || [];
+          for (const [key, value] of Object.entries(desired)) {
+            if (!value) continue;
+            const matches = envs.filter((entry) => entry.key === key);
+            for (const entry of matches) {
+              await api(`/v9/projects/${projectId}/env/${entry.id}`, { method: "DELETE" });
+            }
+            await api(`/v10/projects/${projectId}/env`, {
+              method: "POST",
+              body: JSON.stringify({
+                key,
+                value,
+                type: "encrypted",
+                target,
+              }),
+            });
+            console.log(`Upserted ${key}`);
+          }
+          EOF
+          node sync-vercel-env.mjs
 
       - name: Trigger SuperAdmin redeploy
         env:
