@@ -10,7 +10,7 @@ Base Flutter para Android e iOS del SaaS CubNex.
 - Estado con `bloc` y `cubit`.
 - Navegacion con `go_router`.
 - Backend REST: `SUPERADMIN` expuesto en `/api/v1`.
-- Backend publico actual: `https://supermarket-superadmin-rfz6.vercel.app/api/v1`.
+- Backend publico actual: `https://supermarket-superadmin.vercel.app/api/v1`.
 
 ## Configuracion local
 

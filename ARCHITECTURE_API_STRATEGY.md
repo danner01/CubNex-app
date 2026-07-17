@@ -2,7 +2,7 @@
 
 ## Resultado del test
 
-Backend probado: `https://supermarket-superadmin-rfz6.vercel.app/api/v1`
+Backend probado: `https://supermarket-superadmin.vercel.app/api/v1`
 
 Endpoints publicos probados:
 

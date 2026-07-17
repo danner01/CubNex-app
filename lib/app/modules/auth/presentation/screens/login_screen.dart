@@ -1,10 +1,13 @@
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/presentation/widgets/cubnex_logo.dart';
+import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
@@ -62,6 +65,7 @@ class _LoginViewState extends State<_LoginView> {
   bool _deliveryAcceptsTransfer = false;
   bool _showPassword = false;
   bool _navigatingAfterAuth = false;
+  bool _acceptedLegal = false;
 
   @override
   void dispose() {
@@ -189,6 +193,7 @@ class _LoginViewState extends State<_LoginView> {
                   deliveryKmFareController: _deliveryKmFareController,
                   deliveryRadiusController: _deliveryRadiusController,
                   deliveryAcceptsTransfer: _deliveryAcceptsTransfer,
+                  acceptedLegal: _acceptedLegal,
                   showPassword: _showPassword,
                   isLoading: isLoading,
                   onModeChanged: (mode) => setState(() => _mode = mode),
@@ -197,10 +202,16 @@ class _LoginViewState extends State<_LoginView> {
                       setState(() => _deliveryVehicleType = value),
                   onDeliveryAcceptsTransferChanged: (value) =>
                       setState(() => _deliveryAcceptsTransfer = value),
+                  onAcceptedLegalChanged: (value) =>
+                      setState(() => _acceptedLegal = value),
+                  onOpenTerms: () => _openExternalLink(AppEnvironment.apkTermsUrl),
+                  onOpenPrivacy: () =>
+                      _openExternalLink(AppEnvironment.apkPrivacyPolicyUrl),
                   onTogglePassword: () =>
                       setState(() => _showPassword = !_showPassword),
                   onSubmit: () => _submit(context),
-                  onGoogle: isLoading
+                  onGoogle:
+                      isLoading || (_mode == _AuthMode.register && !_acceptedLegal)
                       ? null
                       : () => context.read<AuthCubit>().loginWithGoogle(),
                 ),
@@ -221,6 +232,16 @@ class _LoginViewState extends State<_LoginView> {
 
   void _submit(BuildContext context) {
     if (!_formKey.currentState!.validate()) return;
+    if (_mode == _AuthMode.register && !_acceptedLegal) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Debes aceptar los términos y la política de privacidad para registrarte.',
+          ),
+        ),
+      );
+      return;
+    }
     final cubit = context.read<AuthCubit>();
     final email = _emailController.text.trim();
     final password = _passwordController.text;
@@ -275,6 +296,15 @@ class _LoginViewState extends State<_LoginView> {
     await context.read<AppSessionCubit>().continueAsGuest();
     if (!mounted) return;
     context.go(AppRoutes.home);
+  }
+
+  Future<void> _openExternalLink(String url) async {
+    final uri = Uri.parse(url);
+    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!mounted || launched) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('No se pudo abrir el enlace legal.')),
+    );
   }
 }
 
@@ -367,12 +397,16 @@ class _AuthCard extends StatelessWidget {
     required this.deliveryKmFareController,
     required this.deliveryRadiusController,
     required this.deliveryAcceptsTransfer,
+    required this.acceptedLegal,
     required this.showPassword,
     required this.isLoading,
     required this.onModeChanged,
     required this.onRoleChanged,
     required this.onDeliveryVehicleChanged,
     required this.onDeliveryAcceptsTransferChanged,
+    required this.onAcceptedLegalChanged,
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
     required this.onTogglePassword,
     required this.onSubmit,
     required this.onGoogle,
@@ -392,18 +426,24 @@ class _AuthCard extends StatelessWidget {
   final TextEditingController deliveryKmFareController;
   final TextEditingController deliveryRadiusController;
   final bool deliveryAcceptsTransfer;
+  final bool acceptedLegal;
   final bool showPassword;
   final bool isLoading;
   final ValueChanged<_AuthMode> onModeChanged;
   final ValueChanged<_RegisterRole> onRoleChanged;
   final ValueChanged<String> onDeliveryVehicleChanged;
   final ValueChanged<bool> onDeliveryAcceptsTransferChanged;
+  final ValueChanged<bool> onAcceptedLegalChanged;
+  final VoidCallback onOpenTerms;
+  final VoidCallback onOpenPrivacy;
   final VoidCallback onTogglePassword;
   final VoidCallback onSubmit;
   final VoidCallback? onGoogle;
 
   @override
   Widget build(BuildContext context) {
+    final canSubmit = mode == _AuthMode.login || acceptedLegal;
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -507,9 +547,19 @@ class _AuthCard extends StatelessWidget {
                 ),
                 validator: _validatePassword,
               ),
+              if (mode == _AuthMode.register) ...[
+                const SizedBox(height: 16),
+                _LegalConsent(
+                  accepted: acceptedLegal,
+                  enabled: !isLoading,
+                  onChanged: onAcceptedLegalChanged,
+                  onOpenTerms: onOpenTerms,
+                  onOpenPrivacy: onOpenPrivacy,
+                ),
+              ],
               const SizedBox(height: 18),
               FilledButton(
-                onPressed: isLoading ? null : onSubmit,
+                onPressed: isLoading || !canSubmit ? null : onSubmit,
                 child: isLoading
                     ? const SizedBox(
                         width: 22,
@@ -526,6 +576,89 @@ class _AuthCard extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _LegalConsent extends StatelessWidget {
+  const _LegalConsent({
+    required this.accepted,
+    required this.enabled,
+    required this.onChanged,
+    required this.onOpenTerms,
+    required this.onOpenPrivacy,
+  });
+
+  final bool accepted;
+  final bool enabled;
+  final ValueChanged<bool> onChanged;
+  final VoidCallback onOpenTerms;
+  final VoidCallback onOpenPrivacy;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final linkStyle = theme.textTheme.bodySmall?.copyWith(
+      color: theme.colorScheme.primary,
+      fontWeight: FontWeight.w800,
+      decoration: TextDecoration.underline,
+    );
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.26),
+        ),
+        color: theme.colorScheme.surfaceContainerHighest.withValues(alpha: 0.28),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(10, 10, 12, 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Checkbox(
+              value: accepted,
+              onChanged: enabled ? (value) => onChanged(value ?? false) : null,
+            ),
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 6),
+                child: Text.rich(
+                  TextSpan(
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      height: 1.45,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    children: [
+                      const TextSpan(
+                        text:
+                            'Debes aceptar los ',
+                      ),
+                      TextSpan(
+                        text: 'Términos y condiciones',
+                        style: linkStyle,
+                        recognizer: TapGestureRecognizer()..onTap = onOpenTerms,
+                      ),
+                      const TextSpan(text: ' y la '),
+                      TextSpan(
+                        text: 'Política de privacidad',
+                        style: linkStyle,
+                        recognizer: TapGestureRecognizer()
+                          ..onTap = onOpenPrivacy,
+                      ),
+                      const TextSpan(
+                        text:
+                            ' para activar el registro y crear tu cuenta en CubNex.',
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
