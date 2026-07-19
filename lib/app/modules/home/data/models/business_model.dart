@@ -27,6 +27,7 @@ class BusinessModel {
     this.rating,
     this.colors = const {},
     this.businessTypeName,
+    this.businessTypeSlug,
     this.businessParentCategory,
     this.businessTypeIcon,
     this.features = const {},
@@ -59,6 +60,7 @@ class BusinessModel {
   final double? rating;
   final Map<String, String> colors;
   final String? businessTypeName;
+  final String? businessTypeSlug;
   final String? businessParentCategory;
   final String? businessTypeIcon;
   final Map<String, dynamic> features;
@@ -69,6 +71,10 @@ class BusinessModel {
       businessParentCategory == 'inmobiliaria';
 
   bool get isFoodBusiness => businessParentCategory == 'gastronomia';
+
+  bool get isFuelBusiness => businessTypeSlug == 'venta-combustible';
+
+  bool get isCurrencyExchangeBusiness => businessTypeSlug == 'casa-cambio';
 
   BusinessModel copyWith({
     String? name,
@@ -97,6 +103,7 @@ class BusinessModel {
     double? rating,
     Map<String, String>? colors,
     String? businessTypeName,
+    String? businessTypeSlug,
     String? businessParentCategory,
     String? businessTypeIcon,
     Map<String, dynamic>? features,
@@ -130,6 +137,7 @@ class BusinessModel {
       rating: rating ?? this.rating,
       colors: colors ?? this.colors,
       businessTypeName: businessTypeName ?? this.businessTypeName,
+      businessTypeSlug: businessTypeSlug ?? this.businessTypeSlug,
       businessParentCategory:
           businessParentCategory ?? this.businessParentCategory,
       businessTypeIcon: businessTypeIcon ?? this.businessTypeIcon,
@@ -167,6 +175,7 @@ class BusinessModel {
       rating: double.tryParse('${json['calificacion_promedio'] ?? ''}'),
       colors: _parseColors(json['colores']),
       businessTypeName: type['nombre']?.toString(),
+      businessTypeSlug: type['slug']?.toString(),
       businessParentCategory: type['categoria_padre']?.toString(),
       businessTypeIcon: type['icono']?.toString(),
       features: _parseMap(json['caracteristicas']),

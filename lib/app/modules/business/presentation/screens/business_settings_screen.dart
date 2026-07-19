@@ -13,6 +13,7 @@ import '../../../home/data/models/business_model.dart';
 import '../../blocs/settings/business_settings_cubit.dart';
 import '../../blocs/settings/business_settings_state.dart';
 import '../../data/models/store_customization_model.dart';
+import 'business_special_catalog_screen.dart';
 import '../widgets/business_switcher.dart';
 
 class BusinessSettingsScreen extends StatelessWidget {
@@ -92,6 +93,11 @@ class _BusinessSettingsView extends StatelessWidget {
                 _BrandAssetsSection(business: state.business, saving: saving),
                 const SizedBox(height: 12),
                 _OperationsSection(business: state.business, saving: saving),
+                if (state.business?.isFuelBusiness == true ||
+                    state.business?.isCurrencyExchangeBusiness == true) ...[
+                  const SizedBox(height: 12),
+                  _SpecialCatalogSection(business: state.business!),
+                ],
                 const SizedBox(height: 12),
                 _PaletteSection(customization: customization),
                 const SizedBox(height: 12),
@@ -202,6 +208,55 @@ class _StorePreview extends StatelessWidget {
                   ),
                 ),
               ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SpecialCatalogSection extends StatelessWidget {
+  const _SpecialCatalogSection({required this.business});
+
+  final BusinessModel business;
+
+  @override
+  Widget build(BuildContext context) {
+    final isFuel = business.isFuelBusiness;
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isFuel ? 'Combustibles y precios' : 'Tasas de cambio',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              isFuel
+                  ? 'Administra los tipos de combustible, precio en CUP y litros disponibles.'
+                  : 'Administra las monedas, tasa de compra y tasa de venta referenciadas al CUP.',
+            ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute<void>(
+                    builder: (_) => BusinessSpecialCatalogScreen(business: business),
+                  ),
+                );
+              },
+              icon: Icon(
+                isFuel
+                    ? Icons.local_gas_station_outlined
+                    : Icons.currency_exchange,
+              ),
+              label: Text(isFuel ? 'Gestionar combustibles' : 'Gestionar tasas'),
             ),
           ],
         ),

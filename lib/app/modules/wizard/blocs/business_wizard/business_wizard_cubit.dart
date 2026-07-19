@@ -107,6 +107,8 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
     Map<String, dynamic> firstItemDetectedFeatures = const {},
     bool firstItemInInventory = true,
     bool firstItemPurchasable = true,
+    List<Map<String, dynamic>> initialFuels = const [],
+    List<Map<String, dynamic>> initialExchangeRates = const [],
   }) async {
     emit(state.copyWith(status: BusinessWizardStatus.saving));
     try {
@@ -195,6 +197,37 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
                 message:
                     itemResult.error?.message ??
                     'El negocio se creo, pero no se pudo agregar el primer producto o servicio.',
+              ),
+            );
+            return;
+          }
+        }
+
+        final businessId = createdBusinessId;
+        if (businessId != null && businessId.isNotEmpty) {
+          final fuelRequests = initialFuels.map(
+            (fuel) => _apiClient
+                .post<dynamic>(
+                  '/combustibles',
+                  data: {'negocio_id': businessId, ...fuel},
+                )
+                .timeout(_createTimeout),
+          );
+          final rateRequests = initialExchangeRates.map(
+            (rate) => _apiClient
+                .post<dynamic>(
+                  '/tasas-cambio',
+                  data: {'negocio_id': businessId, ...rate},
+                )
+                .timeout(_createTimeout),
+          );
+          final specialResults = await Future.wait([...fuelRequests, ...rateRequests]);
+          if (specialResults.any((item) => !item.isSuccess)) {
+            emit(
+              state.copyWith(
+                status: BusinessWizardStatus.failure,
+                message:
+                    'El negocio se creo, pero no se pudo guardar toda su configuracion especializada.',
               ),
             );
             return;

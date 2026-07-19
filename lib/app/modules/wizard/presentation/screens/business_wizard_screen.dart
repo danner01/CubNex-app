@@ -259,6 +259,9 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   final _firstItemPriceController = TextEditingController();
   final _firstItemStockController = TextEditingController(text: '1');
   final _firstItemCategoryController = TextEditingController();
+  final List<_FuelDraft> _fuelDrafts = _FuelDraft.defaults();
+  final List<_ExchangeRateDraft> _exchangeRateDrafts =
+      _ExchangeRateDraft.defaults();
   int _step = 0;
   String? _selectedTypeId;
   String? _electricBackupType;
@@ -305,6 +308,12 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     _firstItemPriceController.dispose();
     _firstItemStockController.dispose();
     _firstItemCategoryController.dispose();
+    for (final fuel in _fuelDrafts) {
+      fuel.dispose();
+    }
+    for (final rate in _exchangeRateDrafts) {
+      rate.dispose();
+    }
     super.dispose();
   }
 
@@ -781,38 +790,51 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                   Step(
                     title: Text(_firstItemLabelTitle(state)),
                     isActive: _step >= 3,
-                    content: _FirstItemStep(
-                      mode: _firstItemMode(state),
-                      title: _firstItemLabelTitle(state),
-                      subtitle: _firstItemLabelSubtitle(state),
-                      nameController: _firstItemNameController,
-                      brandController: _firstItemBrandController,
-                      descriptionController: _firstItemDescriptionController,
-                      priceController: _firstItemPriceController,
-                      stockController: _firstItemStockController,
-                      categoryController: _firstItemCategoryController,
-                      currency: _firstItemCurrency,
-                      requiredNow: _step == 3,
-                      inInventory: _firstItemInInventory,
-                      purchasable: _firstItemPurchasable,
-                      frontPhoto: _firstItemFrontPhoto,
-                      backPhoto: _firstItemBackPhoto,
-                      detecting: _detectingFirstItem,
-                      onPickFrontPhoto: () => _pickFirstItemPhoto(front: true),
-                      onPickBackPhoto: () => _pickFirstItemPhoto(front: false),
-                      onDetectPhotos:
-                          _firstItemMode(state).usesPackageScan &&
-                              (_firstItemFrontPhoto != null ||
-                                  _firstItemBackPhoto != null)
-                          ? _detectFirstItemFromPhotos
-                          : null,
-                      onCurrencyChanged: (value) =>
-                          setState(() => _firstItemCurrency = value),
-                      onInInventoryChanged: (value) =>
-                          setState(() => _firstItemInInventory = value),
-                      onPurchasableChanged: (value) =>
-                          setState(() => _firstItemPurchasable = value),
-                    ),
+                    content: _isFuelBusiness(state)
+                        ? _FuelSetupStep(
+                            drafts: _fuelDrafts,
+                            onChanged: () => setState(() {}),
+                          )
+                        : _isCurrencyExchangeBusiness(state)
+                        ? _ExchangeRatesSetupStep(
+                            drafts: _exchangeRateDrafts,
+                            onChanged: () => setState(() {}),
+                          )
+                        : _FirstItemStep(
+                            mode: _firstItemMode(state),
+                            title: _firstItemLabelTitle(state),
+                            subtitle: _firstItemLabelSubtitle(state),
+                            nameController: _firstItemNameController,
+                            brandController: _firstItemBrandController,
+                            descriptionController:
+                                _firstItemDescriptionController,
+                            priceController: _firstItemPriceController,
+                            stockController: _firstItemStockController,
+                            categoryController: _firstItemCategoryController,
+                            currency: _firstItemCurrency,
+                            requiredNow: _step == 3,
+                            inInventory: _firstItemInInventory,
+                            purchasable: _firstItemPurchasable,
+                            frontPhoto: _firstItemFrontPhoto,
+                            backPhoto: _firstItemBackPhoto,
+                            detecting: _detectingFirstItem,
+                            onPickFrontPhoto: () =>
+                                _pickFirstItemPhoto(front: true),
+                            onPickBackPhoto: () =>
+                                _pickFirstItemPhoto(front: false),
+                            onDetectPhotos:
+                                _firstItemMode(state).usesPackageScan &&
+                                    (_firstItemFrontPhoto != null ||
+                                        _firstItemBackPhoto != null)
+                                ? _detectFirstItemFromPhotos
+                                : null,
+                            onCurrencyChanged: (value) =>
+                                setState(() => _firstItemCurrency = value),
+                            onInInventoryChanged: (value) =>
+                                setState(() => _firstItemInInventory = value),
+                            onPurchasableChanged: (value) =>
+                                setState(() => _firstItemPurchasable = value),
+                          ),
                   ),
                 ],
               ),
@@ -840,11 +862,16 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
       return;
     }
     if (!_formKey.currentState!.validate()) return;
+    final wizardState = context.read<BusinessWizardCubit>().state;
+    final isFuelBusiness = _isFuelBusiness(wizardState);
+    final isCurrencyExchangeBusiness = _isCurrencyExchangeBusiness(wizardState);
     final firstItemPrice = double.tryParse(
       _firstItemPriceController.text.trim().replaceAll(',', '.'),
     );
     final wizardCubit = context.read<BusinessWizardCubit>();
-    final uploadedImageUrls = _firstItemImageUrls.isNotEmpty
+    final uploadedImageUrls = isFuelBusiness || isCurrencyExchangeBusiness
+        ? const <String>[]
+        : _firstItemImageUrls.isNotEmpty
         ? _firstItemImageUrls
         : await _uploadFirstItemPhotos();
     if (!mounted) return;
@@ -893,10 +920,14 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
           : _electricCircuitController.text.trim(),
       latitude: _latitude,
       longitude: _longitude,
-      firstItemName: _firstItemNameController.text.trim(),
+      firstItemName: isFuelBusiness || isCurrencyExchangeBusiness
+          ? null
+          : _firstItemNameController.text.trim(),
       firstItemBrand: _firstItemBrandController.text.trim(),
       firstItemDescription: _firstItemDescriptionController.text.trim(),
-      firstItemPrice: firstItemPrice,
+      firstItemPrice: isFuelBusiness || isCurrencyExchangeBusiness
+          ? null
+          : firstItemPrice,
       firstItemCurrency: _firstItemCurrency,
       firstItemStock: int.tryParse(_firstItemStockController.text.trim()),
       firstItemCategory: _firstItemCategoryController.text.trim(),
@@ -904,6 +935,18 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
       firstItemDetectedFeatures: _firstItemDetectedFeatures,
       firstItemInInventory: _firstItemInInventory,
       firstItemPurchasable: _firstItemPurchasable,
+      initialFuels: isFuelBusiness
+          ? _fuelDrafts
+                .where((fuel) => fuel.enabled)
+                .map((fuel) => fuel.toPayload())
+                .toList()
+          : const [],
+      initialExchangeRates: isCurrencyExchangeBusiness
+          ? _exchangeRateDrafts
+                .where((rate) => rate.enabled)
+                .map((rate) => rate.toPayload())
+                .toList()
+          : const [],
     );
   }
 
@@ -922,6 +965,35 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
       }
     }
     if (step == 3) {
+      final wizardState = context.read<BusinessWizardCubit>().state;
+      if (_isFuelBusiness(wizardState)) {
+        final activeFuels = _fuelDrafts.where((fuel) => fuel.enabled).toList();
+        if (activeFuels.isEmpty) {
+          return 'Selecciona al menos un combustible disponible.';
+        }
+        if (activeFuels.any((fuel) => fuel.price == null || fuel.price! <= 0)) {
+          return 'Indica un precio CUP valido para cada combustible seleccionado.';
+        }
+        return null;
+      }
+      if (_isCurrencyExchangeBusiness(wizardState)) {
+        final activeRates = _exchangeRateDrafts
+            .where((rate) => rate.enabled)
+            .toList();
+        if (activeRates.isEmpty) {
+          return 'Selecciona al menos una moneda con la que operar.';
+        }
+        if (activeRates.any(
+          (rate) =>
+              rate.buyRate == null ||
+              rate.buyRate! <= 0 ||
+              rate.sellRate == null ||
+              rate.sellRate! <= 0,
+        )) {
+          return 'Indica tasas de compra y venta validas contra CUP.';
+        }
+        return null;
+      }
       final name = _firstItemNameController.text.trim();
       final price = double.tryParse(
         _firstItemPriceController.text.trim().replaceAll(',', '.'),
@@ -983,6 +1055,8 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   }
 
   String _firstItemLabelTitle(BusinessWizardState state) {
+    if (_isFuelBusiness(state)) return 'Combustibles iniciales';
+    if (_isCurrencyExchangeBusiness(state)) return 'Tasas iniciales';
     final category = _selectedBusinessType(state)?.parentCategory;
     if (category == 'servicio' || category == 'transporte') {
       return 'Primer servicio';
@@ -993,6 +1067,12 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   }
 
   String _firstItemLabelSubtitle(BusinessWizardState state) {
+    if (_isFuelBusiness(state)) {
+      return 'Define los combustibles que vendes, su disponibilidad, precio por litro y stock inicial.';
+    }
+    if (_isCurrencyExchangeBusiness(state)) {
+      return 'Configura las monedas con las que operas y sus tasas de compra y venta referenciadas a CUP.';
+    }
     final category = _selectedBusinessType(state)?.parentCategory;
     if (category == 'servicio' || category == 'transporte') {
       return 'Agrega un servicio inicial para que tu negocio aparezca operativo desde el primer dia.';
@@ -1012,6 +1092,12 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     }
     return null;
   }
+
+  bool _isFuelBusiness(BusinessWizardState state) =>
+      _selectedBusinessType(state)?.slug == 'venta-combustible';
+
+  bool _isCurrencyExchangeBusiness(BusinessWizardState state) =>
+      _selectedBusinessType(state)?.slug == 'casa-cambio';
 
   void _selectBusinessType(String? value, BusinessWizardState state) {
     final nextType = state.types
@@ -1488,6 +1574,298 @@ class _AddressSuggestionsList extends StatelessWidget {
             ),
         ],
       ),
+    );
+  }
+}
+
+class _FuelDraft {
+  _FuelDraft({required this.type, required this.label})
+    : priceController = TextEditingController(),
+      stockController = TextEditingController();
+
+  final String type;
+  final String label;
+  bool enabled = false;
+  final TextEditingController priceController;
+  final TextEditingController stockController;
+
+  double? get price =>
+      double.tryParse(priceController.text.trim().replaceAll(',', '.'));
+
+  Map<String, dynamic> toPayload() => {
+    'tipo': type,
+    'nombre': label,
+    'precio_cup': price,
+    'stock_litros': int.tryParse(stockController.text.trim()),
+    'disponible': enabled,
+  };
+
+  void dispose() {
+    priceController.dispose();
+    stockController.dispose();
+  }
+
+  static List<_FuelDraft> defaults() => [
+    _FuelDraft(type: 'gasolina_b83', label: 'Gasolina B-83'),
+    _FuelDraft(type: 'gasolina_b87', label: 'Gasolina B-87'),
+    _FuelDraft(type: 'gasolina_b90', label: 'Gasolina B-90'),
+    _FuelDraft(type: 'gasolina_b94', label: 'Gasolina B-94'),
+    _FuelDraft(type: 'gasolina_b100', label: 'Gasolina B-100'),
+    _FuelDraft(type: 'diesel', label: 'Diesel'),
+    _FuelDraft(type: 'diesel_especial', label: 'Diesel especial'),
+  ];
+}
+
+class _ExchangeRateDraft {
+  _ExchangeRateDraft({required this.currency})
+    : buyController = TextEditingController(),
+      sellController = TextEditingController();
+
+  final String currency;
+  bool enabled = false;
+  final TextEditingController buyController;
+  final TextEditingController sellController;
+
+  double? get buyRate =>
+      double.tryParse(buyController.text.trim().replaceAll(',', '.'));
+  double? get sellRate =>
+      double.tryParse(sellController.text.trim().replaceAll(',', '.'));
+
+  Map<String, dynamic> toPayload() => {
+    'moneda': currency,
+    'tasa_compra_cup': buyRate,
+    'tasa_venta_cup': sellRate,
+    'disponible': enabled,
+  };
+
+  void dispose() {
+    buyController.dispose();
+    sellController.dispose();
+  }
+
+  static List<_ExchangeRateDraft> defaults() => [
+    _ExchangeRateDraft(currency: 'USD'),
+    _ExchangeRateDraft(currency: 'EUR'),
+    _ExchangeRateDraft(currency: 'MLC'),
+    _ExchangeRateDraft(currency: 'CAD'),
+    _ExchangeRateDraft(currency: 'MXN'),
+  ];
+}
+
+class _FuelSetupStep extends StatelessWidget {
+  const _FuelSetupStep({required this.drafts, required this.onChanged});
+
+  final List<_FuelDraft> drafts;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.local_gas_station_outlined,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Marca los combustibles que tendras disponibles al publicar el negocio. Los precios se expresan por litro en CUP.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final draft in drafts) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: draft.enabled,
+                    title: Text(
+                      draft.label,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: const Text('Disponible para clientes'),
+                    onChanged: (value) {
+                      draft.enabled = value;
+                      onChanged();
+                    },
+                  ),
+                  if (draft.enabled) ...[
+                    const SizedBox(height: 8),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 440;
+                        final price = TextFormField(
+                          controller: draft.priceController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Precio por litro (CUP)',
+                            prefixIcon: Icon(Icons.payments_outlined),
+                          ),
+                        );
+                        final stock = TextFormField(
+                          controller: draft.stockController,
+                          keyboardType: TextInputType.number,
+                          decoration: const InputDecoration(
+                            labelText: 'Stock en litros',
+                            hintText: 'Opcional',
+                            prefixIcon: Icon(Icons.water_drop_outlined),
+                          ),
+                        );
+                        return compact
+                            ? Column(
+                                children: [
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: price,
+                                  ),
+                                  const SizedBox(height: 10),
+                                  SizedBox(
+                                    width: double.infinity,
+                                    child: stock,
+                                  ),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: price),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: stock),
+                                ],
+                              );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
+    );
+  }
+}
+
+class _ExchangeRatesSetupStep extends StatelessWidget {
+  const _ExchangeRatesSetupStep({
+    required this.drafts,
+    required this.onChanged,
+  });
+
+  final List<_ExchangeRateDraft> drafts;
+  final VoidCallback onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Card(
+          child: Padding(
+            padding: const EdgeInsets.all(14),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.currency_exchange_outlined,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(width: 10),
+                const Expanded(
+                  child: Text(
+                    'Activa cada moneda con la que operas. Indica cuántos CUP pagas al comprarla y cuántos CUP cobras al venderla.',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        for (final draft in drafts) ...[
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                children: [
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    value: draft.enabled,
+                    title: Text(
+                      draft.currency,
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    subtitle: const Text('Tasas referenciadas a CUP'),
+                    onChanged: (value) {
+                      draft.enabled = value;
+                      onChanged();
+                    },
+                  ),
+                  if (draft.enabled) ...[
+                    const SizedBox(height: 8),
+                    LayoutBuilder(
+                      builder: (context, constraints) {
+                        final compact = constraints.maxWidth < 440;
+                        final buy = TextFormField(
+                          controller: draft.buyController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Compra (CUP)',
+                            prefixIcon: Icon(Icons.south_west_outlined),
+                          ),
+                        );
+                        final sell = TextFormField(
+                          controller: draft.sellController,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          decoration: const InputDecoration(
+                            labelText: 'Venta (CUP)',
+                            prefixIcon: Icon(Icons.north_east_outlined),
+                          ),
+                        );
+                        return compact
+                            ? Column(
+                                children: [
+                                  SizedBox(width: double.infinity, child: buy),
+                                  const SizedBox(height: 10),
+                                  SizedBox(width: double.infinity, child: sell),
+                                ],
+                              )
+                            : Row(
+                                children: [
+                                  Expanded(child: buy),
+                                  const SizedBox(width: 10),
+                                  Expanded(child: sell),
+                                ],
+                              );
+                      },
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+        ],
+      ],
     );
   }
 }

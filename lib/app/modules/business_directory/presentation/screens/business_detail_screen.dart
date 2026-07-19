@@ -281,6 +281,11 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                     ),
                     const SizedBox(height: 12),
                     _OperationalInfoCard(business: business),
+                    if (business.isFuelBusiness ||
+                        business.isCurrencyExchangeBusiness) ...[
+                      const SizedBox(height: 12),
+                      _SpecialBusinessOfferCard(business: business),
+                    ],
                     const SizedBox(height: 22),
                     SectionHeader(title: catalogTitle),
                     const SizedBox(height: 10),
@@ -1316,6 +1321,164 @@ class _OperationalInfoCard extends StatelessWidget {
     final match = RegExp(r'^(\d{1,2}):(\d{2})(?::\d{2})?$').firstMatch(trimmed);
     if (match == null) return trimmed;
     return '${match.group(1)!.padLeft(2, '0')}:${match.group(2)}';
+  }
+}
+
+class _SpecialBusinessOfferCard extends StatefulWidget {
+  const _SpecialBusinessOfferCard({required this.business});
+
+  final BusinessModel business;
+
+  @override
+  State<_SpecialBusinessOfferCard> createState() =>
+      _SpecialBusinessOfferCardState();
+}
+
+class _SpecialBusinessOfferCardState extends State<_SpecialBusinessOfferCard> {
+  late Future<List<Map<String, dynamic>>> _items;
+
+  bool get _isFuel => widget.business.isFuelBusiness;
+
+  @override
+  void initState() {
+    super.initState();
+    _items = _load();
+  }
+
+  Future<List<Map<String, dynamic>>> _load() async {
+    final endpoint = _isFuel ? '/combustibles' : '/tasas-cambio';
+    final result = await sl<ApiClient>().get<List<Map<String, dynamic>>>(
+      endpoint,
+      queryParameters: {
+        'negocio_id': widget.business.id,
+        'limit': 30,
+        'order': 'created_at.asc',
+      },
+      parser: (json) {
+        if (json is! List) return const [];
+        return json
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      },
+    );
+    if (!result.isSuccess) {
+      throw StateError(result.error?.message ?? 'No pudimos cargar los datos.');
+    }
+    return result.data ?? const [];
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _AccordionCard(
+      title: _isFuel ? 'Combustibles disponibles' : 'Tasas de cambio',
+      icon: _isFuel ? Icons.local_gas_station_outlined : Icons.currency_exchange,
+      children: [
+        FutureBuilder<List<Map<String, dynamic>>>(
+          future: _items,
+          builder: (context, snapshot) {
+            if (snapshot.connectionState != ConnectionState.done) {
+              return const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              );
+            }
+            if (snapshot.hasError) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text('No fue posible actualizar esta informacion.'),
+              );
+            }
+            final items = snapshot.data ?? const [];
+            if (items.isEmpty) {
+              return Padding(
+                padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                child: Text(
+                  _isFuel
+                      ? 'No hay combustibles publicados por este negocio.'
+                      : 'No hay tasas publicadas por esta casa de cambio.',
+                ),
+              );
+            }
+            return Column(
+              children: items
+                  .where((item) => item['disponible'] != false)
+                  .map(
+                    (item) => _SpecialBusinessOfferRow(
+                      item: item,
+                      isFuel: _isFuel,
+                    ),
+                  )
+                  .toList(),
+            );
+          },
+        ),
+      ],
+    );
+  }
+}
+
+class _SpecialBusinessOfferRow extends StatelessWidget {
+  const _SpecialBusinessOfferRow({required this.item, required this.isFuel});
+
+  final Map<String, dynamic> item;
+  final bool isFuel;
+
+  @override
+  Widget build(BuildContext context) {
+    final currency = '${item['moneda'] ?? 'CUP'}';
+    final title = isFuel
+        ? '${item['nombre'] ?? _fuelLabel('${item['tipo'] ?? ''}')}'
+        : currency;
+    final primaryValue = isFuel
+        ? '${_money(item['precio_cup'])} CUP/L'
+        : 'Compra ${_money(item['tasa_compra_cup'])} CUP';
+    final secondaryValue = isFuel
+        ? _stockLabel(item['stock_litros'])
+        : 'Venta ${_money(item['tasa_venta_cup'])} CUP';
+
+    return ListTile(
+      dense: true,
+      leading: Icon(
+        isFuel ? Icons.local_gas_station_outlined : Icons.currency_exchange,
+        color: Theme.of(context).colorScheme.secondary,
+      ),
+      title: Text(title, style: const TextStyle(fontWeight: FontWeight.w800)),
+      subtitle: Text(secondaryValue),
+      trailing: Text(
+        primaryValue,
+        style: TextStyle(
+          color: Theme.of(context).colorScheme.secondary,
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+    );
+  }
+
+  String _money(dynamic value) {
+    final number = value is num ? value : num.tryParse('$value');
+    if (number == null) return '-';
+    return number % 1 == 0 ? number.toStringAsFixed(0) : number.toStringAsFixed(2);
+  }
+
+  String _stockLabel(dynamic value) {
+    final number = value is num ? value : num.tryParse('$value');
+    if (number == null) return 'Disponibilidad por confirmar';
+    return '${number % 1 == 0 ? number.toStringAsFixed(0) : number.toStringAsFixed(1)} L disponibles';
+  }
+
+  String _fuelLabel(String type) {
+    const labels = {
+      'gasolina_b83': 'Gasolina B-83',
+      'gasolina_b87': 'Gasolina B-87',
+      'gasolina_b90': 'Gasolina B-90',
+      'gasolina_b94': 'Gasolina B-94',
+      'gasolina_b100': 'Gasolina B-100',
+      'diesel': 'Diesel',
+      'diesel_especial': 'Diesel especial',
+      'gas_lp': 'Gas licuado',
+    };
+    return labels[type] ?? 'Combustible';
   }
 }
 
