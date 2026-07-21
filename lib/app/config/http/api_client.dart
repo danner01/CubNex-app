@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
@@ -14,8 +15,9 @@ class ApiClient {
           Dio(
             BaseOptions(
               baseUrl: '${AppEnvironment.apiBaseUrl}/api/v1',
-              connectTimeout: const Duration(seconds: 15),
-              receiveTimeout: const Duration(seconds: 35),
+              connectTimeout: const Duration(seconds: 10),
+              receiveTimeout: const Duration(seconds: 18),
+              sendTimeout: const Duration(seconds: 12),
               headers: const {'accept': 'application/json'},
             ),
           ),
@@ -154,6 +156,7 @@ class ApiClient {
   static const _authRetryCountExtra = 'auth_retry_count';
   static const _requestStartedAtExtra = 'request_started_at';
   static const _refreshLeeway = Duration(minutes: 5);
+  static const _defaultRequestTimeout = Duration(seconds: 22);
 
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
@@ -268,10 +271,17 @@ class ApiClient {
     String path, {
     Map<String, dynamic>? queryParameters,
     T Function(dynamic json)? parser,
+    CancelToken? cancelToken,
+    Duration timeout = _defaultRequestTimeout,
   }) {
     return _request<T>(
-      () => _dio.get(path, queryParameters: queryParameters),
+      () => _dio.get(
+        path,
+        queryParameters: queryParameters,
+        cancelToken: cancelToken,
+      ),
       parser: parser,
+      timeout: timeout,
     );
   }
 
@@ -279,32 +289,51 @@ class ApiClient {
     String path, {
     Object? data,
     T Function(dynamic json)? parser,
+    CancelToken? cancelToken,
+    Duration timeout = _defaultRequestTimeout,
   }) {
-    return _request<T>(() => _dio.post(path, data: data), parser: parser);
+    return _request<T>(
+      () => _dio.post(path, data: data, cancelToken: cancelToken),
+      parser: parser,
+      timeout: timeout,
+    );
   }
 
   Future<ApiResult<T>> put<T>(
     String path, {
     Object? data,
     T Function(dynamic json)? parser,
+    CancelToken? cancelToken,
+    Duration timeout = _defaultRequestTimeout,
   }) {
-    return _request<T>(() => _dio.put(path, data: data), parser: parser);
+    return _request<T>(
+      () => _dio.put(path, data: data, cancelToken: cancelToken),
+      parser: parser,
+      timeout: timeout,
+    );
   }
 
   Future<ApiResult<T>> delete<T>(
     String path, {
     Object? data,
     T Function(dynamic json)? parser,
+    CancelToken? cancelToken,
+    Duration timeout = _defaultRequestTimeout,
   }) {
-    return _request<T>(() => _dio.delete(path, data: data), parser: parser);
+    return _request<T>(
+      () => _dio.delete(path, data: data, cancelToken: cancelToken),
+      parser: parser,
+      timeout: timeout,
+    );
   }
 
   Future<ApiResult<T>> _request<T>(
     Future<Response<dynamic>> Function() request, {
     T Function(dynamic json)? parser,
+    Duration timeout = _defaultRequestTimeout,
   }) async {
     try {
-      final response = await request();
+      final response = await request().timeout(timeout);
       final envelope = response.data;
 
       if (envelope is Map && envelope['exito'] == true) {
@@ -328,6 +357,16 @@ class ApiClient {
           message:
               '${apiError?['mensaje'] ?? 'Respuesta invalida del servidor'}',
           statusCode: response.statusCode,
+        ),
+      );
+    } on TimeoutException catch (error) {
+      debugPrint('[API][TIMEOUT] message=$error');
+      return ApiResult.failure(
+        ApiFailure(
+          code: 'TIMEOUT',
+          message:
+              'La solicitud tardo demasiado. Intenta de nuevo; no dejamos la vista cargando.',
+          statusCode: 408,
         ),
       );
     } on DioException catch (error) {
@@ -429,6 +468,8 @@ class ApiClient {
         return 'La conexion esta lenta. Mostramos contenido base mientras vuelve el servidor.';
       case DioExceptionType.connectionError:
         return 'No se pudo conectar con el servidor. Revisa internet o intenta de nuevo.';
+      case DioExceptionType.cancel:
+        return 'Operacion cancelada.';
       default:
         return error.message ?? 'Error de conexion';
     }
