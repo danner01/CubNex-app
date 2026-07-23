@@ -50,7 +50,7 @@ class CubNexApp extends StatelessWidget {
             return BlocBuilder<AppThemeCubit, ThemeMode>(
               builder: (context, themeMode) {
                 return MaterialApp.router(
-                  title: 'CubNex',
+                  title: 'ConKkao',
                   debugShowCheckedModeBanner: false,
                   scaffoldMessengerKey: PushNotificationService.messengerKey,
                   localizationsDelegates: const [

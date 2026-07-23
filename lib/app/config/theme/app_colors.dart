@@ -10,8 +10,9 @@ class AppColors {
   static const darkSurfaceVariant = Color(0xFF242424);
   static const gold = Color(0xFFD4AF37);
   static const goldDark = Color(0xFFB8941F);
-  static const green = Color(0xFF287C6F);
-  static const greenLight = Color(0xFF57B894);
+  // Natural cacao-leaf greens used by the ConKkao identity.
+  static const green = Color(0xFF2F7454);
+  static const greenLight = Color(0xFF65B77B);
   static const blue = Color(0xFF3B82F6);
   static const danger = Color(0xFFEF4444);
   static const success = Color(0xFF22C55E);

@@ -43,7 +43,7 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          'CubNex',
+                          'ConKkao',
                           style: TextStyle(
                             fontSize: 25,
                             fontWeight: FontWeight.w900,

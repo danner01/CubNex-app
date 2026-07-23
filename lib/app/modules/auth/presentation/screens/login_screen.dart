@@ -335,7 +335,7 @@ class _BrandHeader extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'CubNex',
+                      'ConKkao',
                       style: TextStyle(
                         color: Colors.white,
                         fontSize: 25,
@@ -651,7 +651,7 @@ class _LegalConsent extends StatelessWidget {
                       ),
                       const TextSpan(
                         text:
-                            ' para activar el registro y crear tu cuenta en CubNex.',
+                            ' para activar el registro y crear tu cuenta en ConKkao.',
                       ),
                     ],
                   ),

@@ -53,7 +53,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
                 children: [
                   const _BrandWordmark(),
                   Text(
-                    'CUBA',
+                    'CONECTA',
                     style: Theme.of(context).textTheme.labelLarge?.copyWith(
                       color: isDark ? AppColors.greenLight : AppColors.green,
                       fontWeight: FontWeight.w900,
@@ -262,18 +262,18 @@ class _BrandWordmark extends StatelessWidget {
         style: base,
         children: [
           TextSpan(
-            text: 'Cub',
+            text: 'Con',
             style: TextStyle(color: isDark ? Colors.white : AppColors.ink),
           ),
           const TextSpan(
-            text: 'N',
+            text: 'K',
             style: TextStyle(
               color: AppColors.gold,
               fontStyle: FontStyle.italic,
             ),
           ),
           TextSpan(
-            text: 'ex',
+            text: 'kao',
             style: TextStyle(
               color: isDark ? AppColors.greenLight : AppColors.green,
             ),

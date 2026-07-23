@@ -80,7 +80,7 @@ class PushNotificationService {
 
   void _showForegroundMessage(RemoteMessage message) {
     final notification = message.notification;
-    final title = notification?.title ?? message.data['titulo'] ?? 'CubNex';
+    final title = notification?.title ?? message.data['titulo'] ?? 'ConKkao';
     final body =
         notification?.body ??
         message.data['mensaje'] ??

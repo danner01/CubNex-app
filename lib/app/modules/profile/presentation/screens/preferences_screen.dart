@@ -121,7 +121,7 @@ class _HeaderCard extends StatelessWidget {
     };
     final subtitle = switch (panel) {
       _PreferencePanel.theme =>
-        'Controla el modo claro, oscuro o automatico de CubNex.',
+        'Controla el modo claro, oscuro o automatico de ConKkao.',
       _PreferencePanel.categories => switch (roleMode) {
         RoleMode.client => 'Elige que negocios y servicios quieres ver primero.',
         RoleMode.business => 'Prioriza aliados, proveedores y servicios utiles para tus negocios.',

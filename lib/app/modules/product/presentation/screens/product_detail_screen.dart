@@ -219,7 +219,7 @@ class _ProductDetailView extends StatelessWidget {
                   Text(
                     product.description?.isNotEmpty == true
                         ? product.description!
-                        : 'Este producto esta disponible en CubNex. Contacta al negocio para confirmar detalles, stock y entrega.',
+                        : 'Este producto esta disponible en ConKkao. Contacta al negocio para confirmar detalles, stock y entrega.',
                     style: Theme.of(
                       context,
                     ).textTheme.bodyMedium?.copyWith(height: 1.5),

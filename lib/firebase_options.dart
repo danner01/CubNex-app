@@ -9,9 +9,7 @@ class DefaultFirebaseOptions {
       case TargetPlatform.iOS:
         return ios;
       default:
-        throw UnsupportedError(
-          'CubNex only supports Android and iOS for now.',
-        );
+        throw UnsupportedError('ConKkao solo admite Android e iOS por ahora.');
     }
   }
 

@@ -429,7 +429,7 @@ class BusinessPreviewCard extends StatelessWidget {
                 ],
                 const SizedBox(height: 4),
                 Text(
-                  description ?? 'Tienda disponible en CubNex.',
+                  description ?? 'Tienda disponible en ConKkao.',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(

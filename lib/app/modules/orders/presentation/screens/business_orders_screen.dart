@@ -1033,7 +1033,7 @@ class _BusinessOrderCard extends StatelessWidget {
     final message = await sl<ContactService>().openWhatsApp(
       order.phone,
       message:
-          'Hola ${order.contactName ?? ''}, te escribo por tu solicitud en CubNex.',
+          'Hola ${order.contactName ?? ''}, te escribo por tu solicitud en ConKkao.',
     );
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);

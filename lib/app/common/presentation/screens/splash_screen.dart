@@ -47,10 +47,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   Future<void> _goToOnboarding() async {
     final updateFuture = _checkForUpdate()
-        .timeout(
-          const Duration(seconds: 4),
-          onTimeout: () => null,
-        )
+        .timeout(const Duration(seconds: 4), onTimeout: () => null)
         .catchError((_) => null);
     await Future<void>.delayed(_totalDuration);
     if (!mounted) return;
@@ -169,7 +166,7 @@ class _SplashScreenState extends State<SplashScreen>
                       AnimatedCubNexLogo(animation: _controller, size: 138),
                       const SizedBox(height: 20),
                       const Text(
-                        'CubNex',
+                        'ConKkao',
                         style: TextStyle(
                           color: Colors.white,
                           fontSize: 34,
@@ -228,6 +225,29 @@ class _CubaNetworkPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    final chocolateTile = Paint()
+      ..color = const Color(0xFF2A160F).withValues(alpha: 0.28);
+    final chocolateLine = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1
+      ..color = const Color(0xFF8D5A3D).withValues(alpha: 0.08);
+    final tileSize = size.width * 0.19;
+    for (var y = -1; y < (size.height / tileSize).ceil() + 1; y++) {
+      for (var x = -1; x < (size.width / tileSize).ceil() + 1; x++) {
+        final tile = RRect.fromRectAndRadius(
+          Rect.fromLTWH(
+            x * tileSize + 2,
+            y * tileSize + 2,
+            tileSize - 4,
+            tileSize - 4,
+          ),
+          const Radius.circular(12),
+        );
+        canvas.drawRRect(tile, chocolateTile);
+        canvas.drawRRect(tile, chocolateLine);
+      }
+    }
+
     final mapRect = Rect.fromLTWH(
       size.width * 0.08,
       size.height * 0.2,
@@ -235,7 +255,7 @@ class _CubaNetworkPainter extends CustomPainter {
       size.height * 0.32,
     );
 
-    final mapPath = _buildCubaPath(mapRect);
+    final mapPath = _buildCacaoPath(mapRect);
     final shadowPaint = Paint()
       ..style = PaintingStyle.fill
       ..color = AppColors.greenLight.withValues(alpha: 0.08)
@@ -248,9 +268,9 @@ class _CubaNetworkPainter extends CustomPainter {
         begin: Alignment.topLeft,
         end: Alignment.bottomRight,
         colors: [
-          AppColors.gold.withValues(alpha: 0.16),
-          AppColors.green.withValues(alpha: 0.14),
-          Colors.white.withValues(alpha: 0.05),
+          const Color(0xFF6A321B).withValues(alpha: 0.26),
+          AppColors.gold.withValues(alpha: 0.14),
+          AppColors.green.withValues(alpha: 0.1),
         ],
       ).createShader(mapRect);
     canvas.drawPath(mapPath, mapFill);
@@ -308,43 +328,27 @@ class _CubaNetworkPainter extends CustomPainter {
     }
   }
 
-  Path _buildCubaPath(Rect rect) {
+  Path _buildCacaoPath(Rect rect) {
     Offset p(double x, double y) =>
         Offset(rect.left + rect.width * x, rect.top + rect.height * y);
 
     return Path()
-      ..moveTo(p(0.02, 0.58).dx, p(0.02, 0.58).dy)
+      ..moveTo(p(0.5, 0.05).dx, p(0.5, 0.05).dy)
       ..cubicTo(
-        p(0.18, 0.31).dx,
-        p(0.18, 0.31).dy,
-        p(0.42, 0.25).dx,
-        p(0.42, 0.25).dy,
-        p(0.66, 0.34).dx,
-        p(0.66, 0.34).dy,
+        p(0.66, 0.18).dx,
+        p(0.66, 0.18).dy,
+        p(0.69, 0.72).dx,
+        p(0.69, 0.72).dy,
+        p(0.5, 0.95).dx,
+        p(0.5, 0.95).dy,
       )
       ..cubicTo(
-        p(0.83, 0.4).dx,
-        p(0.83, 0.4).dy,
-        p(0.94, 0.51).dx,
-        p(0.94, 0.51).dy,
-        p(0.98, 0.65).dx,
-        p(0.98, 0.65).dy,
-      )
-      ..cubicTo(
-        p(0.72, 0.56).dx,
-        p(0.72, 0.56).dy,
-        p(0.44, 0.55).dx,
-        p(0.44, 0.55).dy,
-        p(0.2, 0.73).dx,
-        p(0.2, 0.73).dy,
-      )
-      ..cubicTo(
-        p(0.08, 0.82).dx,
-        p(0.08, 0.82).dy,
-        p(-0.02, 0.74).dx,
-        p(-0.02, 0.74).dy,
-        p(0.02, 0.58).dx,
-        p(0.02, 0.58).dy,
+        p(0.31, 0.72).dx,
+        p(0.31, 0.72).dy,
+        p(0.34, 0.18).dx,
+        p(0.34, 0.18).dy,
+        p(0.5, 0.05).dx,
+        p(0.5, 0.05).dy,
       )
       ..close();
   }

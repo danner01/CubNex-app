@@ -815,7 +815,7 @@ class _SellerCta extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Vende en CubNex',
+            'Vende en ConKkao',
             style: Theme.of(context).textTheme.titleLarge?.copyWith(
               color: Theme.of(context).brightness == Brightness.dark
                   ? AppColors.ink
@@ -903,7 +903,7 @@ const _fallbackBusinesses = [
 const _fallbackProducts = [
   _FallbackProduct(
     name: 'Producto destacado',
-    brand: 'CubNex',
+    brand: 'ConKkao',
     price: 0,
     currency: 'CUP',
   ),

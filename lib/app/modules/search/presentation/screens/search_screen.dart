@@ -693,7 +693,7 @@ class _EmptySearchState extends StatelessWidget {
   Widget build(BuildContext context) {
     return _MessageCard(
       icon: Icons.manage_search_rounded,
-      title: 'Buscar en CubNex',
+      title: 'Buscar en ConKkao',
       message: message,
       color: Theme.of(context).colorScheme.secondary,
     );

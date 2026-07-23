@@ -450,7 +450,7 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
       business.whatsapp?.isNotEmpty == true
           ? business.whatsapp
           : business.phone,
-      message: 'Hola, vi ${business.name} en CubNex.',
+      message: 'Hola, vi ${business.name} en ConKkao.',
     );
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);

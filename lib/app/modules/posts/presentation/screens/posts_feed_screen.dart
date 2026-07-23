@@ -42,7 +42,7 @@ class _PostsFeedView extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
                 Text(
-                  'Feed CubNex',
+                  'Feed ConKkao',
                   style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                     fontWeight: FontWeight.w900,
                   ),
@@ -157,8 +157,8 @@ class _PostCard extends StatelessWidget {
                       onTap: () async {
                         await context.read<PostsCubit>().share(post.id);
                         await Share.share(
-                          '${post.title ?? business?.name ?? 'Publicacion CubNex'}\n${post.content}',
-                          subject: post.title ?? business?.name ?? 'CubNex',
+                          '${post.title ?? business?.name ?? 'Publicacion ConKkao'}\n${post.content}',
+                          subject: post.title ?? business?.name ?? 'ConKkao',
                         );
                       },
                     ),

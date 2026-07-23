@@ -16,7 +16,6 @@ class CubNexLogo extends StatelessWidget {
       dimension: size,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          shape: BoxShape.circle,
           boxShadow: showGlow
               ? [
                   BoxShadow(
@@ -30,12 +29,10 @@ class CubNexLogo extends StatelessWidget {
                 ]
               : null,
         ),
-        child: ClipOval(
-          child: Image.asset(
-            'assets/icons/cubnex_icon.png',
-            fit: BoxFit.cover,
-            filterQuality: FilterQuality.high,
-          ),
+        child: Image.asset(
+          'assets/icons/conkkao_icon.png',
+          fit: BoxFit.contain,
+          filterQuality: FilterQuality.high,
         ),
       ),
     );
@@ -62,8 +59,20 @@ class AnimatedCubNexLogo extends StatelessWidget {
           final pulse = 0.97 + math.sin(animation.value * math.pi * 2) * 0.028;
           return Transform.scale(
             scale: pulse,
-            child: CustomPaint(
-              painter: _AnimatedCubNexBadgePainter(progress: animation.value),
+            child: Stack(
+              fit: StackFit.expand,
+              children: [
+                Image.asset(
+                  'assets/icons/conkkao_icon.png',
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+                CustomPaint(
+                  painter: _AnimatedLogoOverlayPainter(
+                    progress: animation.value,
+                  ),
+                ),
+              ],
             ),
           );
         },
@@ -72,6 +81,72 @@ class AnimatedCubNexLogo extends StatelessWidget {
   }
 }
 
+class _AnimatedLogoOverlayPainter extends CustomPainter {
+  const _AnimatedLogoOverlayPainter({required this.progress});
+
+  final double progress;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final radius = size.shortestSide * 0.34;
+    final points = [
+      Offset(center.dx - radius * 0.7, center.dy - radius * 0.18),
+      Offset(center.dx - radius * 0.1, center.dy - radius * 0.66),
+      Offset(center.dx + radius * 0.62, center.dy - radius * 0.35),
+      Offset(center.dx + radius * 0.64, center.dy + radius * 0.42),
+      Offset(center.dx, center.dy + radius * 0.62),
+      Offset(center.dx - radius * 0.62, center.dy + radius * 0.35),
+    ];
+
+    final base = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * 0.009
+      ..strokeCap = StrokeCap.round
+      ..color = Colors.white.withValues(alpha: 0.2);
+    final pulsePaint = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = size.shortestSide * 0.016
+      ..strokeCap = StrokeCap.round
+      ..color = AppColors.gold.withValues(alpha: 0.86);
+
+    for (var i = 0; i < points.length; i++) {
+      final start = points[i];
+      final end = points[(i + 1) % points.length];
+      canvas.drawLine(start, end, base);
+      final phase = (progress + i / points.length) % 1;
+      final pulseStart = Offset.lerp(start, end, phase)!;
+      final pulseEnd = Offset.lerp(start, end, math.min(phase + 0.16, 1))!;
+      canvas.drawLine(pulseStart, pulseEnd, pulsePaint);
+    }
+
+    for (var i = 0; i < points.length; i++) {
+      final active = ((progress * points.length).floor() % points.length) == i;
+      canvas.drawCircle(
+        points[i],
+        size.shortestSide * (active ? 0.036 : 0.027),
+        Paint()..color = AppColors.greenLight.withValues(alpha: 0.92),
+      );
+      canvas.drawCircle(
+        points[i],
+        size.shortestSide * 0.045,
+        Paint()
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = size.shortestSide * 0.008
+          ..color = Colors.white.withValues(alpha: active ? 0.62 : 0.28),
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _AnimatedLogoOverlayPainter oldDelegate) {
+    return oldDelegate.progress != progress;
+  }
+}
+
+// Kept as a compatibility painter for older callers while the asset-based
+// branding is rolled out across all platforms.
+// ignore: unused_element
 class _AnimatedCubNexBadgePainter extends CustomPainter {
   const _AnimatedCubNexBadgePainter({required this.progress});
 
@@ -117,45 +192,29 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
       ..color = Colors.white.withValues(alpha: 0.16);
     canvas.drawCircle(center, radius * 0.76, innerRing);
 
-    _drawCuba(canvas, center, radius);
+    _drawCacaoPod(canvas, center, radius);
     _drawConnections(canvas, center, radius);
     _drawBrandText(canvas, center, radius);
   }
 
-  void _drawCuba(Canvas canvas, Offset center, double radius) {
+  void _drawCacaoPod(Canvas canvas, Offset center, double radius) {
     final path = Path()
-      ..moveTo(center.dx - radius * 0.58, center.dy - radius * 0.26)
+      ..moveTo(center.dx, center.dy - radius * 0.58)
       ..cubicTo(
-        center.dx - radius * 0.36,
+        center.dx + radius * 0.38,
         center.dy - radius * 0.42,
-        center.dx - radius * 0.12,
-        center.dy - radius * 0.36,
-        center.dx + radius * 0.1,
-        center.dy - radius * 0.28,
+        center.dx + radius * 0.46,
+        center.dy + radius * 0.15,
+        center.dx,
+        center.dy + radius * 0.58,
       )
       ..cubicTo(
-        center.dx + radius * 0.35,
-        center.dy - radius * 0.2,
-        center.dx + radius * 0.55,
-        center.dy - radius * 0.13,
-        center.dx + radius * 0.68,
-        center.dy - radius * 0.04,
-      )
-      ..cubicTo(
-        center.dx + radius * 0.44,
-        center.dy - radius * 0.02,
-        center.dx + radius * 0.13,
-        center.dy - radius * 0.02,
-        center.dx - radius * 0.16,
-        center.dy + radius * 0.07,
-      )
-      ..cubicTo(
-        center.dx - radius * 0.35,
-        center.dy + radius * 0.14,
-        center.dx - radius * 0.58,
-        center.dy + radius * 0.03,
-        center.dx - radius * 0.58,
-        center.dy - radius * 0.26,
+        center.dx - radius * 0.46,
+        center.dy + radius * 0.15,
+        center.dx - radius * 0.38,
+        center.dy - radius * 0.42,
+        center.dx,
+        center.dy - radius * 0.58,
       )
       ..close();
 
@@ -170,6 +229,40 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
         ..strokeWidth = radius * 0.02
         ..color = AppColors.gold.withValues(alpha: 0.7),
     );
+
+    final seam = Path()
+      ..moveTo(center.dx, center.dy - radius * 0.45)
+      ..cubicTo(
+        center.dx - radius * 0.12,
+        center.dy - radius * 0.12,
+        center.dx + radius * 0.12,
+        center.dy + radius * 0.16,
+        center.dx,
+        center.dy + radius * 0.46,
+      );
+    canvas.drawPath(
+      seam,
+      Paint()
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = radius * 0.035
+        ..strokeCap = StrokeCap.round
+        ..color = AppColors.gold.withValues(alpha: 0.78),
+    );
+
+    for (var i = 0; i < 4; i++) {
+      final beanCenter = Offset(
+        center.dx + (i.isEven ? -1 : 1) * radius * 0.12,
+        center.dy - radius * 0.18 + i * radius * 0.12,
+      );
+      canvas.drawOval(
+        Rect.fromCenter(
+          center: beanCenter,
+          width: radius * 0.13,
+          height: radius * 0.19,
+        ),
+        Paint()..color = AppColors.gold.withValues(alpha: 0.72),
+      );
+    }
   }
 
   void _drawConnections(Canvas canvas, Offset center, double radius) {
@@ -232,7 +325,11 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
       final active = ((progress * nodes.length).floor() % nodes.length) == i;
       final nodePaint = Paint()
         ..color = nodes[i].color.withValues(alpha: active ? 1 : 0.88);
-      canvas.drawCircle(nodes[i].point, radius * (active ? 0.095 : 0.078), nodePaint);
+      canvas.drawCircle(
+        nodes[i].point,
+        radius * (active ? 0.095 : 0.078),
+        nodePaint,
+      );
       canvas.drawCircle(
         nodes[i].point,
         radius * (active ? 0.122 : 0.096),
@@ -241,81 +338,53 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
           ..strokeWidth = radius * 0.014
           ..color = Colors.white.withValues(alpha: active ? 0.34 : 0.18),
       );
-      _drawIcon(canvas, nodes[i].icon, nodes[i].point, Colors.black.withValues(alpha: 0.82), radius * 0.1);
+      _drawIcon(
+        canvas,
+        nodes[i].icon,
+        nodes[i].point,
+        Colors.black.withValues(alpha: 0.82),
+        radius * 0.1,
+      );
     }
   }
 
   void _drawBrandText(Canvas canvas, Offset center, double radius) {
     final baseline = center.dy + radius * 0.18;
-    final cubStyle = TextStyle(
+    final brandStyle = TextStyle(
       color: AppColors.gold,
       fontSize: radius * 0.43,
       fontWeight: FontWeight.w900,
       fontStyle: FontStyle.italic,
       height: 1,
-      shadows: const [Shadow(color: Colors.black87, blurRadius: 5, offset: Offset(1, 2))],
+      shadows: const [
+        Shadow(color: Colors.black87, blurRadius: 5, offset: Offset(1, 2)),
+      ],
     );
-    final exStyle = cubStyle.copyWith(color: AppColors.greenLight);
-
-    final cub = TextPainter(
-      text: TextSpan(text: 'Cub', style: cubStyle),
+    final brand = TextPainter(
+      text: TextSpan(
+        children: [
+          TextSpan(text: 'Con', style: brandStyle),
+          TextSpan(
+            text: 'Kkao',
+            style: brandStyle.copyWith(color: AppColors.greenLight),
+          ),
+        ],
+      ),
       textDirection: TextDirection.ltr,
     )..layout();
-    final ex = TextPainter(
-      text: TextSpan(text: 'ex', style: exStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    final totalWidth = cub.width + radius * 0.34 + ex.width - radius * 0.08;
-    var x = center.dx - totalWidth / 2;
-    cub.paint(canvas, Offset(x, baseline - cub.height));
-    x += cub.width - radius * 0.03;
-    _drawHybridNA(canvas, Offset(x, baseline - radius * 0.42), radius);
-    x += radius * 0.32;
-    ex.paint(canvas, Offset(x, baseline - ex.height));
-  }
-
-  void _drawHybridNA(Canvas canvas, Offset origin, double radius) {
-    final w = radius * 0.34;
-    final h = radius * 0.48;
-    final path = Path()
-      ..moveTo(origin.dx, origin.dy + h)
-      ..lineTo(origin.dx + w * 0.44, origin.dy)
-      ..lineTo(origin.dx + w, origin.dy + h)
-      ..lineTo(origin.dx + w * 0.78, origin.dy + h)
-      ..lineTo(origin.dx + w * 0.62, origin.dy + h * 0.64)
-      ..lineTo(origin.dx + w * 0.25, origin.dy + h * 0.64)
-      ..lineTo(origin.dx + w * 0.12, origin.dy + h)
-      ..close();
-    final bridge = Path()
-      ..moveTo(origin.dx + w * 0.3, origin.dy + h * 0.5)
-      ..lineTo(origin.dx + w * 0.57, origin.dy + h * 0.5);
-
-    final fill = Paint()
-      ..shader = const LinearGradient(
-        begin: Alignment.topCenter,
-        end: Alignment.bottomCenter,
-        colors: [Color(0xFF7FFFE0), AppColors.greenLight],
-      ).createShader(Rect.fromLTWH(origin.dx, origin.dy, w, h));
-    canvas.drawPath(path, fill);
-    canvas.drawPath(
-      path,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = radius * 0.018
-        ..color = AppColors.gold.withValues(alpha: 0.88),
-    );
-    canvas.drawPath(
-      bridge,
-      Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = radius * 0.025
-        ..strokeCap = StrokeCap.round
-        ..color = AppColors.gold.withValues(alpha: 0.95),
+    brand.paint(
+      canvas,
+      Offset(center.dx - brand.width / 2, baseline - brand.height),
     );
   }
 
-  void _drawIcon(Canvas canvas, IconData icon, Offset center, Color color, double size) {
+  void _drawIcon(
+    Canvas canvas,
+    IconData icon,
+    Offset center,
+    Color color,
+    double size,
+  ) {
     final painter = TextPainter(
       text: TextSpan(
         text: String.fromCharCode(icon.codePoint),
@@ -329,7 +398,10 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout();
 
-    painter.paint(canvas, center - Offset(painter.width / 2, painter.height / 2));
+    painter.paint(
+      canvas,
+      center - Offset(painter.width / 2, painter.height / 2),
+    );
   }
 
   @override
