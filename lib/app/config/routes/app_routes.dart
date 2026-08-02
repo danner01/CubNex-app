@@ -14,6 +14,7 @@ class AppRoutes {
   static const orders = '/orders';
   static const notifications = '/notifications';
   static const profile = '/profile';
+  static const credits = '/creditos';
   static const preferences = '/preferences';
   static const gamification = '/gamification';
   static const promotions = '/promotions';

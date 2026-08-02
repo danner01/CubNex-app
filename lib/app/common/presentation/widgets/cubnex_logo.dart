@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 
@@ -14,26 +15,33 @@ class CubNexLogo extends StatelessWidget {
   Widget build(BuildContext context) {
     return SizedBox.square(
       dimension: size,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          boxShadow: showGlow
-              ? [
-                  BoxShadow(
-                    color: AppColors.gold.withValues(alpha: 0.26),
-                    blurRadius: size * 0.24,
-                  ),
-                  BoxShadow(
-                    color: AppColors.greenLight.withValues(alpha: 0.18),
-                    blurRadius: size * 0.34,
-                  ),
-                ]
-              : null,
-        ),
-        child: Image.asset(
-          'assets/icons/conkkao_icon.png',
-          fit: BoxFit.contain,
-          filterQuality: FilterQuality.high,
-        ),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          if (showGlow)
+            ImageFiltered(
+              imageFilter: ui.ImageFilter.blur(
+                sigmaX: size * 0.055,
+                sigmaY: size * 0.055,
+              ),
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                  AppColors.gold.withValues(alpha: 0.72),
+                  BlendMode.srcIn,
+                ),
+                child: Image.asset(
+                  'assets/icons/conkkao_icon.png',
+                  fit: BoxFit.contain,
+                  filterQuality: FilterQuality.high,
+                ),
+              ),
+            ),
+          Image.asset(
+            'assets/icons/conkkao_icon.png',
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.high,
+          ),
+        ],
       ),
     );
   }
@@ -62,15 +70,27 @@ class AnimatedCubNexLogo extends StatelessWidget {
             child: Stack(
               fit: StackFit.expand,
               children: [
+                ImageFiltered(
+                  imageFilter: ui.ImageFilter.blur(
+                    sigmaX: size * 0.05,
+                    sigmaY: size * 0.05,
+                  ),
+                  child: ColorFiltered(
+                    colorFilter: ColorFilter.mode(
+                      AppColors.gold.withValues(alpha: 0.68),
+                      BlendMode.srcIn,
+                    ),
+                    child: Image.asset(
+                      'assets/icons/conkkao_icon.png',
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                ),
                 Image.asset(
                   'assets/icons/conkkao_icon.png',
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
-                ),
-                CustomPaint(
-                  painter: _AnimatedLogoOverlayPainter(
-                    progress: animation.value,
-                  ),
                 ),
               ],
             ),
@@ -81,6 +101,8 @@ class AnimatedCubNexLogo extends StatelessWidget {
   }
 }
 
+// Kept for compatibility with older animated-logo callers.
+// ignore: unused_element
 class _AnimatedLogoOverlayPainter extends CustomPainter {
   const _AnimatedLogoOverlayPainter({required this.progress});
 

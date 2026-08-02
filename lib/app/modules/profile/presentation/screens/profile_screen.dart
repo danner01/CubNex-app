@@ -234,6 +234,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
   final common = [
     _ProfileTile(
+      icon: Icons.account_balance_wallet_outlined,
+      title: 'Créditos',
+      subtitle: 'Saldo, transferencias, recargas y movimientos.',
+      onTap: () => context.go(AppRoutes.credits),
+    ),
+    _ProfileTile(
       icon: Icons.notifications_none_rounded,
       title: 'Notificaciones',
       subtitle: 'Avisos, pedidos, promociones y mensajes del sistema.',

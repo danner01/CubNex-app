@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../../../../common/services/credit_service.dart';
 import '../../../../config/http/api_client.dart';
+import '../../../../config/injection/injection.dart';
 import '../../../business/data/models/store_customization_model.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../../home/data/models/product_model.dart';
@@ -139,7 +141,8 @@ class BusinessDetailCubit extends Cubit<BusinessDetailState> {
       );
       return;
     }
-
+ 
+    await sl<CreditService>().recordBusinessReview(businessId);
     emit(
       state.copyWith(
         status: BusinessDetailStatus.success,

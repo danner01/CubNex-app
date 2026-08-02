@@ -9,6 +9,7 @@ import '../../../../common/entities/user_role.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
+import '../../../../common/services/credit_service.dart';
 import '../../../../common/services/share_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/http/api_client.dart';
@@ -438,6 +439,9 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
       title: business.name,
       message: business.description,
     );
+    if (message == null) {
+      await sl<CreditService>().recordBusinessShare(business.id);
+    }
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }
@@ -452,6 +456,9 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
           : business.phone,
       message: 'Hola, vi ${business.name} en ConKkao.',
     );
+    if (message == null) {
+      await sl<CreditService>().recordBusinessContact(business.id, 'whatsapp');
+    }
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }
@@ -1213,14 +1220,22 @@ class _ContactCard extends StatelessWidget {
   }
 
   Future<void> _openPhone(BuildContext context, String? value) async {
+    final businessId = context.read<BusinessDetailCubit>().state.business?.id;
     final message = await sl<ContactService>().openPhone(value);
+    if (message == null && businessId != null) {
+      await sl<CreditService>().recordBusinessContact(businessId, 'telefono');
+    }
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }
   }
 
   Future<void> _openWhatsApp(BuildContext context, String? value) async {
+    final businessId = context.read<BusinessDetailCubit>().state.business?.id;
     final message = await sl<ContactService>().openWhatsApp(value);
+    if (message == null && businessId != null) {
+      await sl<CreditService>().recordBusinessContact(businessId, 'whatsapp');
+    }
     if (message != null && context.mounted) {
       showSnackOrAuthDialog(context, message);
     }

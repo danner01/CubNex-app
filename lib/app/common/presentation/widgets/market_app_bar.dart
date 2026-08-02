@@ -9,7 +9,6 @@ import '../../../common/services/push_notification_service.dart';
 import '../../../config/http/api_client.dart';
 import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
-import '../../../config/theme/app_colors.dart';
 import '../../../modules/notifications/data/models/notification_model.dart';
 import '../../../modules/orders/blocs/cart/cart_cubit.dart';
 import 'cubnex_logo.dart';
@@ -29,8 +28,6 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colorScheme = Theme.of(context).colorScheme;
-    final isDark = colorScheme.brightness == Brightness.dark;
     final cartCount = context.watch<CartCubit>().state.totalItems;
     final roleMode = context.watch<RoleModeCubit>().state.activeMode;
 
@@ -44,26 +41,8 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
               _BackButton(fallbackLocation: fallbackLocation),
               const SizedBox(width: 8),
             ],
-            const CubNexLogo(size: 54),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const _BrandWordmark(),
-                  Text(
-                    'CONECTA',
-                    style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                      color: isDark ? AppColors.greenLight : AppColors.green,
-                      fontWeight: FontWeight.w900,
-                      fontStyle: FontStyle.italic,
-                      letterSpacing: 2.8,
-                    ),
-                  ),
-                ],
-              ),
-            ),
+            const CubNexLogo(size: 64),
+            const Spacer(),
             _UnreadNotificationsButton(
               onPressed: () => context.go(AppRoutes.notifications),
             ),
@@ -230,55 +209,6 @@ class _BackButton extends StatelessWidget {
             ),
           ),
         ),
-      ),
-    );
-  }
-}
-
-class _BrandWordmark extends StatelessWidget {
-  const _BrandWordmark();
-
-  @override
-  Widget build(BuildContext context) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final base = Theme.of(context).textTheme.titleLarge?.copyWith(
-      fontWeight: FontWeight.w900,
-      letterSpacing: 0,
-      height: 0.98,
-      shadows: [
-        Shadow(
-          color: (isDark ? AppColors.gold : AppColors.ink).withValues(
-            alpha: 0.22,
-          ),
-          blurRadius: 10,
-        ),
-      ],
-    );
-
-    return RichText(
-      maxLines: 1,
-      overflow: TextOverflow.ellipsis,
-      text: TextSpan(
-        style: base,
-        children: [
-          TextSpan(
-            text: 'Con',
-            style: TextStyle(color: isDark ? Colors.white : AppColors.ink),
-          ),
-          const TextSpan(
-            text: 'K',
-            style: TextStyle(
-              color: AppColors.gold,
-              fontStyle: FontStyle.italic,
-            ),
-          ),
-          TextSpan(
-            text: 'kao',
-            style: TextStyle(
-              color: isDark ? AppColors.greenLight : AppColors.green,
-            ),
-          ),
-        ],
       ),
     );
   }

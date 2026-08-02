@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -23,10 +21,9 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen>
     with SingleTickerProviderStateMixin {
   static const _splashSeconds = 2;
-  static const _networkAnimationSeconds = 2;
-  static const _splashDuration = Duration(seconds: _splashSeconds);
+  static const _growthAnimationSeconds = 2;
   static const _totalDuration = Duration(
-    seconds: _splashSeconds + _networkAnimationSeconds,
+    seconds: _splashSeconds + _growthAnimationSeconds,
   );
 
   late final AnimationController _controller;
@@ -124,305 +121,163 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppColors.darkBackground,
+      backgroundColor: Colors.black,
       body: SafeArea(
-        child: Stack(
-          children: [
-            Positioned.fill(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  final networkProgress = _networkProgress;
-                  return CustomPaint(
-                    painter: _CubaNetworkPainter(progress: networkProgress),
-                  );
-                },
-              ),
-            ),
-            Positioned.fill(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: RadialGradient(
-                    center: Alignment.topCenter,
-                    radius: 1.1,
-                    colors: [
-                      AppColors.gold.withValues(alpha: 0.14),
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.3),
-                    ],
-                    stops: const [0, 0.52, 1],
-                  ),
-                ),
-              ),
-            ),
-            Center(
-              child: AnimatedBuilder(
-                animation: _controller,
-                builder: (context, _) {
-                  final networkProgress = _networkProgress;
-                  return Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      AnimatedCubNexLogo(animation: _controller, size: 138),
-                      const SizedBox(height: 20),
-                      const Text(
-                        'ConKkao',
-                        style: TextStyle(
-                          color: Colors.white,
-                          fontSize: 34,
-                          fontWeight: FontWeight.w900,
-                          height: 1,
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Conecta negocios, clientes y oportunidades',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          color: AppColors.greenLight,
-                          fontWeight: FontWeight.w900,
-                          letterSpacing: 0.4,
-                        ),
-                      ),
-                      const SizedBox(height: 34),
-                      SizedBox(
-                        width: 148,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(99),
-                          child: LinearProgressIndicator(
-                            minHeight: 4,
-                            value: networkProgress,
-                            backgroundColor: Colors.white.withValues(
-                              alpha: 0.08,
-                            ),
-                            color: AppColors.gold,
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
-          ],
-        ),
+        child: Center(child: CacaoGrowthSplash(animation: _controller)),
       ),
     );
   }
 
-  double get _networkProgress {
-    final splashPortion =
-        _splashDuration.inMilliseconds / _totalDuration.inMilliseconds;
-    final value = (_controller.value - splashPortion) / (1 - splashPortion);
-    return value.clamp(0.0, 1.0);
+}
+
+/// Botanical identity animation used during startup. It is intentionally
+/// self-contained so the splash never depends on network or remote assets.
+class CacaoGrowthSplash extends StatelessWidget {
+  const CacaoGrowthSplash({super.key, required this.animation});
+
+  final Animation<double> animation;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: animation,
+      builder: (context, _) {
+        final progress = animation.value;
+        final logoProgress = ((progress - 0.76) / 0.24).clamp(0.0, 1.0);
+        return SizedBox(
+          width: 250,
+          height: 330,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CustomPaint(
+                size: const Size(250, 330),
+                painter: _CacaoGrowthPainter(progress: progress),
+              ),
+              Opacity(
+                opacity: Curves.easeOut.transform(logoProgress),
+                child: Transform.scale(
+                  scale: 0.72 + logoProgress * 0.28,
+                  child: const CubNexLogo(size: 142, showGlow: true),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
   }
 }
 
-class _CubaNetworkPainter extends CustomPainter {
-  const _CubaNetworkPainter({required this.progress});
+class _CacaoGrowthPainter extends CustomPainter {
+  const _CacaoGrowthPainter({required this.progress});
 
   final double progress;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final chocolateTile = Paint()
-      ..color = const Color(0xFF2A160F).withValues(alpha: 0.28);
-    final chocolateLine = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1
-      ..color = const Color(0xFF8D5A3D).withValues(alpha: 0.08);
-    final tileSize = size.width * 0.19;
-    for (var y = -1; y < (size.height / tileSize).ceil() + 1; y++) {
-      for (var x = -1; x < (size.width / tileSize).ceil() + 1; x++) {
-        final tile = RRect.fromRectAndRadius(
-          Rect.fromLTWH(
-            x * tileSize + 2,
-            y * tileSize + 2,
-            tileSize - 4,
-            tileSize - 4,
-          ),
-          const Radius.circular(12),
-        );
-        canvas.drawRRect(tile, chocolateTile);
-        canvas.drawRRect(tile, chocolateLine);
-      }
-    }
-
-    final mapRect = Rect.fromLTWH(
-      size.width * 0.08,
-      size.height * 0.2,
-      size.width * 0.84,
-      size.height * 0.32,
+    final center = Offset(size.width / 2, size.height * 0.48);
+    final soilY = size.height * 0.73;
+    final soilPaint = Paint()
+      ..color = const Color(0xFF4A281A).withValues(alpha: 0.9)
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round;
+    canvas.drawLine(
+      Offset(size.width * 0.2, soilY),
+      Offset(size.width * 0.8, soilY),
+      soilPaint,
     );
 
-    final mapPath = _buildCacaoPath(mapRect);
-    final shadowPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = AppColors.greenLight.withValues(alpha: 0.08)
-      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
-    canvas.drawPath(mapPath.shift(const Offset(0, 10)), shadowPaint);
-
-    final mapFill = Paint()
-      ..style = PaintingStyle.fill
-      ..shader = LinearGradient(
-        begin: Alignment.topLeft,
-        end: Alignment.bottomRight,
-        colors: [
-          const Color(0xFF6A321B).withValues(alpha: 0.26),
-          AppColors.gold.withValues(alpha: 0.14),
-          AppColors.green.withValues(alpha: 0.1),
-        ],
-      ).createShader(mapRect);
-    canvas.drawPath(mapPath, mapFill);
-
-    final mapStroke = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1.3
-      ..color = Colors.white.withValues(alpha: 0.16);
-    canvas.drawPath(mapPath, mapStroke);
-
-    final nodes = _nodes(size);
-    final linePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 1.4
-      ..color = AppColors.greenLight.withValues(alpha: 0.32);
-    final activePaint = Paint()
-      ..style = PaintingStyle.stroke
-      ..strokeCap = StrokeCap.round
-      ..strokeWidth = 2.2
-      ..color = AppColors.gold.withValues(alpha: 0.72);
-
-    for (var i = 0; i < nodes.length - 1; i++) {
-      canvas.drawLine(nodes[i].point, nodes[i + 1].point, linePaint);
-      final phase = ((progress + i * 0.13) % 1.0);
-      final start = Offset.lerp(nodes[i].point, nodes[i + 1].point, phase)!;
-      final end = Offset.lerp(
-        nodes[i].point,
-        nodes[i + 1].point,
-        math.min(phase + 0.12, 1),
-      )!;
-      canvas.drawLine(start, end, activePaint);
+    final seedT = Curves.easeOut.transform((progress / 0.22).clamp(0.0, 1.0));
+    if (seedT < 1) {
+      final seedCenter = Offset(center.dx, soilY + 18 - seedT * 15);
+      final seed = Paint()..color = const Color(0xFF8B542E);
+      canvas.drawOval(
+        Rect.fromCenter(center: seedCenter, width: 28, height: 18),
+        seed,
+      );
     }
 
-    for (var i = 0; i < nodes.length; i++) {
-      final node = nodes[i];
-      final pulse = 0.5 + 0.5 * math.sin((progress * math.pi * 2) + i);
-      final radius = 13 + pulse * 5;
+    final plantT = Curves.easeInOut.transform(
+      ((progress - 0.14) / 0.43).clamp(0.0, 1.0),
+    );
+    if (plantT > 0) {
+      final stem = Paint()
+        ..color = const Color(0xFF52735B)
+        ..strokeWidth = 5
+        ..strokeCap = StrokeCap.round;
+      final stemEnd = Offset(center.dx, soilY - 110 * plantT);
+      canvas.drawLine(Offset(center.dx, soilY), stemEnd, stem);
+      _drawLeaf(canvas, stemEnd + Offset(-4, 18), -0.65, plantT);
+      _drawLeaf(canvas, stemEnd + Offset(5, 42), 0.55, plantT * 0.9);
+    }
 
-      final halo = Paint()
-        ..color = node.color.withValues(alpha: 0.14)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
-      canvas.drawCircle(node.point, radius, halo);
+    final podT = Curves.easeOutBack.transform(
+      ((progress - 0.38) / 0.38).clamp(0.0, 1.0),
+    );
+    if (podT > 0) {
+      canvas.save();
+      canvas.translate(center.dx, center.dy + 18);
+      canvas.scale(podT);
+      final pod = Path()
+        ..moveTo(0, -72)
+        ..cubicTo(42, -50, 44, 28, 0, 78)
+        ..cubicTo(-44, 28, -42, -50, 0, -72)
+        ..close();
+      canvas.drawPath(
+        pod,
+        Paint()
+          ..color = const Color(0xFFD7AB4D)
+          ..style = PaintingStyle.fill,
+      );
+      canvas.drawPath(
+        pod,
+        Paint()
+          ..color = const Color(0xFFF2D27C)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 3,
+      );
+      final seam = Path()
+        ..moveTo(0, -60)
+        ..cubicTo(-13, -20, 14, 21, 0, 63);
+      canvas.drawPath(
+        seam,
+        Paint()
+          ..color = const Color(0xFF5A775D)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 6
+          ..strokeCap = StrokeCap.round,
+      );
+      canvas.restore();
+    }
 
-      final fill = Paint()..color = const Color(0xFF121615);
-      canvas.drawCircle(node.point, 15, fill);
-
-      final ring = Paint()
-        ..style = PaintingStyle.stroke
-        ..strokeWidth = 1.6
-        ..color = node.color.withValues(alpha: 0.9);
-      canvas.drawCircle(node.point, 15, ring);
-
-      _drawIcon(canvas, node.icon, node.point, node.color);
+    final openT = Curves.easeInOut.transform(
+      ((progress - 0.67) / 0.22).clamp(0.0, 1.0),
+    );
+    if (openT > 0 && openT < 1) {
+      final glow = Paint()
+        ..color = AppColors.gold.withValues(alpha: 0.2 * openT)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 18);
+      canvas.drawCircle(center, 68 + openT * 18, glow);
     }
   }
 
-  Path _buildCacaoPath(Rect rect) {
-    Offset p(double x, double y) =>
-        Offset(rect.left + rect.width * x, rect.top + rect.height * y);
-
-    return Path()
-      ..moveTo(p(0.5, 0.05).dx, p(0.5, 0.05).dy)
-      ..cubicTo(
-        p(0.66, 0.18).dx,
-        p(0.66, 0.18).dy,
-        p(0.69, 0.72).dx,
-        p(0.69, 0.72).dy,
-        p(0.5, 0.95).dx,
-        p(0.5, 0.95).dy,
-      )
-      ..cubicTo(
-        p(0.31, 0.72).dx,
-        p(0.31, 0.72).dy,
-        p(0.34, 0.18).dx,
-        p(0.34, 0.18).dy,
-        p(0.5, 0.05).dx,
-        p(0.5, 0.05).dy,
-      )
+  void _drawLeaf(Canvas canvas, Offset origin, double angle, double amount) {
+    if (amount <= 0) return;
+    canvas.save();
+    canvas.translate(origin.dx, origin.dy);
+    canvas.rotate(angle);
+    canvas.scale(amount, amount);
+    final leaf = Path()
+      ..moveTo(0, 0)
+      ..cubicTo(18, -30, 45, -24, 56, -5)
+      ..cubicTo(36, 14, 12, 16, 0, 0)
       ..close();
-  }
-
-  List<_NetworkNode> _nodes(Size size) {
-    return [
-      _NetworkNode(
-        Offset(size.width * 0.18, size.height * 0.34),
-        Icons.storefront_rounded,
-        AppColors.gold,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.34, size.height * 0.29),
-        Icons.restaurant_rounded,
-        AppColors.greenLight,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.5, size.height * 0.36),
-        Icons.local_shipping_rounded,
-        AppColors.gold,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.67, size.height * 0.31),
-        Icons.home_work_rounded,
-        AppColors.greenLight,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.82, size.height * 0.42),
-        Icons.qr_code_2_rounded,
-        AppColors.gold,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.72, size.height * 0.56),
-        Icons.shopping_bag_rounded,
-        AppColors.greenLight,
-      ),
-      _NetworkNode(
-        Offset(size.width * 0.31, size.height * 0.54),
-        Icons.location_on_rounded,
-        AppColors.gold,
-      ),
-    ];
-  }
-
-  void _drawIcon(Canvas canvas, IconData icon, Offset center, Color color) {
-    final painter = TextPainter(
-      text: TextSpan(
-        text: String.fromCharCode(icon.codePoint),
-        style: TextStyle(
-          fontFamily: icon.fontFamily,
-          package: icon.fontPackage,
-          color: color,
-          fontSize: 17,
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
-
-    painter.paint(
-      canvas,
-      center - Offset(painter.width / 2, painter.height / 2),
-    );
+    canvas.drawPath(leaf, Paint()..color = const Color(0xFF52735B));
+    canvas.restore();
   }
 
   @override
-  bool shouldRepaint(covariant _CubaNetworkPainter oldDelegate) {
-    return oldDelegate.progress != progress;
-  }
-}
-
-class _NetworkNode {
-  const _NetworkNode(this.point, this.icon, this.color);
-
-  final Offset point;
-  final IconData icon;
-  final Color color;
+  bool shouldRepaint(covariant _CacaoGrowthPainter oldDelegate) =>
+      oldDelegate.progress != progress;
 }

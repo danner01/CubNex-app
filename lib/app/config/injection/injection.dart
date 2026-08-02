@@ -10,6 +10,7 @@ import '../../common/blocs/app_theme/app_theme_cubit.dart';
 import '../../common/blocs/active_business/active_business_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
+import '../../common/services/credit_service.dart';
 import '../../common/services/apk_update_service.dart';
 import '../../common/services/push_notification_service.dart';
 import '../../common/services/share_service.dart';
@@ -29,6 +30,7 @@ import '../../modules/business_directory/blocs/business_detail/business_detail_c
 import '../../modules/favorites/blocs/engagement/engagement_cubit.dart';
 import '../../modules/favorites/blocs/favorites/favorites_cubit.dart';
 import '../../modules/gamification/blocs/gamification/gamification_cubit.dart';
+import '../../modules/credits/blocs/credits_cubit.dart';
 import '../../modules/home/blocs/home/home_cubit.dart';
 import '../../modules/menus/blocs/menus/menus_cubit.dart';
 import '../../modules/notifications/blocs/notifications/notifications_cubit.dart';
@@ -64,6 +66,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(ApkUpdateService.new)
     ..registerLazySingleton(ContactService.new)
     ..registerLazySingleton(() => ShareService(apiClient: sl()))
+    ..registerLazySingleton(() => CreditService(apiClient: sl()))
     ..registerLazySingleton(() => FirebaseAuth.instance)
     ..registerLazySingleton(() => FirebaseMessaging.instance)
     ..registerLazySingleton(
@@ -129,6 +132,7 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => EngagementCubit(apiClient: sl()))
     ..registerFactory(() => FavoritesCubit(apiClient: sl()))
     ..registerFactory(() => GamificationCubit(apiClient: sl()))
+    ..registerFactory(() => CreditsCubit(apiClient: sl()))
     ..registerLazySingleton(
       () => CartCubit(apiClient: sl(), cartBox: Hive.box<dynamic>('cart_items')),
     )

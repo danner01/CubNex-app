@@ -310,10 +310,14 @@ class _NotificationTile extends StatelessWidget {
     if (link == '/market/notificaciones' || link == AppRoutes.notifications) {
       return AppRoutes.notifications;
     }
+ 
+    if (link == '/creditos' || link == AppRoutes.credits) {
+      return AppRoutes.credits;
+    }
+ 
     if (link == '/market/feed' || link == AppRoutes.posts) {
       return AppRoutes.posts;
-    }
-    if (link == '/market/promociones' || link == AppRoutes.promotions) {
+    }    if (link == '/market/promociones' || link == AppRoutes.promotions) {
       return AppRoutes.promotions;
     }
 
@@ -360,6 +364,7 @@ class _NotificationTile extends StatelessWidget {
       'suscripcion' => Icons.storefront_outlined,
       'resena' => Icons.rate_review_outlined,
       'sorteo' || 'cashback' => Icons.card_giftcard_outlined,
+      'creditos' || 'credito' || 'credito_recarga' || 'credito_transferencia' || 'credito_ganancia' || 'credito_deduccion' => Icons.account_balance_wallet_outlined,
       'nivel' => Icons.workspace_premium_outlined,
       _ => Icons.notifications_none_rounded,
     };

@@ -497,9 +497,9 @@ class _OperationalMetricRow extends StatelessWidget {
               ),
               Text(
                 item.formattedValue,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
               ),
             ],
           ),
@@ -660,7 +660,6 @@ class _ActionsGrid extends StatelessWidget {
       ('Negocio', Icons.storefront_outlined, AppRoutes.businessStore),
       ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
       ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
-      ('Mis pedidos', Icons.shopping_cart_outlined, AppRoutes.businessMyOrders),
       ('Conexiones', Icons.hub_outlined, AppRoutes.businessNetwork),
       ('Empleos', Icons.work_outline_rounded, AppRoutes.businessJobs),
     ];
@@ -708,3 +707,4 @@ class _BusinessMetric {
   final IconData icon;
   final String route;
 }
+
