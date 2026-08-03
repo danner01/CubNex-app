@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../common/blocs/app_session/app_session_cubit.dart';
 import '../../common/blocs/app_theme/app_theme_cubit.dart';
 import '../../common/blocs/active_business/active_business_cubit.dart';
+import '../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/credit_service.dart';
@@ -108,7 +109,10 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(
       () => ActiveBusinessCubit(apiClient: sl(), sharedPreferences: sl()),
     )
-    ..registerFactory(() => MapCubit(apiClient: sl()))
+        ..registerLazySingleton(
+          () => EmployeeAccessCubit(apiClient: sl()),
+        )
+        ..registerFactory(() => MapCubit(apiClient: sl()))
     ..registerFactory(() => HomeCubit(apiClient: sl()))
     ..registerFactory(() => MenusCubit(apiClient: sl()))
     ..registerFactory(
@@ -132,7 +136,7 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => EngagementCubit(apiClient: sl()))
     ..registerFactory(() => FavoritesCubit(apiClient: sl()))
     ..registerFactory(() => GamificationCubit(apiClient: sl()))
-    ..registerFactory(() => CreditsCubit(apiClient: sl()))
+        ..registerLazySingleton(() => CreditsCubit(apiClient: sl()))
     ..registerLazySingleton(
       () => CartCubit(apiClient: sl(), cartBox: Hive.box<dynamic>('cart_items')),
     )

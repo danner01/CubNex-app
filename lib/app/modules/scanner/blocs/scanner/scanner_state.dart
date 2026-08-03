@@ -8,24 +8,40 @@ class ScannerState extends Equatable {
     this.code,
     this.message,
     this.orderQrValidated = false,
+    this.walletQrDetected = false,
+    this.walletUserId,
+    this.walletAlias,
+    this.walletQrPayload,
   });
 
   final ScannerStatus status;
   final String? code;
   final String? message;
   final bool orderQrValidated;
+  final bool walletQrDetected;
+  final String? walletUserId;
+  final String? walletAlias;
+  final String? walletQrPayload;
 
   ScannerState copyWith({
     ScannerStatus? status,
     String? code,
     String? message,
     bool? orderQrValidated,
+    bool? walletQrDetected,
+    String? walletUserId,
+    String? walletAlias,
+    String? walletQrPayload,
   }) {
     return ScannerState(
       status: status ?? this.status,
       code: code ?? this.code,
       message: message,
       orderQrValidated: orderQrValidated ?? this.orderQrValidated,
+      walletQrDetected: walletQrDetected ?? this.walletQrDetected,
+      walletUserId: walletUserId ?? this.walletUserId,
+      walletAlias: walletAlias ?? this.walletAlias,
+      walletQrPayload: walletQrPayload ?? this.walletQrPayload,
     );
   }
 
@@ -35,5 +51,9 @@ class ScannerState extends Equatable {
     code,
     message,
     orderQrValidated,
+    walletQrDetected,
+    walletUserId,
+    walletAlias,
+    walletQrPayload,
   ];
 }

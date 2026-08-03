@@ -27,23 +27,80 @@ class ScannerCubit extends Cubit<ScannerState> {
     );
     await _saveScan(code);
 
-    final orderQrToken = _extractOrderQrToken(code);
-    if (orderQrToken == null) {
+        final walletParts = _extractWalletQr(code);
+        if (walletParts != null) {
       emit(
         state.copyWith(
-          status: ScannerStatus.failure,
-          message:
-              'QR no valido para pedidos. Escanea un QR de orden generado en la app.',
-          orderQrValidated: false,
-        ),
-      );
-      _processing = false;
-      return;
-    }
+              status: ScannerStatus.success,
+              orderQrValidated: false,
+              walletQrDetected: true,
+              walletUserId: walletParts.userId,
+              walletAlias: walletParts.alias,
+              walletQrPayload: code,
+              message: 'QR de billetera detectado.',
+            ),
+          );
+          _processing = false;
+          return;
+        }
 
-    await _validateOrderQr(orderQrToken);
-    _processing = false;
-  }
+        final orderQrToken = _extractOrderQrToken(code);
+        if (orderQrToken == null) {
+          emit(
+            state.copyWith(
+              status: ScannerStatus.failure,
+              message:
+                  'QR no valido. Escanea un QR de pedido o de billetera ConKkao.',
+              orderQrValidated: false,
+              walletQrDetected: false,
+            ),
+          );
+          _processing = false;
+          return;
+        }
+
+        await _validateOrderQr(orderQrToken);
+        _processing = false;
+      }
+
+      ({String? userId, String? alias})? _extractWalletQr(String code) {
+        final trimmed = code.trim();
+        final lower = trimmed.toLowerCase();
+        final looksWallet = lower.startsWith('conkkao://wallet') ||
+            lower.contains('wallet/pay') ||
+            (lower.contains('uid=') && lower.contains('alias='));
+        if (!looksWallet) return null;
+
+        final uri = Uri.tryParse(trimmed);
+        if (uri != null) {
+          final userId = uri.queryParameters['uid'] ??
+              uri.queryParameters['user_id'] ??
+              uri.queryParameters['usuario_id'];
+          final alias = uri.queryParameters['alias'] ??
+              uri.queryParameters['email'] ??
+              uri.queryParameters['telefono'];
+          if ((userId != null && userId.isNotEmpty) ||
+              (alias != null && alias.isNotEmpty)) {
+            return (userId: userId, alias: alias);
+          }
+        }
+
+        final uidMatch = RegExp(
+          r'(?:uid|user_id|usuario_id)=([0-9a-fA-F-]{36})',
+          caseSensitive: false,
+        ).firstMatch(trimmed);
+        final aliasMatch = RegExp(
+          r'(?:alias|email|telefono)=([^&\s]+)',
+          caseSensitive: false,
+        ).firstMatch(trimmed);
+        if (uidMatch == null && aliasMatch == null) return null;
+        return (
+          userId: uidMatch?.group(1),
+          alias: aliasMatch != null
+              ? Uri.decodeComponent(aliasMatch.group(1)!)
+              : null,
+        );
+      }
 
   Future<void> _validateOrderQr(String token) async {
     final result = await _apiClient.post<Map<String, dynamic>>(
@@ -148,7 +205,10 @@ class ScannerCubit extends Cubit<ScannerState> {
 
   String _scanType(String code) {
     final lower = code.toLowerCase();
-    if (lower.contains('qr') || lower.startsWith('http')) return 'qr_producto';
-    return 'codigo_barras';
-  }
+      if (lower.startsWith('conkkao://wallet') || lower.contains('wallet/pay')) {
+        return 'qr_billetera';
+      }
+      if (lower.contains('qr') || lower.startsWith('http')) return 'qr_producto';
+      return 'codigo_barras';
+    }
 }

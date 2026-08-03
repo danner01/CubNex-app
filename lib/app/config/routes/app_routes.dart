@@ -15,6 +15,7 @@ class AppRoutes {
   static const notifications = '/notifications';
   static const profile = '/profile';
   static const credits = '/creditos';
+  static const billetera = '/billetera';
   static const preferences = '/preferences';
   static const gamification = '/gamification';
   static const promotions = '/promotions';
@@ -40,7 +41,8 @@ class AppRoutes {
   static const businessInventory = '/business/inventory';
   static const businessSettings = '/business/settings';
   static const businessWizard = '/business/wizard';
-  static const deliveryDashboard = '/delivery/dashboard';
+    static const businessTeam = '/business/team';
+    static const deliveryDashboard = '/delivery/dashboard';
   static const deliveryRequests = '/delivery/requests';
   static const deliveryRoute = '/delivery/route';
   static const deliveryHistory = '/delivery/history';

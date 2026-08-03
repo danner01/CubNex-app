@@ -31,6 +31,11 @@ class BusinessModel {
     this.businessParentCategory,
     this.businessTypeIcon,
     this.features = const {},
+    this.accessType = 'propietario',
+    this.employeeId,
+    this.employeeRoleTitle,
+    this.employeeIsDelivery = false,
+    this.employeePermissions = const {},
   });
 
   final String id;
@@ -64,6 +69,20 @@ class BusinessModel {
   final String? businessParentCategory;
   final String? businessTypeIcon;
   final Map<String, dynamic> features;
+  final String accessType;
+  final String? employeeId;
+  final String? employeeRoleTitle;
+  final bool employeeIsDelivery;
+  final Map<String, bool> employeePermissions;
+
+  bool get isOwnerAccess => accessType != 'empleado';
+
+  bool get isEmployeeAccess => accessType == 'empleado';
+
+  bool canEmployee(String permission) {
+    if (isOwnerAccess) return true;
+    return employeePermissions[permission] == true;
+  }
 
   bool get isServiceLike =>
       businessParentCategory == 'servicio' ||
@@ -107,6 +126,11 @@ class BusinessModel {
     String? businessParentCategory,
     String? businessTypeIcon,
     Map<String, dynamic>? features,
+    String? accessType,
+    String? employeeId,
+    String? employeeRoleTitle,
+    bool? employeeIsDelivery,
+    Map<String, bool>? employeePermissions,
   }) {
     return BusinessModel(
       id: id,
@@ -142,11 +166,26 @@ class BusinessModel {
           businessParentCategory ?? this.businessParentCategory,
       businessTypeIcon: businessTypeIcon ?? this.businessTypeIcon,
       features: features ?? this.features,
+      accessType: accessType ?? this.accessType,
+      employeeId: employeeId ?? this.employeeId,
+      employeeRoleTitle: employeeRoleTitle ?? this.employeeRoleTitle,
+      employeeIsDelivery: employeeIsDelivery ?? this.employeeIsDelivery,
+      employeePermissions: employeePermissions ?? this.employeePermissions,
     );
   }
 
   factory BusinessModel.fromJson(Map<String, dynamic> json) {
     final type = _parseMap(json['tipo_negocio']);
+    final access = _parseMap(json['acceso']);
+    final rawPermissions = access['permisos'];
+    final permissions = <String, bool>{};
+    if (rawPermissions is Map) {
+      for (final entry in rawPermissions.entries) {
+        final value = entry.value;
+        permissions[entry.key.toString()] =
+            value == true || value == 1 || value == 'true';
+      }
+    }
     return BusinessModel(
       id: '${json['id'] ?? ''}',
       name: '${json['nombre'] ?? ''}',
@@ -179,6 +218,11 @@ class BusinessModel {
       businessParentCategory: type['categoria_padre']?.toString(),
       businessTypeIcon: type['icono']?.toString(),
       features: _parseMap(json['caracteristicas']),
+      accessType: '${access['tipo'] ?? 'propietario'}',
+      employeeId: access['empleado_id']?.toString(),
+      employeeRoleTitle: access['cargo']?.toString(),
+      employeeIsDelivery: access['es_delivery'] == true,
+      employeePermissions: permissions,
     );
   }
 

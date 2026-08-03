@@ -13,6 +13,7 @@ import '../../modules/business/presentation/screens/business_dashboard_screen.da
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
 import '../../modules/business/presentation/screens/business_store_preview_screen.dart';
+import '../../modules/business/presentation/screens/business_team_screen.dart';
 import '../../modules/business_directory/presentation/screens/business_detail_screen.dart';
 import '../../modules/business_network/presentation/screens/business_network_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
@@ -193,8 +194,22 @@ GoRouter createAppRouter(
           ),
           GoRoute(
             path: AppRoutes.credits,
-            builder: (_, __) => const CreditsScreen(),
-          ),
+                      builder: (_, state) => CreditsScreen(
+                        initialAlias: state.uri.queryParameters['alias'],
+                        initialUserId: state.uri.queryParameters['uid'] ??
+                            state.uri.queryParameters['user_id'],
+                        initialQrPayload: state.uri.queryParameters['qr'],
+                      ),
+                    ),
+                    GoRoute(
+                      path: AppRoutes.billetera,
+                      builder: (_, state) => CreditsScreen(
+                        initialAlias: state.uri.queryParameters['alias'],
+                        initialUserId: state.uri.queryParameters['uid'] ??
+                            state.uri.queryParameters['user_id'],
+                        initialQrPayload: state.uri.queryParameters['qr'],
+                      ),
+                    ),
           GoRoute(
             path: AppRoutes.productDetail,
             builder: (_, state) => ProductDetailScreen(
@@ -260,7 +275,11 @@ GoRouter createAppRouter(
             builder: (_, __) => const BusinessWizardScreen(),
           ),
           GoRoute(
-            path: AppRoutes.deliveryDashboard,
+                      path: AppRoutes.businessTeam,
+                      builder: (_, __) => const BusinessTeamScreen(),
+                    ),
+                    GoRoute(
+                      path: AppRoutes.deliveryDashboard,
             builder: (_, __) =>
                 const DeliveryHubScreen(section: DeliveryHubSection.dashboard),
           ),

@@ -5,8 +5,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
+import '../../../../common/entities/employee_permissions.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../../home/data/models/business_model.dart';
 import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
 import '../../data/models/business_operational_references.dart';
@@ -51,12 +53,18 @@ class _BusinessDashboardView extends StatelessWidget {
               previous.needsWizard != current.needsWizard,
           listener: (context, state) {
             if (!state.needsWizard) return;
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) {
-                context.go(AppRoutes.businessWizard);
-              }
-            });
-          },
+                      final active = context
+                          .read<ActiveBusinessCubit>()
+                          .state
+                          .activeBusiness;
+                      // Employees must not be forced into the owner onboarding wizard.
+                      if (active?.isEmployeeAccess == true) return;
+                      WidgetsBinding.instance.addPostFrameCallback((_) {
+                        if (context.mounted) {
+                          context.go(AppRoutes.businessWizard);
+                        }
+                      });
+                    },
           builder: (context, state) {
             return RefreshIndicator(
               onRefresh: () => context.read<BusinessDashboardCubit>().load(
@@ -129,6 +137,14 @@ class _DashboardHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final business = context.watch<ActiveBusinessCubit>().state.activeBusiness;
+    final isOwner = business?.isOwnerAccess ?? true;
+    final roleLabel = business?.isEmployeeAccess == true
+        ? (business?.employeeRoleTitle?.trim().isNotEmpty == true
+              ? business!.employeeRoleTitle!
+              : 'Empleado')
+        : null;
+
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -144,17 +160,20 @@ class _DashboardHeader extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                'Gestiona una tienda, franquicia o servicio por separado.',
+                roleLabel == null
+                    ? 'Gestiona una tienda, franquicia o servicio por separado.'
+                    : 'Acceso como $roleLabel. Solo ves lo que el admin habilito.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
           ),
         ),
-        FilledButton.icon(
-          onPressed: () => context.go(AppRoutes.businessWizard),
-          icon: const Icon(Icons.add_business_rounded),
-          label: const Text('Nuevo'),
-        ),
+        if (isOwner)
+          FilledButton.icon(
+            onPressed: () => context.go(AppRoutes.businessWizard),
+            icon: const Icon(Icons.add_business_rounded),
+            label: const Text('Nuevo'),
+          ),
       ],
     );
   }
@@ -619,7 +638,20 @@ class _ActionsGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final business = summary.business;
-    final actions = _actionsForBusiness(business.businessParentCategory);
+    final actions = _actionsForBusiness(business);
+
+    if (actions.isEmpty) {
+      return Card(
+        child: Padding(
+          padding: const EdgeInsets.all(18),
+          child: Text(
+            business.isEmployeeAccess
+                ? 'No tienes acciones habilitadas en este negocio. Pide al admin que active permisos.'
+                : 'No hay acciones disponibles.',
+          ),
+        ),
+      );
+    }
 
     return GridView.builder(
       shrinkWrap: true,
@@ -644,6 +676,7 @@ class _ActionsGrid extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   action.label,
+                  textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.titleMedium,
                 ),
               ],
@@ -654,41 +687,114 @@ class _ActionsGrid extends StatelessWidget {
     );
   }
 
-  List<_BusinessAction> _actionsForBusiness(String? parentCategory) {
-    final common = [
-      ('Inventario', Icons.inventory_2_outlined, AppRoutes.businessInventory),
-      ('Negocio', Icons.storefront_outlined, AppRoutes.businessStore),
-      ('Promos', Icons.campaign_outlined, AppRoutes.businessPromotions),
-      ('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
-      ('Conexiones', Icons.hub_outlined, AppRoutes.businessNetwork),
-      ('Empleos', Icons.work_outline_rounded, AppRoutes.businessJobs),
+  List<_BusinessAction> _actionsForBusiness(BusinessModel business) {
+    final parentCategory = business.businessParentCategory;
+    final common = <_BusinessActionCandidate>[
+      _BusinessActionCandidate(
+        'Inventario',
+        Icons.inventory_2_outlined,
+        AppRoutes.businessInventory,
+        EmployeePermissionKeys.gestionarInventario,
+      ),
+      _BusinessActionCandidate(
+        'Negocio',
+        Icons.storefront_outlined,
+        AppRoutes.businessStore,
+        EmployeePermissionKeys.editarNegocio,
+      ),
+      _BusinessActionCandidate(
+        'Promos',
+        Icons.campaign_outlined,
+        AppRoutes.businessPromotions,
+        EmployeePermissionKeys.gestionarPromociones,
+      ),
+      _BusinessActionCandidate(
+        'Pedidos',
+        Icons.receipt_long_outlined,
+        AppRoutes.businessOrders,
+        EmployeePermissionKeys.gestionarPedidos,
+      ),
+      _BusinessActionCandidate(
+        'Equipo',
+        Icons.groups_outlined,
+        AppRoutes.businessTeam,
+        EmployeePermissionKeys.gestionarEmpleados,
+      ),
+      _BusinessActionCandidate(
+        'Conexiones',
+        Icons.hub_outlined,
+        AppRoutes.businessNetwork,
+        EmployeePermissionKeys.gestionarRed,
+      ),
+      _BusinessActionCandidate(
+        'Empleos',
+        Icons.work_outline_rounded,
+        AppRoutes.businessJobs,
+        EmployeePermissionKeys.gestionarEmpleos,
+      ),
+      _BusinessActionCandidate(
+        'Escanear',
+        Icons.qr_code_scanner_rounded,
+        AppRoutes.scanner,
+        EmployeePermissionKeys.escanearPedidos,
+      ),
     ];
 
     final categorySpecific = switch (parentCategory) {
       'gastronomia' => [
-        ('Menus QR', Icons.restaurant_menu_outlined, AppRoutes.businessMenus),
+        _BusinessActionCandidate(
+          'Menus QR',
+          Icons.restaurant_menu_outlined,
+          AppRoutes.businessMenus,
+          EmployeePermissionKeys.gestionarMenus,
+        ),
       ],
       'inmobiliaria' => [
-        ('Propiedades', Icons.home_work_outlined, AppRoutes.businessProperties),
+        _BusinessActionCandidate(
+          'Propiedades',
+          Icons.home_work_outlined,
+          AppRoutes.businessProperties,
+          EmployeePermissionKeys.editarNegocio,
+        ),
       ],
       'transporte' => [
-        (
+        _BusinessActionCandidate(
           'Transporte',
           Icons.local_shipping_outlined,
           AppRoutes.businessTransport,
+          EmployeePermissionKeys.editarNegocio,
         ),
       ],
       'servicio' => [
-        ('Reservas', Icons.event_available_outlined, AppRoutes.businessOrders),
+        _BusinessActionCandidate(
+          'Reservas',
+          Icons.event_available_outlined,
+          AppRoutes.businessOrders,
+          EmployeePermissionKeys.gestionarPedidos,
+        ),
       ],
-      _ => <(String, IconData, String)>[],
+      _ => const <_BusinessActionCandidate>[],
     };
 
-    return [
-      ...common,
-      ...categorySpecific,
-    ].map((item) => _BusinessAction(item.$1, item.$2, item.$3)).toList();
+    return [...common, ...categorySpecific]
+        .where((item) => business.canEmployee(item.permission))
+        .map((item) => _BusinessAction(item.label, item.icon, item.route))
+        .toList();
   }
+}
+
+class _BusinessActionCandidate {
+  const _BusinessActionCandidate(
+    this.label,
+    this.icon,
+    this.route,
+    this.permission,
+  );
+
+  final String label;
+  final IconData icon;
+  final String route;
+  final String permission;
 }
 
 class _BusinessAction {

@@ -6,9 +6,11 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/services/apk_update_service.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../../business/data/models/business_employee_model.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -181,26 +183,39 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _ModeSwitcher(state: roleMode),
             const SizedBox(height: 14),
           ],
-          if (session.isBusiness && activeMode == RoleMode.business)
-            FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.businessDashboard),
-              icon: const Icon(Icons.dashboard_outlined),
-              label: const Text('Panel de mi negocio'),
-            )
-          else if (session.isDelivery && activeMode == RoleMode.delivery)
-            FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.deliveryDashboard),
-              icon: const Icon(Icons.delivery_dining_rounded),
-              label: const Text('Panel delivery'),
-            )
-          else
-            FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.businessWizard),
-              icon: const Icon(Icons.add_business_rounded),
-              label: const Text('Crear mi negocio'),
-            ),
-          const SizedBox(height: 18),
-          ..._profileTilesForMode(context, activeMode),
+                    const _EmployeeInvitesCard(),
+                    if (session.isBusiness && activeMode == RoleMode.business)
+                      FilledButton.icon(
+                        onPressed: () => context.go(AppRoutes.businessDashboard),
+                        icon: const Icon(Icons.dashboard_outlined),
+                        label: const Text('Panel de mi negocio'),
+                      )
+                    else if (context.watch<EmployeeAccessCubit>().state.hasActiveMembership &&
+                        activeMode == RoleMode.business)
+                      FilledButton.icon(
+                        onPressed: () => context.go(AppRoutes.businessDashboard),
+                        icon: const Icon(Icons.badge_outlined),
+                        label: const Text('Panel del negocio (empleado)'),
+                      )
+                    else if ((session.isDelivery ||
+                            context
+                                .watch<EmployeeAccessCubit>()
+                                .state
+                                .hasDeliveryMembership) &&
+                        activeMode == RoleMode.delivery)
+                      FilledButton.icon(
+                        onPressed: () => context.go(AppRoutes.deliveryDashboard),
+                        icon: const Icon(Icons.delivery_dining_rounded),
+                        label: const Text('Panel delivery'),
+                      )
+                    else
+                      FilledButton.icon(
+                        onPressed: () => context.go(AppRoutes.businessWizard),
+                        icon: const Icon(Icons.add_business_rounded),
+                        label: const Text('Crear mi negocio'),
+                      ),
+                    const SizedBox(height: 18),
+                    ..._profileTilesForMode(context, activeMode),
           const SizedBox(height: 10),
           const _SectionLabel('Aplicación'),
           _ApkVersionCard(
@@ -234,9 +249,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
   final common = [
     _ProfileTile(
-      icon: Icons.account_balance_wallet_outlined,
-      title: 'Créditos',
-      subtitle: 'Saldo, transferencias, recargas y movimientos.',
+          icon: Icons.monetization_on_outlined,
+          title: 'Billetera',
+          subtitle: 'Saldo ConKkao, transferencias por alias/QR y movimientos.',
       onTap: () => context.go(AppRoutes.credits),
     ),
     _ProfileTile(
@@ -293,37 +308,43 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
         onTap: () => context.go(AppRoutes.businessDashboard),
       ),
       _ProfileTile(
-        icon: Icons.add_business_rounded,
-        title: 'Crear otro negocio',
-        subtitle: 'Nueva tienda, franquicia o servicio asociado a tu cuenta.',
-        onTap: () => context.go(AppRoutes.businessWizard),
+            icon: Icons.groups_outlined,
+            title: 'Equipo',
+            subtitle: 'Invitar empleados, cargos y permisos.',
+            onTap: () => context.go(AppRoutes.businessTeam),
       ),
       _ProfileTile(
-        icon: Icons.receipt_long_outlined,
-        title: 'Pedidos recibidos',
-        subtitle: 'Reservas, ventas, QR y entregas de tus negocios.',
-        onTap: () => context.go(AppRoutes.businessOrders),
+            icon: Icons.add_business_rounded,
+            title: 'Crear otro negocio',
+            subtitle: 'Nueva tienda, franquicia o servicio asociado a tu cuenta.',
+            onTap: () => context.go(AppRoutes.businessWizard),
       ),
       _ProfileTile(
-        icon: Icons.inventory_2_outlined,
-        title: 'Inventario',
-        subtitle: 'Productos, stock, precios y visibilidad.',
-        onTap: () => context.go(AppRoutes.businessInventory),
+            icon: Icons.receipt_long_outlined,
+            title: 'Pedidos recibidos',
+            subtitle: 'Reservas, ventas, QR y entregas de tus negocios.',
+            onTap: () => context.go(AppRoutes.businessOrders),
       ),
       _ProfileTile(
-        icon: Icons.campaign_outlined,
-        title: 'Promociones',
-        subtitle: 'Ofertas activas del negocio seleccionado.',
-        onTap: () => context.go(AppRoutes.businessPromotions),
+            icon: Icons.inventory_2_outlined,
+            title: 'Inventario',
+            subtitle: 'Productos, stock, precios y visibilidad.',
+            onTap: () => context.go(AppRoutes.businessInventory),
       ),
       _ProfileTile(
-        icon: Icons.storefront_outlined,
-        title: 'Negocio',
-        subtitle: 'Marca, horarios, electricidad, delivery y apariencia.',
-        onTap: () => context.go(AppRoutes.businessSettings),
+            icon: Icons.campaign_outlined,
+            title: 'Promociones',
+            subtitle: 'Ofertas activas del negocio seleccionado.',
+            onTap: () => context.go(AppRoutes.businessPromotions),
       ),
-      ...common,
-    ],
+          _ProfileTile(
+            icon: Icons.storefront_outlined,
+            title: 'Negocio',
+            subtitle: 'Marca, horarios, electricidad, delivery y apariencia.',
+            onTap: () => context.go(AppRoutes.businessSettings),
+          ),
+          ...common,
+        ],
     RoleMode.delivery => [
       const _SectionLabel('Operacion delivery'),
       _ProfileTile(
@@ -359,6 +380,175 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
       ...common,
     ],
   };
+}
+
+class _EmployeeInvitesCard extends StatelessWidget {
+  const _EmployeeInvitesCard();
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocBuilder<EmployeeAccessCubit, EmployeeAccessState>(
+      builder: (context, access) {
+        if (access.pendingInvites.isEmpty && !access.hasActiveMembership) {
+          return const SizedBox.shrink();
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (access.pendingInvites.isNotEmpty) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Invitaciones de empleo',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 8),
+                      ...access.pendingInvites.map(
+                        (invite) => _PendingInviteTile(invite: invite),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+            if (access.hasActiveMembership) ...[
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Negocios donde trabajas',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 8),
+                      ...access.memberships.map(
+                        (item) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: const Icon(Icons.badge_outlined),
+                          title: Text(item.businessName ?? 'Negocio'),
+                          subtitle: Text(
+                            [
+                              item.roleTitle,
+                              if (item.isDelivery) 'Delivery',
+                            ].join(' · '),
+                          ),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () async {
+                            await context.read<RoleModeCubit>().setMode(
+                              RoleMode.business,
+                            );
+                            if (!context.mounted) return;
+                            context.go(AppRoutes.businessDashboard);
+                          },
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+            ],
+          ],
+        );
+      },
+    );
+  }
+}
+
+class _PendingInviteTile extends StatefulWidget {
+  const _PendingInviteTile({required this.invite});
+
+  final BusinessEmployeeModel invite;
+
+  @override
+  State<_PendingInviteTile> createState() => _PendingInviteTileState();
+}
+
+class _PendingInviteTileState extends State<_PendingInviteTile> {
+  var _busy = false;
+
+  Future<void> _respond(bool accept) async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final error = await context.read<EmployeeAccessCubit>().respondToInvite(
+      employeeId: widget.invite.id,
+      accept: accept,
+    );
+    if (!mounted) return;
+    setState(() => _busy = false);
+    if (error != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          accept
+              ? 'Invitacion aceptada. Ya puedes usar el panel del negocio.'
+              : 'Invitacion rechazada.',
+        ),
+      ),
+    );
+    if (accept) {
+      await context.read<RoleModeCubit>().setMode(RoleMode.business);
+      if (!mounted) return;
+      context.go(AppRoutes.businessDashboard);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final invite = widget.invite;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            invite.businessName ?? 'Negocio',
+            style: const TextStyle(fontWeight: FontWeight.w800),
+          ),
+          Text('Cargo: ${invite.roleTitle}'),
+          if (invite.inviteMessage?.trim().isNotEmpty == true)
+            Text(invite.inviteMessage!),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: _busy ? null : () => _respond(false),
+                  child: const Text('Rechazar'),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: FilledButton(
+                  onPressed: _busy ? null : () => _respond(true),
+                  child: _busy
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Aceptar'),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ModeSwitcher extends StatelessWidget {

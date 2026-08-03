@@ -311,7 +311,10 @@ class _NotificationTile extends StatelessWidget {
       return AppRoutes.notifications;
     }
  
-    if (link == '/creditos' || link == AppRoutes.credits) {
+    if (link == '/creditos' ||
+        link == '/billetera' ||
+        link == AppRoutes.credits ||
+        link == AppRoutes.billetera) {
       return AppRoutes.credits;
     }
  
@@ -364,7 +367,14 @@ class _NotificationTile extends StatelessWidget {
       'suscripcion' => Icons.storefront_outlined,
       'resena' => Icons.rate_review_outlined,
       'sorteo' || 'cashback' => Icons.card_giftcard_outlined,
-      'creditos' || 'credito' || 'credito_recarga' || 'credito_transferencia' || 'credito_ganancia' || 'credito_deduccion' => Icons.account_balance_wallet_outlined,
+      'creditos' ||
+      'credito' ||
+      'billetera' ||
+      'credito_recarga' ||
+      'credito_transferencia' ||
+      'credito_ganancia' ||
+      'credito_deduccion' ||
+      'transferencia_creditos' => Icons.monetization_on_outlined,
       'nivel' => Icons.workspace_premium_outlined,
       _ => Icons.notifications_none_rounded,
     };

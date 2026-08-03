@@ -37,14 +37,25 @@ class RoleModeCubit extends Cubit<RoleModeState> {
 
   final SharedPreferences _sharedPreferences;
 
-  void syncWithRole(UserRole role) {
-    final modes = _availableModesFor(role);
+  void syncWithRole(
+    UserRole role, {
+    bool hasEmployeeBusiness = false,
+    bool hasEmployeeDelivery = false,
+  }) {
+    final modes = _availableModesFor(
+      role,
+      hasEmployeeBusiness: hasEmployeeBusiness,
+      hasEmployeeDelivery: hasEmployeeDelivery,
+    );
     final saved = _modeFromStorage(_sharedPreferences.getString(_storageKey));
-    final active = role == UserRole.client || role == UserRole.guest
-        ? saved != null && modes.contains(saved)
-              ? saved
-              : _defaultModeFor(role)
-        : _defaultModeFor(role);
+    final preferredDefault = _defaultModeFor(
+      role,
+      hasEmployeeBusiness: hasEmployeeBusiness,
+      hasEmployeeDelivery: hasEmployeeDelivery,
+    );
+    final active = saved != null && modes.contains(saved)
+        ? saved
+        : preferredDefault;
 
     emit(RoleModeState(activeMode: active, availableModes: modes));
   }
@@ -55,22 +66,46 @@ class RoleModeCubit extends Cubit<RoleModeState> {
     emit(state.copyWith(activeMode: mode));
   }
 
-  RoleMode _defaultModeFor(UserRole role) {
+  RoleMode _defaultModeFor(
+    UserRole role, {
+    bool hasEmployeeBusiness = false,
+    bool hasEmployeeDelivery = false,
+  }) {
     return switch (role) {
       UserRole.businessAdmin || UserRole.superadmin => RoleMode.business,
       UserRole.delivery => RoleMode.delivery,
+      _ when hasEmployeeBusiness => RoleMode.business,
+      _ when hasEmployeeDelivery => RoleMode.delivery,
       _ => RoleMode.client,
     };
   }
 
-  List<RoleMode> _availableModesFor(UserRole role) {
-    return switch (role) {
-      UserRole.businessAdmin => const [RoleMode.business, RoleMode.client],
-      UserRole.superadmin => const [RoleMode.business, RoleMode.client],
-      UserRole.delivery => const [RoleMode.delivery, RoleMode.client],
-      UserRole.client => const [RoleMode.client],
-      UserRole.guest => const [RoleMode.client],
-    };
+  List<RoleMode> _availableModesFor(
+    UserRole role, {
+    bool hasEmployeeBusiness = false,
+    bool hasEmployeeDelivery = false,
+  }) {
+    final modes = <RoleMode>{RoleMode.client};
+
+    switch (role) {
+      case UserRole.businessAdmin:
+      case UserRole.superadmin:
+        modes.add(RoleMode.business);
+      case UserRole.delivery:
+        modes.add(RoleMode.delivery);
+      case UserRole.client:
+      case UserRole.guest:
+        break;
+    }
+
+    if (hasEmployeeBusiness) {
+      modes.add(RoleMode.business);
+    }
+    if (hasEmployeeDelivery) {
+      modes.add(RoleMode.delivery);
+    }
+
+    return modes.toList(growable: false);
   }
 
   RoleMode? _modeFromStorage(String? value) {

@@ -48,24 +48,35 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
             ),
             const SizedBox(width: 8),
             switch (roleMode) {
-              RoleMode.client => _HeaderButton(
-                tooltip: 'Carrito',
-                icon: Icons.shopping_cart_outlined,
-                badgeCount: cartCount,
-                onPressed: () => context.go(AppRoutes.cart),
+              RoleMode.client => Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _HeaderButton(
+                    tooltip: 'Mis pedidos',
+                    icon: Icons.receipt_long_outlined,
+                    onPressed: () => context.go(AppRoutes.orders),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderButton(
+                    tooltip: 'Carrito',
+                    icon: Icons.shopping_cart_outlined,
+                    badgeCount: cartCount,
+                    onPressed: () => context.go(AppRoutes.cart),
+                  ),
+                ],
               ),
               RoleMode.business => Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   _HeaderButton(
                     tooltip: 'Pedidos del negocio',
-                    icon: Icons.storefront_outlined,
+                    icon: Icons.receipt_long_outlined,
                     onPressed: () => context.go(AppRoutes.businessOrders),
                   ),
                   const SizedBox(width: 8),
                   _HeaderButton(
                     tooltip: 'Mis pedidos como negocio',
-                    icon: Icons.shopping_cart_outlined,
+                    icon: Icons.shopping_bag_outlined,
                     onPressed: () => context.go(AppRoutes.businessMyOrders),
                   ),
                 ],

@@ -31,27 +31,48 @@ class _ScannerView extends StatelessWidget {
       body: SafeArea(
         child: BlocConsumer<ScannerCubit, ScannerState>(
           listener: (context, state) {
-            if (state.status == ScannerStatus.success && state.orderQrValidated) {
-              final target = _ordersRouteForMode(
-                context.read<RoleModeCubit>().state.activeMode,
-              );
-              final destination = Uri(
-                path: target,
-                queryParameters: {
-                  'scan': 'ok',
-                  if (state.message != null && state.message!.isNotEmpty)
-                    'scan_msg': state.message,
-                },
-              ).toString();
-              context.go(destination);
-              return;
-            }
+                      if (state.status == ScannerStatus.success &&
+                          state.walletQrDetected) {
+                        final destination = Uri(
+                          path: AppRoutes.credits,
+                          queryParameters: {
+                            if (state.walletUserId != null &&
+                                state.walletUserId!.isNotEmpty)
+                              'uid': state.walletUserId!,
+                            if (state.walletAlias != null &&
+                                state.walletAlias!.isNotEmpty)
+                              'alias': state.walletAlias!,
+                            if (state.walletQrPayload != null &&
+                                state.walletQrPayload!.isNotEmpty)
+                              'qr': state.walletQrPayload!,
+                          },
+                        ).toString();
+                        context.go(destination);
+                        return;
+                      }
 
-            final message = state.message;
-            if (message != null) {
-              showSnackOrAuthDialog(context, message);
-            }
-          },
+                      if (state.status == ScannerStatus.success &&
+                          state.orderQrValidated) {
+                        final target = _ordersRouteForMode(
+                          context.read<RoleModeCubit>().state.activeMode,
+                        );
+                        final destination = Uri(
+                          path: target,
+                          queryParameters: {
+                            'scan': 'ok',
+                            if (state.message != null && state.message!.isNotEmpty)
+                              'scan_msg': state.message,
+                          },
+                        ).toString();
+                        context.go(destination);
+                        return;
+                      }
+
+                      final message = state.message;
+                      if (message != null) {
+                        showSnackOrAuthDialog(context, message);
+                      }
+                    },
           builder: (context, state) {
             final resolving = state.status == ScannerStatus.resolving;
             return Column(
@@ -120,7 +141,7 @@ class _HeaderCard extends StatelessWidget {
         child: Column(
           children: [
             Text(
-              'Escanear QR de pedido',
+                          'Escanear QR',
               style: Theme.of(
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
@@ -128,7 +149,7 @@ class _HeaderCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Coloca el codigo dentro del marco para validar automaticamente el estado del pedido.',
+                          'Pedidos o billetera ConKkao: coloca el codigo dentro del marco.',
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),

@@ -11,8 +11,18 @@ class CreditsCubit extends Cubit<CreditsState> {
         super(const CreditsState());
 
   final ApiClient _apiClient;
+  DateTime? _lastLoadedAt;
 
-  Future<void> load() async {
+  Future<void> load({bool force = false}) async {
+    final last = _lastLoadedAt;
+    if (!force &&
+        last != null &&
+        DateTime.now().difference(last) < const Duration(seconds: 20) &&
+        state.summary != null &&
+        state.status == CreditStatus.success) {
+      return;
+    }
+
     emit(state.copyWith(status: CreditStatus.loading, message: null));
 
     final summaryResult = await _apiClient.get<CreditSummary>(
@@ -47,52 +57,95 @@ class CreditsCubit extends Cubit<CreditsState> {
       },
     );
 
-    if (!summaryResult.isSuccess || !historyResult.isSuccess) {
+    if (!summaryResult.isSuccess) {
       emit(state.copyWith(
         status: CreditStatus.failure,
-        message: summaryResult.error?.message ??
-            historyResult.error?.message ??
-            'No se pudo cargar los créditos.',
+        message:
+            summaryResult.error?.message ?? 'No se pudo cargar la billetera.',
       ));
       return;
     }
 
+    _lastLoadedAt = DateTime.now();
     emit(state.copyWith(
       status: CreditStatus.success,
       summary: summaryResult.data,
-      movements: historyResult.data ?? summaryResult.data?.recentMovements ?? const [],
+      movements: historyResult.isSuccess
+          ? (historyResult.data ??
+              summaryResult.data?.recentMovements ??
+              const [])
+          : (summaryResult.data?.recentMovements ?? const []),
       message: null,
     ));
   }
 
-  Future<void> transferCredits({
-    required String recipientEmail,
+  Future<void> transferWallet({
     required int amount,
+    String? destination,
+    String? destinationUserId,
+    String? qrPayload,
+    String? concept,
   }) async {
+    final trimmedDestination = destination?.trim() ?? '';
+    final trimmedUserId = destinationUserId?.trim() ?? '';
+    final trimmedQr = qrPayload?.trim() ?? '';
+
+    if (amount <= 0) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: 'Ingresa un monto mayor que cero.',
+      ));
+      return;
+    }
+
+    if (trimmedDestination.isEmpty &&
+        trimmedUserId.isEmpty &&
+        trimmedQr.isEmpty) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: 'Indica alias, email, teléfono o escanea un QR.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(status: CreditStatus.submitting, message: null));
+
+    final payload = <String, dynamic>{
+      'monto': amount,
+      if (trimmedUserId.isNotEmpty) 'destination_user_id': trimmedUserId,
+      if (trimmedDestination.isNotEmpty) 'alias': trimmedDestination,
+      if (trimmedQr.isNotEmpty) 'qr_payload': trimmedQr,
+      if (concept != null && concept.trim().isNotEmpty)
+        'concepto': concept.trim(),
+    };
 
     final result = await _apiClient.post<void>(
       '/creditos/transferir',
-      data: {
-        'email_destinatario': recipientEmail,
-        'monto': amount,
-      },
+      data: payload,
       parser: (_) {},
     );
 
     if (!result.isSuccess) {
       emit(state.copyWith(
         status: CreditStatus.failure,
-        message: result.error?.message ?? 'No se pudo transferir créditos.',
+        message: result.error?.message ??
+            'No se pudo transferir desde la billetera.',
       ));
       return;
     }
 
     emit(state.copyWith(
       status: CreditStatus.success,
-      message: 'Transferencia de créditos enviada.',
+      message: 'Transferencia enviada desde tu billetera.',
     ));
-    await load();
+    await load(force: true);
+  }
+
+  Future<void> transferCredits({
+    required String recipientEmail,
+    required int amount,
+  }) {
+    return transferWallet(destination: recipientEmail, amount: amount);
   }
 
   Future<void> requestRecharge({
@@ -124,7 +177,7 @@ class CreditsCubit extends Cubit<CreditsState> {
       status: CreditStatus.success,
       message: 'Solicitud de recarga enviada.',
     ));
-    await load();
+    await load(force: true);
   }
 
   Future<void> sellCredits({
@@ -141,7 +194,8 @@ class CreditsCubit extends Cubit<CreditsState> {
     if (!result.isSuccess) {
       emit(state.copyWith(
         status: CreditStatus.failure,
-        message: result.error?.message ?? 'No se pudo solicitar el retiro de granos.',
+        message: result.error?.message ??
+            'No se pudo solicitar el retiro de granos.',
       ));
       return;
     }
@@ -150,6 +204,6 @@ class CreditsCubit extends Cubit<CreditsState> {
       status: CreditStatus.success,
       message: 'Solicitud de retiro enviada al superadmin.',
     ));
-    await load();
+    await load(force: true);
   }
 }
