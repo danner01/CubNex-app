@@ -66,16 +66,27 @@ class ActiveBusinessCubit extends Cubit<ActiveBusinessState> {
     final result = await _safeLoadBusinesses();
 
     if (!result.isSuccess) {
-      emit(
-        state.copyWith(
-          status: ActiveBusinessStatus.failure,
-          businesses: const [],
-          clearActiveBusiness: true,
-          message:
-              result.error?.message ??
-              'No se pudieron cargar tus negocios. Revisa la conexion.',
-        ),
-      );
+      if (state.activeBusiness != null) {
+        emit(
+          state.copyWith(
+            status: ActiveBusinessStatus.success,
+            message:
+                result.error?.message ??
+                'No se pudieron cargar tus negocios. Revisa la conexion.',
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            status: ActiveBusinessStatus.failure,
+            businesses: const [],
+            clearActiveBusiness: true,
+            message:
+                result.error?.message ??
+                'No se pudieron cargar tus negocios. Revisa la conexion.',
+          ),
+        );
+      }
       return;
     }
 

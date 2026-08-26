@@ -276,7 +276,7 @@ class ApiClient {
   Future<bool> _isTokenExpiringSoon() async {
     final expiresAtRaw = await _secureStorage.read(key: _tokenExpiresAtKey);
     final expiresAt = int.tryParse(expiresAtRaw ?? '');
-    if (expiresAt == null) return false;
+    if (expiresAt == null) return true;
 
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     return expiresAt - now <= _refreshLeeway.inSeconds;
@@ -531,7 +531,7 @@ class ApiClient {
 
   bool _shouldTryRefresh(String? apiErrorCode) {
     if (apiErrorCode == null || apiErrorCode.isEmpty) return true;
-    if (apiErrorCode == 'SIN_TOKEN') return false;
+    if (apiErrorCode == 'SIN_TOKEN') return true;
     return true;
   }
 

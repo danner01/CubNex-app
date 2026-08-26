@@ -97,7 +97,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(() => RegisterAccount(sl()))
     ..registerLazySingleton(() => RecoverPassword(sl()))
     ..registerLazySingleton(() => Logout(sl()))
-    ..registerFactory(
+    ..registerLazySingleton(
       () => AppSessionCubit(authRepository: sl(), apiClient: sl()),
     )
     ..registerLazySingleton(

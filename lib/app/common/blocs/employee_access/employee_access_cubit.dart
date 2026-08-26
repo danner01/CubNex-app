@@ -91,14 +91,23 @@ class EmployeeAccessCubit extends Cubit<EmployeeAccessState> {
     );
 
     if (!result.isSuccess) {
-      emit(
-        state.copyWith(
-          status: EmployeeAccessStatus.failure,
-          memberships: const [],
-          pendingInvites: const [],
-          message: result.error?.message ?? 'No se pudieron cargar empleos.',
-        ),
-      );
+      if (state.memberships.isNotEmpty) {
+        emit(
+          state.copyWith(
+            status: EmployeeAccessStatus.ready,
+            message: result.error?.message ?? 'No se pudieron cargar empleos.',
+          ),
+        );
+      } else {
+        emit(
+          state.copyWith(
+            status: EmployeeAccessStatus.failure,
+            memberships: const [],
+            pendingInvites: const [],
+            message: result.error?.message ?? 'No se pudieron cargar empleos.',
+          ),
+        );
+      }
       return;
     }
 
