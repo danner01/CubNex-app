@@ -28,7 +28,7 @@ class BusinessNetworkScreen extends StatefulWidget {
 class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   final _apiClient = sl<ApiClient>();
   final _contactService = sl<ContactService>();
-  static const _connectionsLoadTimeout = Duration(seconds: 25);
+  static const _connectionsLoadTimeout = Duration(seconds: 8);
   var _loading = true;
   var _searching = false;
   String? _error;
@@ -41,6 +41,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   bool _requestSheetOpen = false;
   List<BusinessConnectionModel> _connections = const [];
   List<BusinessModel> _candidates = const [];
+  final _connectionsCache = <String, List<BusinessConnectionModel>>{};
   final _businessCache = <String, BusinessModel>{};
   final _catalogCache = <String, List<ProductModel>>{};
 
@@ -57,22 +58,46 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   }
 
   Future<void> _reloadForActiveBusiness() async {
+    var activeBusiness = context.read<ActiveBusinessCubit>().state.activeBusiness;
+    if (activeBusiness == null) {
+      await context.read<ActiveBusinessCubit>().load();
+      if (!mounted) return;
+      activeBusiness = context.read<ActiveBusinessCubit>().state.activeBusiness;
+    }
     _log(
-      'reload:start activeBusiness=${context.read<ActiveBusinessCubit>().state.activeBusiness?.id}',
+      'reload:start activeBusiness=${activeBusiness?.id}',
     );
-    await _load();
-    if (!mounted) return;
-    await _searchBusinesses(_searchQuery);
+    if (activeBusiness == null) {
+      await _load();
+      return;
+    }
+
+    // Pintamos la ultima respuesta del negocio activo sin esperar la red.
+    // La consulta fresca y los candidatos se recuperan en paralelo.
+    final cached = _connectionsCache[activeBusiness.id];
+    if (cached != null && mounted) {
+      setState(() {
+        _loadedBusinessId = activeBusiness!.id;
+        _connections = cached;
+        _loading = false;
+        _error = null;
+      });
+      _log('reload:cache-hit business=${activeBusiness.id} connections=${cached.length}');
+    }
+    await Future.wait<void>([
+      _load(expectedBusinessId: activeBusiness.id),
+      _searchBusinesses(_searchQuery, business: activeBusiness),
+    ]);
     _log(
       'reload:done loadedBusiness=$_loadedBusinessId connections=${_connections.length} candidates=${_candidates.length}',
     );
   }
 
-  Future<void> _load() async {
+  Future<void> _load({String? expectedBusinessId}) async {
     final requestId = ++_loadRequestId;
     final loadStopwatch = Stopwatch()..start();
     var activeBusinessState = context.read<ActiveBusinessCubit>().state;
-    var businessId = activeBusinessState.activeBusiness?.id;
+    var businessId = expectedBusinessId ?? activeBusinessState.activeBusiness?.id;
     _log(
       'load[$requestId]:start business=$businessId status=${activeBusinessState.status.name}',
     );
@@ -106,8 +131,11 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       return;
     }
 
+    final cached = _connectionsCache[businessId];
     setState(() {
-      _loading = true;
+      _loadedBusinessId = businessId;
+      if (cached != null) _connections = cached;
+      _loading = cached == null;
       _error = null;
       _warning = null;
     });
@@ -116,7 +144,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     ApiResult<List<BusinessConnectionModel>> result = const ApiResult.failure(
       ApiFailure(code: 'NOT_STARTED', message: ''),
     );
-    const maxAttempts = 3;
+    const maxAttempts = 2;
     for (var attempt = 0; attempt < maxAttempts; attempt++) {
       if (attempt > 0) {
         if (!mounted || requestId != _loadRequestId) return;
@@ -124,7 +152,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
           'load[$requestId]:retry attempt=$attempt after ${attempt}s delay '
           'code=${result.error?.code}',
         );
-        await Future<void>.delayed(Duration(seconds: attempt));
+        await Future<void>.delayed(const Duration(seconds: 1));
       }
       result = await _apiClient
           .get<List<BusinessConnectionModel>>(
@@ -177,12 +205,15 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       _loadedBusinessId = businessId;
       if (result.isSuccess) {
         _connections = connections;
+        _connectionsCache[businessId!] = connections;
         _error = null;
         _warning = null;
       } else {
         final message =
             result.error?.message ??
             'No se pudieron cargar las conexiones. Intenta de nuevo.';
+        final retained = _connectionsCache[businessId];
+        if (retained != null) _connections = retained;
         _error = _connections.isEmpty ? message : null;
         _warning = _connections.isEmpty ? null : message;
       }
@@ -296,16 +327,20 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     }).toList();
 
     if (changed) {
-      setState(() => _connections = next);
+      setState(() {
+        _connections = next;
+        _connectionsCache[businessId] = next;
+      });
     }
   }
 
-  Future<void> _searchBusinesses(String query) async {
+  Future<void> _searchBusinesses(
+    String query, {
+    BusinessModel? business,
+  }) async {
     final requestId = ++_searchRequestId;
-    final activeBusiness = context
-        .read<ActiveBusinessCubit>()
-        .state
-        .activeBusiness;
+    final activeBusiness = business ??
+        context.read<ActiveBusinessCubit>().state.activeBusiness;
     if (activeBusiness == null) {
       _log('search[$requestId]:skipped no active business query="$query"');
       return;
@@ -493,6 +528,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         _connections = _connections
             .map((item) => item.id == connection.id ? enriched : item)
             .toList();
+        if (_loadedBusinessId != null) {
+          _connectionsCache[_loadedBusinessId!] = _connections;
+        }
       });
     }
     return enriched;
@@ -585,6 +623,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
             (item) => item.connectedBusinessId != created.connectedBusinessId,
           ),
         ]);
+        _connectionsCache[activeBusiness.id] = _connections;
         _error = null;
         _warning = null;
       });
@@ -610,6 +649,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       _connections = _connections
           .map((item) => item.id == connection.id ? localUpdate : item)
           .toList();
+      if (_loadedBusinessId != null) {
+        _connectionsCache[_loadedBusinessId!] = _connections;
+      }
     });
 
     final result = await _apiClient.put<BusinessConnectionModel?>(
@@ -638,6 +680,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
           _connections = _connections
               .map((item) => item.id == connection.id ? enrichedRemote : item)
               .toList();
+          if (_loadedBusinessId != null) {
+            _connectionsCache[_loadedBusinessId!] = _connections;
+          }
         });
       }
       showSnackOrAuthDialog(context, 'Conexion actualizada.');
@@ -669,6 +714,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                   : item,
             )
             .toList();
+        if (_loadedBusinessId != null) {
+          _connectionsCache[_loadedBusinessId!] = _connections;
+        }
       });
       showSnackOrAuthDialog(context, 'Conexion aceptada.');
       unawaited(_reloadForActiveBusiness());
@@ -709,6 +757,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       _connections = _connections
           .where((item) => item.id != connection.id)
           .toList();
+      if (_loadedBusinessId != null) {
+        _connectionsCache[_loadedBusinessId!] = _connections;
+      }
     });
 
     final result = await _apiClient.delete<void>(
@@ -720,7 +771,12 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       showSnackOrAuthDialog(context, 'Conexion eliminada.');
       unawaited(_searchBusinesses(_searchQuery));
     } else {
-      setState(() => _connections = previous);
+      setState(() {
+        _connections = previous;
+        if (_loadedBusinessId != null) {
+          _connectionsCache[_loadedBusinessId!] = previous;
+        }
+      });
       showSnackOrAuthDialog(
         context,
         result.error?.message ?? 'No se pudo eliminar la conexion.',
@@ -738,8 +794,11 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
             (item) => item.id == connection.id
                 ? item.copyWith(notifications: value)
                 : item,
-          )
-          .toList();
+            )
+            .toList();
+      if (_loadedBusinessId != null) {
+        _connectionsCache[_loadedBusinessId!] = _connections;
+      }
     });
     final result = await _apiClient.put<void>(
       '/red-negocios/${connection.id}',
@@ -916,7 +975,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                     candidates: _candidates,
                     searching: _searching,
                     error: _searchError,
-                    onChanged: _searchBusinesses,
+                    onChanged: (query) => _searchBusinesses(query),
                     onConnect: _openBusinessAction,
                     relationForBusinessId: _relationForBusinessId,
                   ),

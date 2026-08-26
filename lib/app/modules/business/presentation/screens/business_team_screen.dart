@@ -48,40 +48,48 @@ class _BusinessTeamScreenState extends State<BusinessTeamScreen> {
       _loadedBusinessId = businessId;
     });
 
-    final result = await _api.get<List<BusinessEmployeeModel>>(
-      '/empleados',
-      queryParameters: {
-        'negocio_id': businessId,
-        'limit': 100,
-        'order': 'created_at.desc',
-      },
-      parser: (json) {
-        if (json is! List) return const <BusinessEmployeeModel>[];
-        return json
-            .whereType<Map>()
-            .map(
-              (item) => BusinessEmployeeModel.fromJson(
-                Map<String, dynamic>.from(item),
-              ),
-            )
-            .where((item) => item.status != 'eliminado')
-            .toList();
-      },
-    );
+    try {
+      final result = await _api.get<List<BusinessEmployeeModel>>(
+        '/empleados',
+        queryParameters: {
+          'negocio_id': businessId,
+          'limit': 100,
+          'order': 'created_at.desc',
+        },
+        parser: (json) {
+          if (json is! List) return const <BusinessEmployeeModel>[];
+          return json
+              .whereType<Map>()
+              .map(
+                (item) => BusinessEmployeeModel.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .where((item) => item.status != 'eliminado')
+              .toList();
+        },
+      );
 
-    if (!mounted) return;
-    if (!result.isSuccess) {
+      if (!mounted) return;
+      if (!result.isSuccess) {
+        setState(() {
+          _loading = false;
+          _error = result.error?.message ?? 'No se pudo cargar el equipo.';
+        });
+        return;
+      }
+
       setState(() {
         _loading = false;
-        _error = result.error?.message ?? 'No se pudo cargar el equipo.';
+        _employees = result.data ?? const [];
       });
-      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = 'No se pudo cargar el equipo. Revisa la conexion e intentalo de nuevo.';
+      });
     }
-
-    setState(() {
-      _loading = false;
-      _employees = result.data ?? const [];
-    });
   }
 
   Future<void> _openInviteSheet() async {
@@ -396,45 +404,88 @@ class _InviteEmployeeSheetState extends State<_InviteEmployeeSheet> {
   }
 
   Future<void> _submit() async {
-    final email = _emailController.text.trim();
-    if (email.isEmpty) {
-      showSnackOrAuthDialog(context, 'Indica el email del usuario.');
-      return;
-    }
-
-    setState(() => _saving = true);
-    final result = await _api.post<Map<String, dynamic>>(
-      '/empleados/invitar',
-          data: {
-        'negocio_id': widget.businessId,
-        'email': email,
-        'cargo': _cargoController.text.trim().isEmpty
-            ? 'Empleado'
-            : _cargoController.text.trim(),
-        'es_delivery': _isDelivery,
-        'permisos': _permissions,
-        'mensaje_invitacion': _messageController.text.trim().isEmpty
-            ? null
-            : _messageController.text.trim(),
-      },
-      parser: (json) {
-        if (json is Map<String, dynamic>) return json;
-        if (json is Map) return Map<String, dynamic>.from(json);
-        return <String, dynamic>{};
-      },
-    );
-    if (!mounted) return;
-    setState(() => _saving = false);
-
-    if (!result.isSuccess) {
+    final identifier = _emailController.text.trim();
+    if (identifier.isEmpty) {
       showSnackOrAuthDialog(
         context,
-        result.error?.message ?? 'No se pudo enviar la invitacion.',
+        'Indica el email o telefono del usuario registrado en la app.',
       );
       return;
     }
 
-    Navigator.of(context).pop(true);
+    final isEmail = identifier.contains('@');
+    final data = <String, dynamic>{
+      'negocio_id': widget.businessId,
+      'cargo': _cargoController.text.trim().isEmpty
+          ? 'Empleado'
+          : _cargoController.text.trim(),
+      'es_delivery': _isDelivery,
+      'permisos': _permissions,
+      'mensaje_invitacion': _messageController.text.trim().isEmpty
+          ? null
+          : _messageController.text.trim(),
+    };
+    if (isEmail) {
+      data['email'] = identifier.toLowerCase();
+    } else {
+      data['telefono'] = identifier;
+      data['alias'] = identifier;
+    }
+
+    setState(() => _saving = true);
+    try {
+      final result = await _api.post<Map<String, dynamic>>(
+        '/empleados/invitar',
+        data: data,
+        parser: (json) {
+          if (json is Map<String, dynamic>) return json;
+          if (json is Map) return Map<String, dynamic>.from(json);
+          return <String, dynamic>{};
+        },
+      );
+      if (!mounted) return;
+      setState(() => _saving = false);
+
+      if (!result.isSuccess) {
+        showSnackOrAuthDialog(context, _inviteErrorMessage(result.error?.code, result.error?.message));
+        return;
+      }
+
+      Navigator.of(context).pop(true);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showSnackOrAuthDialog(
+        context,
+        'No se pudo enviar la invitacion por un problema de conexion. Intentalo otra vez.',
+      );
+    }
+  }
+
+  String _inviteErrorMessage(String? code, String? fallback) {
+    switch (code?.toUpperCase()) {
+      case 'USUARIO_NO_ENCONTRADO':
+        return 'No encontramos una cuenta con ese email o telefono. La persona debe registrarse primero en ConKkao.';
+      case 'AUTO_INVITACION':
+        return 'No puedes invitarte a ti mismo al equipo.';
+      case 'NEGOCIO_REQUERIDO':
+        return 'Selecciona un negocio activo antes de invitar a alguien.';
+      case 'NO_AUTORIZADO':
+      case 'SOLO_PROPIETARIO':
+        return 'No tienes permiso para gestionar el equipo de este negocio.';
+      case 'NO_AUTENTICADO':
+      case 'SIN_TOKEN':
+        return 'Tu sesion vencio. Inicia sesion de nuevo para enviar la invitacion.';
+      case 'DUPLICADO':
+      case 'CONFLICTO':
+        return 'Esa persona ya tiene una invitacion o pertenece al equipo.';
+    }
+    final message = fallback?.trim() ?? '';
+    if (message.toLowerCase().contains('relationship') ||
+        message.toLowerCase().contains('could not embed')) {
+      return 'No se pudo guardar la invitacion por una configuracion temporal del servidor. Intentalo de nuevo.';
+    }
+    return message.isEmpty ? 'No se pudo enviar la invitacion.' : message;
   }
 
   @override
@@ -458,10 +509,13 @@ class _InviteEmployeeSheetState extends State<_InviteEmployeeSheet> {
               controller: _emailController,
               keyboardType: TextInputType.emailAddress,
               decoration: const InputDecoration(
-                labelText: 'Email del usuario en la app',
-                border: OutlineInputBorder(),
-              ),
-            ),
+                            labelText: 'Email o telefono del usuario',
+                            hintText: 'ej. emilyelena@yopmail.com',
+                            helperText:
+                                'Debe ser una cuenta ya registrada en la app (email exacto).',
+                            border: OutlineInputBorder(),
+                          ),
+                        ),
             const SizedBox(height: 12),
             TextField(
               controller: _cargoController,

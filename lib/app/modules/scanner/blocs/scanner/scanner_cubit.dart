@@ -59,7 +59,7 @@ class ScannerCubit extends Cubit<ScannerState> {
           return;
         }
 
-        await _validateOrderQr(orderQrToken);
+        await _validateOrderQr(orderQrToken, code);
         _processing = false;
       }
 
@@ -102,7 +102,7 @@ class ScannerCubit extends Cubit<ScannerState> {
         );
       }
 
-  Future<void> _validateOrderQr(String token) async {
+  Future<void> _validateOrderQr(String token, String rawCode) async {
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/ordenes/validar-qr',
       data: {'token': token},
@@ -112,6 +112,7 @@ class ScannerCubit extends Cubit<ScannerState> {
         }
         return <String, dynamic>{};
       },
+      timeout: const Duration(seconds: 8),
     );
 
     if (!result.isSuccess) {
@@ -127,6 +128,7 @@ class ScannerCubit extends Cubit<ScannerState> {
           status: ScannerStatus.failure,
           message: message,
           orderQrValidated: false,
+          rawCodeFallback: rawCode,
         ),
       );
       return;
@@ -188,6 +190,19 @@ class ScannerCubit extends Cubit<ScannerState> {
     }
 
     return null;
+  }
+
+  void useRawCode() {
+    final code = state.code;
+    if (code == null) return;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.success,
+        message: 'Código escaneado: $code',
+        clearRawCodeFallback: true,
+      ),
+    );
+    _processing = false;
   }
 
   void restart() {

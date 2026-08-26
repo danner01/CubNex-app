@@ -6,7 +6,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
-import '../../../../common/presentation/widgets/cubnex_logo.dart';
+import '../../../../common/presentation/widgets/conkkao_logo.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
@@ -328,7 +328,7 @@ class _BrandHeader extends StatelessWidget {
         children: [
           Row(
             children: [
-              const CubNexLogo(size: 56),
+              const ConKkaoLogo(size: 56),
               const SizedBox(width: 12),
               const Expanded(
                 child: Column(

@@ -9,7 +9,7 @@ import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../entities/user_role.dart';
-import '../widgets/cubnex_logo.dart';
+import '../widgets/conkkao_logo.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -158,7 +158,7 @@ class CacaoGrowthSplash extends StatelessWidget {
                 opacity: Curves.easeOut.transform(logoProgress),
                 child: Transform.scale(
                   scale: 0.72 + logoProgress * 0.28,
-                  child: const CubNexLogo(size: 142, showGlow: true),
+                  child: const ConKkaoLogo(size: 142, showGlow: true),
                 ),
               ),
             ],

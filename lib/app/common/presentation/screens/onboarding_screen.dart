@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../blocs/app_session/app_session_cubit.dart';
-import '../widgets/cubnex_logo.dart';
+import '../widgets/conkkao_logo.dart';
 
 class OnboardingScreen extends StatefulWidget {
   const OnboardingScreen({super.key});
@@ -194,7 +194,7 @@ class _BrandMark extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return CubNexLogo(size: size);
+    return ConKkaoLogo(size: size);
   }
 }
 

@@ -143,6 +143,14 @@ class ApiClient {
             }
           }
 
+          // Si una solicitud protegida termina en 401 despues de intentar la
+          // renovacion, la sesion local ya no es util. Avisamos al estado
+          // global para volver al login en lugar de dejar una vista cargando.
+          if (statusCode == 401 &&
+              hasAuthHeader &&
+              !_skipsAuth(requestOptions)) {
+            await _invalidateSession();
+          }
           handler.next(error);
         },
       ),
@@ -160,7 +168,14 @@ class ApiClient {
 
   final Dio _dio;
   final FlutterSecureStorage _secureStorage;
+  final StreamController<void> _sessionExpiredController =
+      StreamController<void>.broadcast();
   Future<bool>? _refreshFuture;
+
+  /// Se emite solo cuando una sesion autenticada ya no puede renovarse.
+  /// Los cubits de presentacion la usan para volver al login sin dejar vistas
+  /// protegidas con datos incompletos.
+  Stream<void> get sessionExpired => _sessionExpiredController.stream;
 
   Future<void> saveSession({
     required String accessToken,
@@ -250,7 +265,7 @@ class ApiClient {
       if (error.response?.statusCode == 400 ||
           error.response?.statusCode == 401 ||
           error.response?.statusCode == 403) {
-        await clearSession();
+        await _invalidateSession();
       }
       return false;
     } catch (_) {
@@ -485,6 +500,14 @@ class ApiClient {
 
   bool _skipsAuthRefresh(RequestOptions options) {
     return options.extra[_skipAuthRefreshExtra] == true || _skipsAuth(options);
+  }
+
+  Future<void> _invalidateSession() async {
+    final hadSession = await hasLocalSession();
+    await clearSession();
+    if (hadSession && !_sessionExpiredController.isClosed) {
+      _sessionExpiredController.add(null);
+    }
   }
 
   String? _extractApiErrorCode(Object? data) {

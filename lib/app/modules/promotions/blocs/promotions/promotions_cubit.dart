@@ -14,15 +14,21 @@ class PromotionsCubit extends Cubit<PromotionsState> {
       super(const PromotionsState());
 
   final ApiClient _apiClient;
-  static const _loadTimeout = Duration(seconds: 12);
+  static const _loadTimeout = Duration(seconds: 4);
+  int _loadSequence = 0;
 
   Future<void> loadPublic() async {
-    emit(state.copyWith(status: PromotionsStatus.loading));
+    if (state.items.isEmpty) {
+      emit(state.copyWith(status: PromotionsStatus.loading));
+    }
     await _load('/promociones');
   }
 
   Future<void> loadMine() async {
-    emit(state.copyWith(status: PromotionsStatus.loading));
+    final loadSequence = ++_loadSequence;
+    if (state.items.isEmpty) {
+      emit(state.copyWith(status: PromotionsStatus.loading));
+    }
     final businessResult = await _apiClient
         .get<BusinessModel?>(
           '/negocios/mi-negocio',
@@ -44,12 +50,16 @@ class PromotionsCubit extends Cubit<PromotionsState> {
             ),
           ),
         );
+    if (isClosed || loadSequence != _loadSequence) return;
     final businessId = businessResult.data?.id;
     if (!businessResult.isSuccess || businessId == null) {
       emit(
         state.copyWith(
-          status: PromotionsStatus.failure,
-          message: businessResult.error?.message ?? 'No tienes negocio creado.',
+          status: PromotionsStatus.success,
+          items: const [],
+          message:
+              businessResult.error?.message ??
+              'Selecciona un negocio para gestionar promociones.',
         ),
       );
       return;
@@ -60,9 +70,13 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   }
 
   Future<void> loadForBusiness(String businessId) async {
-    emit(
-      state.copyWith(status: PromotionsStatus.loading, businessId: businessId),
-    );
+    if (state.items.isEmpty) {
+      emit(
+        state.copyWith(status: PromotionsStatus.loading, businessId: businessId),
+      );
+    } else {
+      emit(state.copyWith(businessId: businessId));
+    }
     await _load('/promociones/mis-promociones', businessId: businessId);
   }
 
@@ -206,11 +220,12 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   }
 
   Future<void> _load(String path, {String? businessId}) async {
+    final loadSequence = ++_loadSequence;
     final result = await _apiClient
         .get<List<PromotionModel>>(
           path,
           queryParameters: {
-            'limit': 40,
+            'limit': 20,
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
           },
@@ -229,12 +244,13 @@ class PromotionsCubit extends Cubit<PromotionsState> {
             ),
           ),
         );
+    if (isClosed || loadSequence != _loadSequence) return;
 
     if (!result.isSuccess) {
       emit(
         state.copyWith(
           status: PromotionsStatus.success,
-          items: const [],
+          items: state.items.isEmpty ? const [] : state.items,
           message:
               result.error?.message ?? 'No se pudieron cargar promociones.',
         ),

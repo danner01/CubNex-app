@@ -310,18 +310,37 @@ class _NotificationTile extends StatelessWidget {
     if (link == '/market/notificaciones' || link == AppRoutes.notifications) {
       return AppRoutes.notifications;
     }
- 
     if (link == '/creditos' ||
         link == '/billetera' ||
         link == AppRoutes.credits ||
         link == AppRoutes.billetera) {
       return AppRoutes.credits;
     }
- 
     if (link == '/market/feed' || link == AppRoutes.posts) {
       return AppRoutes.posts;
-    }    if (link == '/market/promociones' || link == AppRoutes.promotions) {
+    }
+    if (link == '/market/promociones' || link == AppRoutes.promotions) {
       return AppRoutes.promotions;
+    }
+    if (link == '/empleos' || link == AppRoutes.jobs) {
+      return AppRoutes.jobs;
+    }
+    if (link == '/delivery/solicitudes' ||
+        link == '/delivery/pedidos' ||
+        link == AppRoutes.deliveryRequests) {
+      return AppRoutes.deliveryRequests;
+    }
+    if (link == '/delivery/ruta' || link == AppRoutes.deliveryRoute) {
+      return AppRoutes.deliveryRoute;
+    }
+    if (link == '/delivery' || link == AppRoutes.deliveryDashboard) {
+      return AppRoutes.deliveryDashboard;
+    }
+    if (link == '/pedidos' || link == AppRoutes.orders) {
+      return AppRoutes.orders;
+    }
+    if (link == '/negocio/pedidos' || link == AppRoutes.businessOrders) {
+      return AppRoutes.businessOrders;
     }
 
     final marketBusinessMatch = RegExp(
@@ -345,6 +364,23 @@ class _NotificationTile extends StatelessWidget {
       AppRoutes.businessNetwork,
       AppRoutes.deliveryDashboard,
       AppRoutes.deliveryRequests,
+      AppRoutes.jobs,
+      AppRoutes.deliveryRoute,
+      AppRoutes.deliveryHistory,
+      AppRoutes.deliveryProfile,
+      AppRoutes.gamification,
+      AppRoutes.promotions,
+      AppRoutes.posts,
+      AppRoutes.profile,
+      AppRoutes.credits,
+      AppRoutes.businessTeam,
+      AppRoutes.businessMyOrders,
+      AppRoutes.businessJobs,
+      AppRoutes.businessProperties,
+      AppRoutes.businessTransport,
+      AppRoutes.businessMenus,
+      AppRoutes.businessStore,
+      AppRoutes.businessWizard,
     ];
 
     if (knownPrefixes.any((prefix) => link == prefix)) return link;
@@ -360,10 +396,12 @@ class _NotificationTile extends StatelessWidget {
 
   IconData _iconFor(String type) {
     return switch (type) {
-      'promocion' || 'marketing' => Icons.campaign_outlined,
-      'nuevo_producto' => Icons.new_releases_outlined,
+      'sistema' => Icons.info_outline,
+      'promocion' || 'marketing' || 'promocion_canje' => Icons.campaign_outlined,
+      'nuevo_producto' || 'producto_ia' => Icons.new_releases_outlined,
       'pedido' => Icons.receipt_long_outlined,
       'solicitud_red' => Icons.playlist_add_check_circle_outlined,
+      'conexion_negocio' => Icons.handshake_outlined,
       'suscripcion' => Icons.storefront_outlined,
       'resena' => Icons.rate_review_outlined,
       'sorteo' || 'cashback' => Icons.card_giftcard_outlined,
@@ -376,6 +414,10 @@ class _NotificationTile extends StatelessWidget {
       'credito_deduccion' ||
       'transferencia_creditos' => Icons.monetization_on_outlined,
       'nivel' => Icons.workspace_premium_outlined,
+      'stock_proveedor' || 'precio_proveedor' => Icons.inventory_2_outlined,
+      'orden_delivery' || 'paquete_delivery' => Icons.local_shipping_outlined,
+      'empleo' => Icons.work_outline,
+      'empleado_invitacion' || 'empleado_respuesta' => Icons.person_add_outlined,
       _ => Icons.notifications_none_rounded,
     };
   }

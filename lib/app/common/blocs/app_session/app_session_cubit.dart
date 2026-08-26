@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -14,10 +16,15 @@ class AppSessionCubit extends Cubit<AppSessionState> {
     required ApiClient apiClient,
   }) : _authRepository = authRepository,
        _apiClient = apiClient,
-       super(const AppSessionState.loading());
+       super(const AppSessionState.loading()) {
+    _sessionExpiredSubscription = _apiClient.sessionExpired.listen((_) {
+      unawaited(_handleExpiredSession());
+    });
+  }
 
   final AuthRepository _authRepository;
   final ApiClient _apiClient;
+  late final StreamSubscription<void> _sessionExpiredSubscription;
   static const _onboardingSeenKey = 'onboarding.seen';
   static const _sessionSaveTimeout = Duration(seconds: 4);
 
@@ -40,6 +47,12 @@ class AppSessionCubit extends Cubit<AppSessionState> {
       await _apiClient.clearSession();
       emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
     } catch (_) {
+      try {
+        await _apiClient.clearSession();
+      } catch (_) {
+        // La pantalla de login sigue siendo el estado seguro aun si el
+        // almacenamiento del dispositivo no responde temporalmente.
+      }
       emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
     }
   }
@@ -82,5 +95,19 @@ class AppSessionCubit extends Cubit<AppSessionState> {
         onboardingSeen: true,
       ),
     );
+  }
+
+  Future<void> _handleExpiredSession() async {
+    final preferences = await SharedPreferences.getInstance();
+    final onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? true;
+    if (!isClosed) {
+      emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
+    }
+  }
+
+  @override
+  Future<void> close() async {
+    await _sessionExpiredSubscription.cancel();
+    return super.close();
   }
 }

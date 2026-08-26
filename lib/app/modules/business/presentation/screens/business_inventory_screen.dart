@@ -579,6 +579,9 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                       _priceController.text = suggestion.price.toStringAsFixed(
                         2,
                       );
+                      if (suggestion.source == 'patrones' && suggestion.id != null) {
+                        _sendPatronFeedback(suggestion.id!, true);
+                      }
                       setState(() {});
                     },
                   ),
@@ -980,27 +983,41 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
       if (mounted) setState(() => _loadingPriceSuggestions = false);
     }
   }
+
+  void _sendPatronFeedback(String patronId, bool acerto) {
+    sl<ApiClient>().post<Map<String, dynamic>>(
+      '/productos/patron-feedback',
+      data: {'patron_id': patronId, 'acerto': acerto},
+      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+    ).catchError((_) {});
+  }
 }
 
 class _ProductPriceSuggestion {
   const _ProductPriceSuggestion({
+    required this.id,
     required this.name,
     required this.price,
     required this.currency,
     required this.score,
+    required this.source,
   });
 
+  final String? id;
   final String name;
   final double price;
   final String currency;
   final num score;
+  final String source;
 
   factory _ProductPriceSuggestion.fromJson(Map<dynamic, dynamic> json) {
     return _ProductPriceSuggestion(
+      id: json['id']?.toString(),
       name: json['nombre']?.toString() ?? 'Producto similar',
       price: double.tryParse('${json['precio']}') ?? 0,
       currency: json['moneda']?.toString() ?? 'CUP',
       score: num.tryParse('${json['score'] ?? 0}') ?? 0,
+      source: json['fuente']?.toString() ?? 'productos',
     );
   }
 }

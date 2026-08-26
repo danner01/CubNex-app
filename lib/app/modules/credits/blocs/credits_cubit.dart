@@ -13,6 +13,9 @@ class CreditsCubit extends Cubit<CreditsState> {
   final ApiClient _apiClient;
   DateTime? _lastLoadedAt;
 
+  String _operationKey(String operation) =>
+      '$operation-${DateTime.now().toUtc().microsecondsSinceEpoch}';
+
   Future<void> load({bool force = false}) async {
     final last = _lastLoadedAt;
     if (!force &&
@@ -86,6 +89,8 @@ class CreditsCubit extends Cubit<CreditsState> {
     String? qrPayload,
     String? concept,
   }) async {
+    if (state.status == CreditStatus.submitting) return;
+
     final trimmedDestination = destination?.trim() ?? '';
     final trimmedUserId = destinationUserId?.trim() ?? '';
     final trimmedQr = qrPayload?.trim() ?? '';
@@ -117,6 +122,7 @@ class CreditsCubit extends Cubit<CreditsState> {
       if (trimmedQr.isNotEmpty) 'qr_payload': trimmedQr,
       if (concept != null && concept.trim().isNotEmpty)
         'concepto': concept.trim(),
+      'idempotency_key': _operationKey('transfer'),
     };
 
     final result = await _apiClient.post<void>(
@@ -153,6 +159,15 @@ class CreditsCubit extends Cubit<CreditsState> {
     required String method,
     required String reference,
   }) async {
+    if (state.status == CreditStatus.submitting) return;
+    if (amount <= 0) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: 'El monto de la recarga debe ser mayor que cero.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(status: CreditStatus.submitting, message: null));
 
     final result = await _apiClient.post<void>(
@@ -161,6 +176,7 @@ class CreditsCubit extends Cubit<CreditsState> {
         'monto': amount,
         'metodo': method,
         'referencia': reference,
+        'idempotency_key': _operationKey('recharge'),
       },
       parser: (_) {},
     );
@@ -183,11 +199,23 @@ class CreditsCubit extends Cubit<CreditsState> {
   Future<void> sellCredits({
     required int amount,
   }) async {
+    if (state.status == CreditStatus.submitting) return;
+    if (amount <= 0) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: 'La cantidad de granos debe ser mayor que cero.',
+      ));
+      return;
+    }
+
     emit(state.copyWith(status: CreditStatus.submitting, message: null));
 
     final result = await _apiClient.post<void>(
       '/creditos/retirar',
-      data: {'monto': amount},
+      data: {
+        'monto': amount,
+        'idempotency_key': _operationKey('withdrawal'),
+      },
       parser: (_) {},
     );
 

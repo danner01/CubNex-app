@@ -5,8 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../../../config/theme/app_colors.dart';
 
-class CubNexLogo extends StatelessWidget {
-  const CubNexLogo({super.key, this.size = 96, this.showGlow = true});
+class ConKkaoLogo extends StatelessWidget {
+  const ConKkaoLogo({super.key, this.size = 96, this.showGlow = true});
 
   final double size;
   final bool showGlow;
@@ -47,8 +47,8 @@ class CubNexLogo extends StatelessWidget {
   }
 }
 
-class AnimatedCubNexLogo extends StatelessWidget {
-  const AnimatedCubNexLogo({
+class AnimatedConKkaoLogo extends StatelessWidget {
+  const AnimatedConKkaoLogo({
     super.key,
     required this.animation,
     this.size = 132,
@@ -169,8 +169,8 @@ class _AnimatedLogoOverlayPainter extends CustomPainter {
 // Kept as a compatibility painter for older callers while the asset-based
 // branding is rolled out across all platforms.
 // ignore: unused_element
-class _AnimatedCubNexBadgePainter extends CustomPainter {
-  const _AnimatedCubNexBadgePainter({required this.progress});
+class _AnimatedConKkaoBadgePainter extends CustomPainter {
+  const _AnimatedConKkaoBadgePainter({required this.progress});
 
   final double progress;
 
@@ -427,7 +427,7 @@ class _AnimatedCubNexBadgePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(covariant _AnimatedCubNexBadgePainter oldDelegate) {
+  bool shouldRepaint(covariant _AnimatedConKkaoBadgePainter oldDelegate) {
     return oldDelegate.progress != progress;
   }
 }

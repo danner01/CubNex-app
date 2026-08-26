@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -22,8 +24,40 @@ class ScannerScreen extends StatelessWidget {
   }
 }
 
-class _ScannerView extends StatelessWidget {
+class _ScannerView extends StatefulWidget {
   const _ScannerView();
+
+  @override
+  State<_ScannerView> createState() => _ScannerViewState();
+}
+
+class _ScannerViewState extends State<_ScannerView> {
+  Timer? _fallbackTimer;
+  bool _showFallbackButton = false;
+
+  @override
+  void dispose() {
+    _fallbackTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startFallbackTimer() {
+    _fallbackTimer?.cancel();
+    _showFallbackButton = false;
+    _fallbackTimer = Timer(const Duration(seconds: 5), () {
+      if (mounted) {
+        setState(() => _showFallbackButton = true);
+      }
+    });
+  }
+
+  void _cancelFallbackTimer() {
+    _fallbackTimer?.cancel();
+    _fallbackTimer = null;
+    if (_showFallbackButton) {
+      setState(() => _showFallbackButton = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -31,6 +65,12 @@ class _ScannerView extends StatelessWidget {
       body: SafeArea(
         child: BlocConsumer<ScannerCubit, ScannerState>(
           listener: (context, state) {
+                      if (state.status == ScannerStatus.resolving) {
+                        _startFallbackTimer();
+                      } else {
+                        _cancelFallbackTimer();
+                      }
+
                       if (state.status == ScannerStatus.success &&
                           state.walletQrDetected) {
                         final destination = Uri(
@@ -110,8 +150,51 @@ class _ScannerView extends StatelessWidget {
                           if (resolving)
                             ColoredBox(
                               color: Colors.black.withValues(alpha: 0.45),
-                              child: const Center(
-                                child: CircularProgressIndicator(),
+                              child: Center(
+                                child: Column(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const CircularProgressIndicator(),
+                                    const SizedBox(height: 16),
+                                    const Text(
+                                      'Procesando código...',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                    if (_showFallbackButton) ...[
+                                      const SizedBox(height: 12),
+                                      TextButton.icon(
+                                        onPressed: () {
+                                          context
+                                              .read<ScannerCubit>()
+                                              .useRawCode();
+                                        },
+                                        icon: const Icon(
+                                          Icons.skip_next_rounded,
+                                          color: Colors.white,
+                                        ),
+                                        label: const Text(
+                                          'Usar código sin procesar',
+                                          style: TextStyle(color: Colors.white),
+                                        ),
+                                        style: TextButton.styleFrom(
+                                          backgroundColor: Colors.white
+                                              .withValues(alpha: 0.15),
+                                          padding: const EdgeInsets.symmetric(
+                                            horizontal: 16,
+                                            vertical: 10,
+                                          ),
+                                          shape: RoundedRectangleBorder(
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
                               ),
                             ),
                         ],

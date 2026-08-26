@@ -107,7 +107,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
   @override
   Widget build(BuildContext context) {
     if (_ready) {
-      return const CubNexApp();
+      return const ConKkaoApp();
     }
 
     return MaterialApp(

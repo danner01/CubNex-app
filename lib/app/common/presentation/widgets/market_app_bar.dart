@@ -11,7 +11,7 @@ import '../../../config/injection/injection.dart';
 import '../../../config/routes/app_routes.dart';
 import '../../../modules/notifications/data/models/notification_model.dart';
 import '../../../modules/orders/blocs/cart/cart_cubit.dart';
-import 'cubnex_logo.dart';
+import 'conkkao_logo.dart';
 
 class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
   const MarketAppBar({
@@ -41,7 +41,7 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
               _BackButton(fallbackLocation: fallbackLocation),
               const SizedBox(width: 8),
             ],
-            const CubNexLogo(size: 64),
+            const ConKkaoLogo(size: 64),
             const Spacer(),
             _UnreadNotificationsButton(
               onPressed: () => context.go(AppRoutes.notifications),

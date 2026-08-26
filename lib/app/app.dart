@@ -15,8 +15,8 @@ import 'config/theme/app_theme.dart';
 import 'modules/credits/blocs/credits_cubit.dart';
 import 'modules/orders/blocs/cart/cart_cubit.dart';
 
-class CubNexApp extends StatelessWidget {
-  const CubNexApp({super.key});
+class ConKkaoApp extends StatelessWidget {
+  const ConKkaoApp({super.key});
 
   @override
   Widget build(BuildContext context) {

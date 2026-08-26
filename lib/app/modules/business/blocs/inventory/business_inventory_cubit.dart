@@ -1,6 +1,7 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../../config/http/api_result.dart';
 import '../../data/models/product_label_detection.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../../home/data/models/product_model.dart';
@@ -278,33 +279,41 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
   }) async {
     emit(state.copyWith(status: BusinessInventoryStatus.saving));
     final business = state.business;
-    final result = await _apiClient.post<ProductLabelDetection>(
-      '/vision-ia/detectar-etiqueta',
-      data: {
-        if (frontImageBase64 != null) 'imagen_frente_base64': frontImageBase64,
-        if (backImageBase64 != null) 'imagen_reverso_base64': backImageBase64,
-        if (business != null) 'negocio_id': business.id,
-        'guardar_imagenes': saveImages,
-        'tipo_deteccion': 'ambos',
-      },
-      parser: (json) {
-        if (json is Map) {
-          return ProductLabelDetection.fromJson(
-            Map<String, dynamic>.from(json),
-          );
-        }
-        return const ProductLabelDetection();
-      },
-    );
 
-    if (!result.isSuccess) {
+    const aiTimeout = Duration(seconds: 15);
+    ApiResult<ProductLabelDetection>? result;
+
+    for (var attempt = 0; attempt < 2; attempt++) {
+      result = await _apiClient.post<ProductLabelDetection>(
+        '/vision-ia/detectar-etiqueta',
+        data: {
+          if (frontImageBase64 != null) 'imagen_frente_base64': frontImageBase64,
+          if (backImageBase64 != null) 'imagen_reverso_base64': backImageBase64,
+          if (business != null) 'negocio_id': business.id,
+          'guardar_imagenes': saveImages,
+          'tipo_deteccion': 'ambos',
+        },
+        parser: (json) {
+          if (json is Map) {
+            return ProductLabelDetection.fromJson(
+              Map<String, dynamic>.from(json),
+            );
+          }
+          return const ProductLabelDetection();
+        },
+        timeout: aiTimeout,
+      );
+      if (result.isSuccess) break;
+    }
+
+    if (result == null || !result.isSuccess) {
       emit(
         state.copyWith(
-          status: BusinessInventoryStatus.failure,
-          message: result.error?.message ?? 'No se pudo analizar la imagen.',
+          status: BusinessInventoryStatus.success,
+          message: 'No se pudo analizar la imagen con IA. Ingresa los datos manualmente.',
         ),
       );
-      return null;
+      return const ProductLabelDetection();
     }
 
     emit(

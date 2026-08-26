@@ -251,6 +251,17 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   final _addressController = TextEditingController();
   final _openingTimeController = TextEditingController(text: '08:00');
   final _closingTimeController = TextEditingController(text: '18:00');
+  final _tradeNameController = TextEditingController();
+  final _shortDescriptionController = TextEditingController();
+  final Map<String, bool> _activeDays = {
+    'Lun': true,
+    'Mar': true,
+    'Mie': true,
+    'Jue': true,
+    'Vie': true,
+    'Sab': true,
+    'Dom': false,
+  };
   final _electricBlockController = TextEditingController();
   final _electricCircuitController = TextEditingController();
   final _firstItemNameController = TextEditingController();
@@ -300,6 +311,8 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     _addressController.dispose();
     _openingTimeController.dispose();
     _closingTimeController.dispose();
+    _tradeNameController.dispose();
+    _shortDescriptionController.dispose();
     _electricBlockController.dispose();
     _electricCircuitController.dispose();
     _firstItemNameController.dispose();
@@ -426,6 +439,22 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                           maxLines: 3,
                           decoration: const InputDecoration(
                             labelText: 'Descripcion',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _tradeNameController,
+                          decoration: const InputDecoration(
+                            labelText: 'Nombre comercial',
+                            hintText: 'Nombre visible para clientes',
+                          ),
+                        ),
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: _shortDescriptionController,
+                          decoration: const InputDecoration(
+                            labelText: 'Descripcion corta',
+                            hintText: 'Tagline o eslogan del negocio',
                           ),
                         ),
                         const SizedBox(height: 12),
@@ -665,6 +694,27 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
                                     ),
                                   ],
                                 ),
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Dias activos',
+                                  style: Theme.of(context).textTheme.titleSmall,
+                                ),
+                                const SizedBox(height: 8),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  children: _activeDays.entries.map((entry) {
+                                    return FilterChip(
+                                      label: Text(entry.key),
+                                      selected: entry.value,
+                                      onSelected: (selected) {
+                                        setState(() {
+                                          _activeDays[entry.key] = selected;
+                                        });
+                                      },
+                                    );
+                                  }).toList(),
+                                ),
                                 const SizedBox(height: 8),
                                 SwitchListTile(
                                   contentPadding: EdgeInsets.zero,
@@ -877,6 +927,12 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     if (!mounted) return;
     wizardCubit.createBusiness(
       name: _nameController.text.trim(),
+      tradeName: _tradeNameController.text.trim().isEmpty
+          ? null
+          : _tradeNameController.text.trim(),
+      shortDescription: _shortDescriptionController.text.trim().isEmpty
+          ? null
+          : _shortDescriptionController.text.trim(),
       description: _descriptionController.text.trim().isEmpty
           ? null
           : _descriptionController.text.trim(),
@@ -935,6 +991,7 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
       firstItemDetectedFeatures: _firstItemDetectedFeatures,
       firstItemInInventory: _firstItemInInventory,
       firstItemPurchasable: _firstItemPurchasable,
+      activeDays: _activeDays,
       initialFuels: isFuelBusiness
           ? _fuelDrafts
                 .where((fuel) => fuel.enabled)

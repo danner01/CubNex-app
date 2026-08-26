@@ -75,6 +75,8 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
 
   Future<void> createBusiness({
     required String name,
+    String? tradeName,
+    String? shortDescription,
     String? description,
     String? businessTypeId,
     String? phone,
@@ -85,6 +87,7 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
     String? address,
     String? openingTime,
     String? closingTime,
+    Map<String, bool>? activeDays,
     bool acceptsTransfer = false,
     bool availableNow = true,
     bool hasPhysicalLocation = true,
@@ -140,6 +143,14 @@ class BusinessWizardCubit extends Cubit<BusinessWizardState> {
               'circuito_electrico': electricCircuit,
               if (latitude != null && longitude != null)
                 'coordenadas': {'lat': latitude, 'lng': longitude},
+              'metadata': {
+                if (tradeName != null && tradeName.isNotEmpty)
+                  'nombre_comercial': tradeName,
+                if (shortDescription != null && shortDescription.isNotEmpty)
+                  'descripcion_corta': shortDescription,
+                if (activeDays != null)
+                  'dias_activos': activeDays,
+              },
               'colores': {
                 'primario': '#111512',
                 'secundario': '#FFFFFF',

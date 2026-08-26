@@ -14,15 +14,19 @@ class OrdersCubit extends Cubit<OrdersState> {
       super(const OrdersState());
 
   final ApiClient _apiClient;
-  static const _groupedLoadTimeout = Duration(seconds: 6);
-  static const _legacyLoadTimeout = Duration(seconds: 6);
+  static const _groupedLoadTimeout = Duration(seconds: 4);
+  static const _legacyLoadTimeout = Duration(seconds: 4);
   String? _businessId;
   Set<String> _groupedOrderIds = const <String>{};
   Set<String> _requestOrderIds = const <String>{};
+  int _loadSequence = 0;
 
   Future<void> load({String? businessId}) async {
     _businessId = businessId;
-    emit(state.copyWith(status: OrdersStatus.loading));
+    final loadSequence = ++_loadSequence;
+    if (state.items.isEmpty) {
+      emit(state.copyWith(status: OrdersStatus.loading));
+    }
     final futures = <Future<ApiResult<List<OrderModel>>>>[
       _loadFrom(
         '/ordenes',
@@ -35,44 +39,25 @@ class OrdersCubit extends Cubit<OrdersState> {
         timeout: _legacyLoadTimeout,
       ),
     ];
-    if (businessId != null) {
-      futures.add(
-        _loadFrom(
-          '/solicitudes-red',
-          businessId: businessId,
-          timeout: _legacyLoadTimeout,
-          extraQuery: const {'scope': 'received'},
-        ),
-      );
-    }
 
     final results = await Future.wait<ApiResult<List<OrderModel>>>(
       futures,
       eagerError: false,
     );
+    if (isClosed || loadSequence != _loadSequence) return;
 
     final groupedResult = results[0];
     final legacyResult = results[1];
-    final requestsResult = results.length > 2
-        ? results[2]
-        : const ApiResult.success(<OrderModel>[]);
     final groupedOrders = groupedResult.data ?? const <OrderModel>[];
     final legacyOrders = legacyResult.data ?? const <OrderModel>[];
-    final requestOrders = requestsResult.data ?? const <OrderModel>[];
-    final hasAnyOrders =
-        groupedOrders.isNotEmpty ||
-        legacyOrders.isNotEmpty ||
-        requestOrders.isNotEmpty;
-    final allSourcesSucceeded =
-        groupedResult.isSuccess &&
-        legacyResult.isSuccess &&
-        requestsResult.isSuccess;
+    final hasAnyOrders = groupedOrders.isNotEmpty || legacyOrders.isNotEmpty;
+    final allSourcesSucceeded = groupedResult.isSuccess && legacyResult.isSuccess;
 
     if (hasAnyOrders || allSourcesSucceeded) {
       _groupedOrderIds = groupedOrders.map((order) => order.id).toSet();
-      _requestOrderIds = requestOrders.map((order) => order.id).toSet();
+      _requestOrderIds = const <String>{};
       final byId = <String, OrderModel>{};
-      for (final order in [...groupedOrders, ...legacyOrders, ...requestOrders]) {
+      for (final order in [...groupedOrders, ...legacyOrders]) {
         if (order.id.isNotEmpty) {
           byId[order.id] = order;
         }
@@ -87,7 +72,9 @@ class OrdersCubit extends Cubit<OrdersState> {
         state.copyWith(
           status: OrdersStatus.success,
           items: items,
-          errorMessage: null,
+          errorMessage: groupedResult.isSuccess || legacyResult.isSuccess
+              ? null
+              : 'No se pudieron actualizar todos los pedidos.',
         ),
       );
       return;
@@ -95,12 +82,11 @@ class OrdersCubit extends Cubit<OrdersState> {
 
     emit(
       state.copyWith(
-        status: OrdersStatus.failure,
-        items: const [],
+        status: state.items.isEmpty ? OrdersStatus.failure : OrdersStatus.success,
+        items: state.items.isEmpty ? const [] : state.items,
         errorMessage:
             groupedResult.error?.message ??
             legacyResult.error?.message ??
-            requestsResult.error?.message ??
             'No se pudieron cargar pedidos.',
       ),
     );
@@ -116,7 +102,7 @@ class OrdersCubit extends Cubit<OrdersState> {
         .get<List<OrderModel>>(
           path,
           queryParameters: {
-            'limit': 50,
+            'limit': 20,
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
             ...?extraQuery,
@@ -139,7 +125,9 @@ class OrdersCubit extends Cubit<OrdersState> {
   }
 
   Future<void> loadBusinessOrders() async {
-    emit(state.copyWith(status: OrdersStatus.loading));
+    if (state.items.isEmpty) {
+      emit(state.copyWith(status: OrdersStatus.loading));
+    }
     final businessResult = await _apiClient
         .get<BusinessModel?>(
           '/negocios/mi-negocio',
