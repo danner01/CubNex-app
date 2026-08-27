@@ -162,7 +162,15 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
 Future<void> _initializeForegroundServices() async {
   try {
-    await sl<PushNotificationService>().init();
+    final push = sl<PushNotificationService>();
+    await push.init();
+
+    FirebaseMessaging.onMessageOpenedApp.listen(push.refreshWalletIfNeeded);
+    final initial =
+        await FirebaseMessaging.instance.getInitialMessage();
+    if (initial != null) {
+      push.refreshWalletIfNeeded(initial);
+    }
   } catch (_) {
     // Startup must not be blocked by optional services.
   }

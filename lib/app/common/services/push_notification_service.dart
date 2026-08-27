@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../config/http/api_client.dart';
+import '../../config/injection/injection.dart';
+import '../../modules/credits/blocs/credits_cubit.dart';
 
 class PushNotificationService {
   PushNotificationService({
@@ -57,6 +59,12 @@ class PushNotificationService {
     _notificationsChangedController.add(null);
   }
 
+  void refreshWalletIfNeeded(RemoteMessage message) {
+    if (message.data['wallet_event'] == '1') {
+      unawaited(_refreshWalletBalance());
+    }
+  }
+
   Future<void> _syncCurrentToken() async {
     try {
       final token = await _firebaseMessaging.getToken();
@@ -88,6 +96,8 @@ class PushNotificationService {
 
     SystemSound.play(SystemSoundType.alert);
     notifyNotificationsChanged();
+    refreshWalletIfNeeded(message);
+
     messengerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('$title\n$body'),
@@ -95,5 +105,15 @@ class PushNotificationService {
         duration: const Duration(seconds: 5),
       ),
     );
+  }
+
+  Future<void> _refreshWalletBalance() async {
+    try {
+      if (sl.isRegistered<CreditsCubit>()) {
+        await sl<CreditsCubit>().load(force: true);
+      }
+    } catch (_) {
+      // Balance refresh is best-effort; it must not break notification delivery.
+    }
   }
 }
