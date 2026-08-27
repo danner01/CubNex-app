@@ -58,6 +58,7 @@ class _CreditsScreenState extends State<CreditsScreen> {
         onSell: () => _showSellSheet(context),
         onReceive: () => _showReceiveSheet(context),
         onScanPay: () => _scanAndPay(context),
+        onConvertGrains: () => _showConvertGrainsSheet(context),
       ),
     );
   }
@@ -111,6 +112,17 @@ class _CreditsScreenState extends State<CreditsScreen> {
       builder: (_) => BlocProvider.value(
         value: sl<CreditsCubit>(),
         child: const _SellCreditsSheet(),
+      ),
+    );
+  }
+
+  Future<void> _showConvertGrainsSheet(BuildContext context) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BlocProvider.value(
+        value: sl<CreditsCubit>(),
+        child: const _ConvertGrainsSheet(),
       ),
     );
   }
@@ -189,6 +201,7 @@ class _CreditsView extends StatelessWidget {
     required this.onSell,
     required this.onReceive,
     required this.onScanPay,
+    required this.onConvertGrains,
   });
 
   final VoidCallback onTransfer;
@@ -196,6 +209,7 @@ class _CreditsView extends StatelessWidget {
   final VoidCallback onSell;
   final VoidCallback onReceive;
   final VoidCallback onScanPay;
+  final VoidCallback onConvertGrains;
 
   @override
   Widget build(BuildContext context) {
@@ -355,6 +369,11 @@ class _CreditsView extends StatelessWidget {
                         onPressed: onSell,
                         icon: const Icon(Icons.sell_rounded),
                         label: const Text('Retirar granos'),
+                      ),
+                      OutlinedButton.icon(
+                        onPressed: onConvertGrains,
+                        icon: const Icon(Icons.swap_horiz_rounded),
+                        label: const Text('Convertir granos'),
                       ),
                     ],
                   ),
@@ -906,6 +925,90 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
                   )
                 : const Icon(Icons.sell_rounded),
             label: const Text('Enviar solicitud'),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConvertGrainsSheet extends StatefulWidget {
+  const _ConvertGrainsSheet();
+
+  @override
+  State<_ConvertGrainsSheet> createState() => _ConvertGrainsSheetState();
+}
+
+class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
+  final _amountController = TextEditingController();
+  bool _submitting = false;
+
+  @override
+  void dispose() {
+    _amountController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Convertir granos a creditos',
+            style: Theme.of(context)
+                .textTheme
+                .titleLarge
+                ?.copyWith(fontWeight: FontWeight.w900),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _amountController,
+            keyboardType: TextInputType.number,
+            decoration: const InputDecoration(
+              labelText: 'Cantidad de granos a convertir',
+            ),
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tus granos acumulados se convertiran en creditos disponibles en tu billetera. Se aplicara una comision segun la configuracion del sistema.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 16),
+          FilledButton.icon(
+            onPressed: _submitting
+                ? null
+                : () async {
+                    final amount =
+                        int.tryParse(_amountController.text.trim()) ?? 0;
+                    if (amount <= 0) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Ingresa una cantidad mayor que cero.'),
+                        ),
+                      );
+                      return;
+                    }
+                    setState(() => _submitting = true);
+                    await context
+                        .read<CreditsCubit>()
+                        .convertGrains(grains: amount);
+                    setState(() => _submitting = false);
+                    if (context.mounted) Navigator.of(context).pop();
+                  },
+            icon: _submitting
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.swap_horiz_rounded),
+            label: const Text('Convertir'),
           ),
         ],
       ),

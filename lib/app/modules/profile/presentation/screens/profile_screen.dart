@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/services/apk_update_service.dart';
+import '../../../../common/presentation/widgets/update_download_sheet.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
@@ -22,6 +22,8 @@ class ProfileScreen extends StatefulWidget {
 class _ProfileScreenState extends State<ProfileScreen> {
   String? _installedVersion;
   bool _checkingUpdates = false;
+  bool _hasUpdate = false;
+  String? _latestVersion;
 
   @override
   void initState() {
@@ -43,6 +45,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
     try {
       final status = await sl<ApkUpdateService>().checkForUpdateStatus();
       if (!mounted) return;
+      setState(() {
+        _hasUpdate = status.hasUpdate;
+        _latestVersion = status.latest?.version;
+      });
       await _showUpdateModal(status);
     } catch (error) {
       if (!mounted) return;
@@ -58,77 +64,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
   Future<void> _showUpdateModal(ApkUpdateStatus status) async {
     final latest = status.latest;
-    final changeText = latest?.notes?.trim();
-    final hasChanges = changeText != null && changeText.isNotEmpty;
 
-    final updateNow = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: Text(status.hasUpdate ? 'Actualización disponible' : 'Estado de la APK'),
-          content: SizedBox(
-            width: 460,
-            child: Column(
+    if (!status.hasUpdate || latest == null) {
+      if (!mounted) return;
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) {
+          return AlertDialog(
+            title: const Text('Estado de la APK'),
+            content: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Versión instalada: ${status.currentVersion}'),
+                Text('Version instalada: ${status.currentVersion}'),
                 const SizedBox(height: 8),
                 Text(
-                  'Versión publicada: ${latest?.version ?? 'No disponible'}',
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  status.hasUpdate
-                      ? 'Se encontraron actualizaciones para instalar.'
-                      : 'Tu APK ya está actualizada.',
-                ),
-                if (hasChanges) ...[
-                  const SizedBox(height: 14),
-                  const Text(
-                    'Cambios / commits',
-                    style: TextStyle(fontWeight: FontWeight.w900),
+                  'Tu APK ya esta actualizada.',
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.primary,
+                    fontWeight: FontWeight.w600,
                   ),
-                  const SizedBox(height: 6),
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(maxHeight: 220),
-                    child: SingleChildScrollView(
-                      child: SelectableText(changeText),
-                    ),
-                  ),
-                ],
+                ),
               ],
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Cerrar'),
-            ),
-            if (status.hasUpdate && latest != null)
+            actions: [
               FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(true),
-                child: const Text('Actualizar'),
+                onPressed: () => Navigator.of(dialogContext).pop(),
+                child: const Text('Cerrar'),
               ),
-          ],
-        );
-      },
-    );
-
-    if (!mounted) return;
-    if (updateNow != true || latest == null) return;
-    final uri = Uri.tryParse(latest.downloadUrl);
-    if (uri == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Enlace de actualización inválido.')),
+            ],
+          );
+        },
       );
       return;
     }
-    final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
-    if (launched) return;
+
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('No se pudo abrir el enlace de actualización.')),
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      isDismissible: false,
+      builder: (_) => UpdateDownloadSheet(update: latest),
     );
   }
 
@@ -221,6 +197,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
           _ApkVersionCard(
             installedVersion: _installedVersion,
             checkingUpdates: _checkingUpdates,
+            hasUpdate: _hasUpdate,
+            latestVersion: _latestVersion,
             onCheckUpdates: _checkUpdates,
           ),
           const SizedBox(height: 10),
@@ -623,11 +601,15 @@ class _ApkVersionCard extends StatelessWidget {
   const _ApkVersionCard({
     required this.installedVersion,
     required this.checkingUpdates,
+    required this.hasUpdate,
+    required this.latestVersion,
     required this.onCheckUpdates,
   });
 
   final String? installedVersion;
   final bool checkingUpdates;
+  final bool hasUpdate;
+  final String? latestVersion;
   final VoidCallback onCheckUpdates;
 
   @override
@@ -638,16 +620,38 @@ class _ApkVersionCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Versión APK',
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            Row(
+              children: [
+                Text(
+                  'Version APK',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                ),
+                if (hasUpdate) ...[
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.orange,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      'Nueva: $latestVersion',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        color: Colors.white,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 6),
             Text(
               installedVersion == null
-                  ? 'Cargando versión instalada...'
+                  ? 'Cargando version instalada...'
                   : 'Instalada: $installedVersion',
             ),
             const SizedBox(height: 12),
@@ -659,8 +663,8 @@ class _ApkVersionCard extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : const Icon(Icons.system_update_alt_rounded),
-              label: const Text('Buscar actualizaciones'),
+                  : Icon(hasUpdate ? Icons.system_update_alt_rounded : Icons.refresh_rounded),
+              label: Text(hasUpdate ? 'Actualizar ahora' : 'Buscar actualizaciones'),
             ),
           ],
         ),

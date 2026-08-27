@@ -44,7 +44,8 @@ dependencies:
 
   # UI helpers
   cached_network_image: ^3.4.1
-  flutter_svg: ^2.0.17
+  apk_installer: ^0.0.4
+  path_provider: ^2.1.5
   intl: ^0.20.2
   package_info_plus: ^8.0.3
   url_launcher: ^6.3.1
@@ -61,6 +62,5 @@ dev_dependencies:
 flutter:
   uses-material-design: true
   assets:
-    - assets/images/
     - assets/icons/
     - assets/icons/cubnex_icon.png

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:url_launcher/url_launcher.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../blocs/app_session/app_session_cubit.dart';
 import '../../services/apk_update_service.dart';
@@ -10,6 +10,7 @@ import '../../../config/routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../entities/user_role.dart';
 import '../widgets/conkkao_logo.dart';
+import '../widgets/update_download_sheet.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -70,43 +71,13 @@ class _SplashScreenState extends State<SplashScreen>
   }
 
   Future<void> _showUpdateDialog(ApkUpdateInfo update) async {
-    final shouldOpen = await showDialog<bool>(
+    if (!mounted) return;
+    await showModalBottomSheet<void>(
       context: context,
-      barrierDismissible: true,
-      builder: (dialogContext) {
-        return AlertDialog(
-          title: const Text('Nueva version disponible'),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text('Version ${update.version}'),
-              const SizedBox(height: 8),
-              Text(
-                update.notes?.isNotEmpty == true
-                    ? update.notes!
-                    : 'Hay una actualizacion lista para descargar.',
-              ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(dialogContext).pop(false),
-              child: const Text('Mas tarde'),
-            ),
-            FilledButton(
-              onPressed: () => Navigator.of(dialogContext).pop(true),
-              child: const Text('Actualizar'),
-            ),
-          ],
-        );
-      },
+      isScrollControlled: true,
+      isDismissible: false,
+      builder: (_) => UpdateDownloadSheet(update: update),
     );
-
-    if (shouldOpen != true) return;
-    final uri = Uri.tryParse(update.downloadUrl);
-    if (uri == null) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   String _defaultLocationForRole(UserRole role) {
@@ -123,7 +94,31 @@ class _SplashScreenState extends State<SplashScreen>
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Center(child: CacaoGrowthSplash(animation: _controller)),
+        child: Stack(
+          alignment: Alignment.center,
+          children: [
+            Center(child: CacaoGrowthSplash(animation: _controller)),
+            Positioned(
+              bottom: 40,
+              child: FutureBuilder<PackageInfo>(
+                future: PackageInfo.fromPlatform(),
+                builder: (_, snap) {
+                  final version = snap.data?.version ?? '';
+                  final build = snap.data?.buildNumber ?? '';
+                  final text = build.isEmpty ? 'v$version' : 'v$version+$build';
+                  return Text(
+                    text,
+                    style: const TextStyle(
+                      color: Colors.white24,
+                      fontSize: 12,
+                      letterSpacing: 1.2,
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

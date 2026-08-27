@@ -13,6 +13,7 @@ import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/credit_service.dart';
 import '../../common/services/apk_update_service.dart';
+import '../../common/services/apk_download_service.dart';
 import '../../common/services/push_notification_service.dart';
 import '../../common/services/share_service.dart';
 import '../../modules/auth/data/datasources/auth_remote_data_source.dart';
@@ -65,6 +66,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton<SharedPreferences>(() => sharedPreferences)
     ..registerLazySingleton(ApiClient.new)
     ..registerLazySingleton(ApkUpdateService.new)
+    ..registerLazySingleton(ApkDownloadService.new)
     ..registerLazySingleton(ContactService.new)
     ..registerLazySingleton(() => ShareService(apiClient: sl()))
     ..registerLazySingleton(() => CreditService(apiClient: sl()))

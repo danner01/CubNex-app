@@ -234,4 +234,54 @@ class CreditsCubit extends Cubit<CreditsState> {
     ));
     await load(force: true);
   }
+
+  Future<void> convertGrains({required int grains}) async {
+    if (state.status == CreditStatus.submitting) return;
+    if (grains <= 0) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: 'La cantidad de granos debe ser mayor que cero.',
+      ));
+      return;
+    }
+
+    emit(state.copyWith(status: CreditStatus.submitting, message: null));
+
+    final result = await _apiClient.post<Map<String, dynamic>>(
+      '/creditos/convertir-granos',
+      data: {
+        'granos': grains,
+        'idempotency_key': _operationKey('convert'),
+      },
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(state.copyWith(
+        status: CreditStatus.failure,
+        message: result.error?.message ??
+            'No se pudo convertir los granos.',
+      ));
+      return;
+    }
+
+    final data = result.data ?? {};
+    final comision = (data['comision'] ?? 0).toDouble();
+    final montoNeto = (data['monto_neto'] ?? 0).toDouble();
+
+    final msg = comision > 0
+        ? 'Convertidos $grains granos a $montoNeto CUP (comisión: $comision CUP).'
+        : 'Convertidos $grains granos a $montoNeto CUP.';
+
+    emit(state.copyWith(
+      status: CreditStatus.success,
+      message: msg,
+    ));
+    await load(force: true);
+  }
 }

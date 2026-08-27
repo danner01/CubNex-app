@@ -103,8 +103,7 @@ class ApiClient {
           final canRetrySameToken =
               statusCode == 401 &&
               !_skipsAuthRefresh(requestOptions) &&
-              hasAuthHeader &&
-              apiErrorCode == 'SIN_TOKEN' &&
+              (!hasAuthHeader || apiErrorCode == 'SIN_TOKEN') &&
               retryCount < 1;
 
           if (canRetrySameToken) {
@@ -146,9 +145,13 @@ class ApiClient {
           // Si una solicitud protegida termina en 401 despues de intentar la
           // renovacion, la sesion local ya no es util. Avisamos al estado
           // global para volver al login en lugar de dejar una vista cargando.
+          // No invalidamos si el request es un retry del propio interceptor
+          // (skipAuthRefresh=true), porque eso ya fue manejado en el primer
+          // intento.
           if (statusCode == 401 &&
               hasAuthHeader &&
-              !_skipsAuth(requestOptions)) {
+              !_skipsAuth(requestOptions) &&
+              !_skipsAuthRefresh(requestOptions)) {
             await _invalidateSession();
           }
           handler.next(error);
@@ -276,7 +279,7 @@ class ApiClient {
   Future<bool> _isTokenExpiringSoon() async {
     final expiresAtRaw = await _secureStorage.read(key: _tokenExpiresAtKey);
     final expiresAt = int.tryParse(expiresAtRaw ?? '');
-    if (expiresAt == null) return true;
+    if (expiresAt == null) return false;
 
     final now = DateTime.now().millisecondsSinceEpoch ~/ 1000;
     return expiresAt - now <= _refreshLeeway.inSeconds;
