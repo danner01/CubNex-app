@@ -30,14 +30,14 @@ class ConKkaoLogo extends StatelessWidget {
                   BlendMode.srcIn,
                 ),
                 child: Image.asset(
-                  'assets/icons/conkkao_icon.png',
+                  'assets/icons/cubnex_icon.png',
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
                 ),
               ),
             ),
           Image.asset(
-            'assets/icons/conkkao_icon.png',
+            'assets/icons/cubnex_icon.png',
             fit: BoxFit.contain,
             filterQuality: FilterQuality.high,
           ),
@@ -81,14 +81,14 @@ class AnimatedConKkaoLogo extends StatelessWidget {
                       BlendMode.srcIn,
                     ),
                     child: Image.asset(
-                      'assets/icons/conkkao_icon.png',
+                      'assets/icons/cubnex_icon.png',
                       fit: BoxFit.contain,
                       filterQuality: FilterQuality.high,
                     ),
                   ),
                 ),
                 Image.asset(
-                  'assets/icons/conkkao_icon.png',
+                  'assets/icons/cubnex_icon.png',
                   fit: BoxFit.contain,
                   filterQuality: FilterQuality.high,
                 ),
