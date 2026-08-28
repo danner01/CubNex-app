@@ -9,6 +9,7 @@ import '../../../../config/injection/injection.dart';
 import '../../blocs/credits_cubit.dart';
 import '../../blocs/credits_state.dart';
 import '../../data/models/credit_movement.dart';
+import '../../data/models/credit_summary.dart';
 
 class CreditsScreen extends StatefulWidget {
   const CreditsScreen({
@@ -273,11 +274,17 @@ class _CreditsView extends StatelessWidget {
                           Text(
                             summary == null
                                 ? 'Cargando...'
-                                : '${summary.balance} CUP',
+                                : '${summary.grains}',
                             style: Theme.of(context)
                                 .textTheme
                                 .displaySmall
                                 ?.copyWith(fontWeight: FontWeight.w900),
+                          ),
+                          Text(
+                            summary == null
+                                ? ''
+                                : 'granos totales (saldo)',
+                            style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           if (summary?.alias != null &&
                               summary!.alias!.isNotEmpty) ...[
@@ -292,19 +299,19 @@ class _CreditsView extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: _MetricTile(
-                                  label: 'Disponibles',
+                                  label: 'Ganados',
                                   value: summary == null
                                       ? '—'
-                                      : '${summary.availableBalance} CUP',
+                                      : '${summary.ganados}',
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _MetricTile(
-                                  label: 'Granos',
+                                  label: 'Recargados',
                                   value: summary == null
                                       ? '—'
-                                      : '${summary.grains}',
+                                      : '${summary.recargados}',
                                 ),
                               ),
                             ],
@@ -314,32 +321,34 @@ class _CreditsView extends StatelessWidget {
                             children: [
                               Expanded(
                                 child: _MetricTile(
-                                  label: 'Ganados',
+                                  label: 'Depositados',
                                   value: summary == null
                                       ? '—'
-                                      : '${summary.totalEarned} CUP',
+                                      : '${summary.depositados}',
                                 ),
                               ),
                               const SizedBox(width: 10),
                               Expanded(
                                 child: _MetricTile(
-                                  label: 'Gastados',
+                                  label: 'Transferidos',
                                   value: summary == null
                                       ? '—'
-                                      : '${summary.totalSpent} CUP',
+                                      : '${summary.transferidos}',
                                 ),
                               ),
                             ],
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            '1 grano = 1 CUP. Transfiere por alias, email, teléfono o QR estilo wallet.',
+                            '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con retiros y transferencias.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
                       ),
                     ),
                   ),
+                  const SizedBox(height: 14),
+                  _WalletStatsCard(summary: summary),
                   const SizedBox(height: 14),
                   Wrap(
                     spacing: 10,
@@ -433,6 +442,245 @@ class _MetricTile extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _WalletStatsCard extends StatelessWidget {
+  const _WalletStatsCard({this.summary});
+
+  final CreditSummary? summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    final entries = <({String label, int value, Color color})>[
+      (label: 'Ganados', value: summary?.ganados ?? 0, color: colors.primary),
+      (
+        label: 'Recargados',
+        value: summary?.recargados ?? 0,
+        color: Colors.green,
+      ),
+      (
+        label: 'Depositados',
+        value: summary?.depositados ?? 0,
+        color: Colors.teal,
+      ),
+      (
+        label: 'Transferidos',
+        value: summary?.transferidos ?? 0,
+        color: Colors.orange,
+      ),
+      (
+        label: 'Retirados',
+        value: summary?.retirados ?? 0,
+        color: Colors.redAccent,
+      ),
+      (
+        label: 'Gastados',
+        value: summary?.gastados ?? 0,
+        color: Colors.blueGrey,
+      ),
+    ];
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(Icons.insights_rounded, color: colors.primary, size: 28),
+                const SizedBox(width: 8),
+                const Text(
+                  'Estadísticas',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            _ScatterChart(entries: entries, total: summary?.grains ?? 0),
+            const SizedBox(height: 16),
+            ...entries.map(
+              (e) => Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 12,
+                      height: 12,
+                      decoration: BoxDecoration(
+                        color: e.color,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Text(e.label),
+                    const Spacer(),
+                    Text(
+                      '${e.value}',
+                      style: const TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const Divider(height: 20),
+            Row(
+              children: [
+                const Text(
+                  'Total (saldo)',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Text(
+                  '${summary?.grains ?? 0}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Saldo = Ganados + Recargados + Depositados − Transferidos − Retirados − Gastados.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ScatterChart extends StatelessWidget {
+  const _ScatterChart({required this.entries, required this.total});
+
+  final List<({String label, int value, Color color})> entries;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        SizedBox(
+          height: 160,
+          width: double.infinity,
+          child: CustomPaint(
+            painter: _ScatterChartPainter(
+              entries: entries,
+              theme: Theme.of(context).colorScheme,
+            ),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          'Gráfica de puntos por categoría',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _ScatterChartPainter extends CustomPainter {
+  _ScatterChartPainter({required this.entries, required this.theme});
+
+  final List<({String label, int value, Color color})> entries;
+  final ColorScheme theme;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final maxValue = entries.fold<int>(
+      1,
+      (acc, e) => e.value > acc ? e.value : acc,
+    );
+    final leftPad = 34.0;
+    final rightPad = 14.0;
+    final topPad = 12.0;
+    final bottomPad = 22.0;
+    final chartWidth = size.width - leftPad - rightPad;
+    final chartHeight = size.height - topPad - bottomPad;
+
+    // axis labels (min/Max)
+    final labelStyle = TextStyle(
+      color: theme.onSurfaceVariant,
+      fontSize: 10,
+    );
+    final tp = TextPainter(
+      text: TextSpan(text: '$maxValue', style: labelStyle),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp.paint(canvas, Offset(leftPad - tp.width - 4, topPad - 4));
+
+    final tp0 = TextPainter(
+      text: const TextSpan(text: '0', style: TextStyle(fontSize: 10)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    tp0.paint(
+      canvas,
+      Offset(leftPad - tp0.width - 4, topPad + chartHeight - 10),
+    );
+
+    // grid guides
+    final guidePaint = Paint()
+      ..color = theme.outlineVariant.withValues(alpha: 0.4)
+      ..strokeWidth = 1;
+    for (int i = 0; i <= 3; i++) {
+      final y =
+          topPad + chartHeight - (chartHeight * (i / 3));
+      canvas.drawLine(
+        Offset(leftPad, y),
+        Offset(leftPad + chartWidth, y),
+        guidePaint,
+      );
+    }
+
+    if (entries.isEmpty) return;
+
+    final stepX = chartWidth / (entries.length - 1);
+    final points = <Offset>[];
+    for (int i = 0; i < entries.length; i++) {
+      final v = entries[i].value.toDouble();
+      final x = leftPad + stepX * i;
+      final y = topPad + chartHeight - (v / maxValue) * chartHeight;
+      points.add(Offset(x, y));
+    }
+
+    // lines between points
+    final linePaint = Paint()
+      ..color = theme.primary.withValues(alpha: 0.5)
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+    final path = Path()..moveTo(points.first.dx, points.first.dy);
+    for (final p in points.skip(1)) {
+      path.lineTo(p.dx, p.dy);
+    }
+    canvas.drawPath(path, linePaint);
+
+    // points
+    for (int i = 0; i < entries.length; i++) {
+      final p = points[i];
+      final color = entries[i].color;
+      final halo = Paint()..color = color.withValues(alpha: 0.25);
+      canvas.drawCircle(p, 8, halo);
+      final dot = Paint()..color = color;
+      canvas.drawCircle(p, 4.5, dot);
+
+      final tpLabel = TextPainter(
+        text: TextSpan(
+          text: entries[i].label,
+          style: TextStyle(fontSize: 9, color: theme.onSurfaceVariant),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final labelX = (p.dx - tpLabel.width / 2)
+          .clamp(leftPad, leftPad + chartWidth - tpLabel.width);
+      tpLabel.paint(canvas, Offset(labelX, topPad + chartHeight + 3));
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ScatterChartPainter oldDelegate) {
+    return oldDelegate.entries != entries || oldDelegate.theme != theme;
   }
 }
 

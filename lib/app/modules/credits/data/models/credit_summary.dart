@@ -7,6 +7,12 @@ class CreditSummary {
     required this.totalEarned,
     required this.totalSpent,
     this.grains = 0,
+    this.ganados = 0,
+    this.recargados = 0,
+    this.depositados = 0,
+    this.transferidos = 0,
+    this.retirados = 0,
+    this.gastados = 0,
     this.alias,
     this.qrPayload,
     this.recentMovements = const [],
@@ -18,6 +24,12 @@ class CreditSummary {
   final int totalEarned;
   final int totalSpent;
   final int grains;
+  final int ganados;
+  final int recargados;
+  final int depositados;
+  final int transferidos;
+  final int retirados;
+  final int gastados;
   final String? alias;
   final String? qrPayload;
   final List<CreditMovement> recentMovements;
@@ -36,6 +48,12 @@ class CreditSummary {
             ? Map<String, dynamic>.from(json['datos'] as Map)
             : Map<String, dynamic>.from(json);
 
+    final stats = summary['stats'] is Map
+        ? Map<String, dynamic>.from(summary['stats'] as Map)
+        : json['stats'] is Map
+            ? Map<String, dynamic>.from(json['stats'] as Map)
+            : <String, dynamic>{};
+
     final movementsData =
         json['movimientos'] ?? json['transacciones'] ?? json['historial'];
 
@@ -48,6 +66,10 @@ class CreditSummary {
         actionBreakdown[entry.key.toString()] = parseInt(entry.value);
       }
     }
+
+    int statField(Object? statsValue, Object? fallback) => parseInt(
+          statsValue ?? fallback ?? 0,
+        );
 
     return CreditSummary(
       balance: parseInt(
@@ -66,24 +88,33 @@ class CreditSummary {
             0,
       ),
       totalEarned: parseInt(
-        summary['total_ganado'] ??
+        stats['total_ganado'] ??
+            summary['total_ganado'] ??
             summary['ganado'] ??
             summary['creditos_ganados'] ??
             0,
       ),
       totalSpent: parseInt(
-        summary['total_gastado'] ??
+        stats['total_gastado'] ??
+            summary['total_gastado'] ??
             summary['gastado'] ??
             summary['creditos_utilizados'] ??
             0,
       ),
       grains: parseInt(
-        summary['granos'] ??
+        stats['granos'] ??
+            summary['granos'] ??
             summary['granos_acumulados'] ??
             json['granos'] ??
             json['granos_acumulados'] ??
             0,
       ),
+      ganados: statField(stats['ganados'], summary['ganados']),
+      recargados: statField(stats['recargados'], summary['recargados']),
+      depositados: statField(stats['depositados'], summary['depositados']),
+      transferidos: statField(stats['transferidos'], summary['transferidos']),
+      retirados: statField(stats['retirados'], summary['retirados']),
+      gastados: statField(stats['gastados'], summary['gastados']),
       alias: (summary['alias'] ??
               json['alias'] ??
               json['email'] ??
