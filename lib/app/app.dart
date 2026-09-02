@@ -28,8 +28,8 @@ class ConKkaoApp extends StatelessWidget {
         BlocProvider.value(value: sl<ActiveBusinessCubit>()),
         BlocProvider.value(value: sl<EmployeeAccessCubit>()),
         BlocProvider.value(value: sl<CartCubit>()..restore()),
-                BlocProvider.value(value: sl<CreditsCubit>()),
-              ],
+        BlocProvider.value(value: sl<CreditsCubit>()),
+      ],
       child: MultiBlocListener(
         listeners: [
           BlocListener<AppSessionCubit, AppSessionState>(
@@ -37,39 +37,40 @@ class ConKkaoApp extends StatelessWidget {
                 previous.status != current.status ||
                 previous.role != current.role ||
                 previous.userId != current.userId,
-                      listener: (context, session) {
-                        final roleMode = context.read<RoleModeCubit>();
-                        final employeeAccess = context.read<EmployeeAccessCubit>();
-                        final activeBusiness = context.read<ActiveBusinessCubit>();
+            listener: (context, session) {
+              final roleMode = context.read<RoleModeCubit>();
+              final employeeAccess = context.read<EmployeeAccessCubit>();
+              final activeBusiness = context.read<ActiveBusinessCubit>();
 
-                        if (session.status != AppSessionStatus.authenticated) {
-                          roleMode.syncWithRole(session.role);
-                          employeeAccess.clear();
-                          activeBusiness.clear();
-                          return;
-                        }
+              if (session.status != AppSessionStatus.authenticated) {
+                roleMode.syncWithRole(session.role);
+                employeeAccess.clear();
+                activeBusiness.clear();
+                sl<CreditsCubit>().clear();
+                return;
+              }
 
-                                                sl<CreditsCubit>().load();
-                                                sl<PushNotificationService>().init();
-                        // Fire-and-forget: EmployeeAccess listener refreshes RoleMode/ActiveBusiness.
-                        employeeAccess.load().then((_) {
-                          final access = employeeAccess.state;
-                          final isBusinessOwner =
-                              session.role == UserRole.businessAdmin ||
-                              session.role == UserRole.superadmin;
-                          roleMode.syncWithRole(
-                            session.role,
-                            hasEmployeeBusiness: access.hasActiveMembership,
-                            hasEmployeeDelivery: access.hasDeliveryMembership,
-                          );
-                          if (isBusinessOwner || access.hasActiveMembership) {
-                            activeBusiness.load();
-                          } else {
-                            activeBusiness.clear();
-                          }
-                        });
-                      },
-                    ),
+              sl<CreditsCubit>().load();
+              sl<PushNotificationService>().init();
+              // Fire-and-forget: EmployeeAccess listener refreshes RoleMode/ActiveBusiness.
+              employeeAccess.load().then((_) {
+                final access = employeeAccess.state;
+                final isBusinessOwner =
+                    session.role == UserRole.businessAdmin ||
+                    session.role == UserRole.superadmin;
+                roleMode.syncWithRole(
+                  session.role,
+                  hasEmployeeBusiness: access.hasActiveMembership,
+                  hasEmployeeDelivery: access.hasDeliveryMembership,
+                );
+                if (isBusinessOwner || access.hasActiveMembership) {
+                  activeBusiness.load();
+                } else {
+                  activeBusiness.clear();
+                }
+              });
+            },
+          ),
           BlocListener<EmployeeAccessCubit, EmployeeAccessState>(
             listenWhen: (previous, current) =>
                 previous.hasActiveMembership != current.hasActiveMembership ||

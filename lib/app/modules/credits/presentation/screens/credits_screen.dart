@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -6,10 +8,14 @@ import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../config/injection/injection.dart';
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
+import '../../../business/presentation/widgets/business_switcher.dart';
 import '../../blocs/credits_cubit.dart';
 import '../../blocs/credits_state.dart';
 import '../../data/models/credit_movement.dart';
 import '../../data/models/credit_summary.dart';
+import '../widgets/wallet_chart.dart';
 
 class CreditsScreen extends StatefulWidget {
   const CreditsScreen({
@@ -27,15 +33,58 @@ class CreditsScreen extends StatefulWidget {
   State<CreditsScreen> createState() => _CreditsScreenState();
 }
 
-class _CreditsScreenState extends State<CreditsScreen> {
+class _CreditsScreenState extends State<CreditsScreen>
+    with WidgetsBindingObserver {
+  String? _loadedNegocioId;
+  bool _loadingModeDone = false;
+  Timer? _refreshTimer;
+
+  String? get _targetNegocioId {
+    final roleMode = context.watch<RoleModeCubit>().state.activeMode;
+    if (roleMode != RoleMode.business) return null;
+    final active = context.watch<ActiveBusinessCubit>().state.activeBusiness;
+    return active?.id;
+  }
+
+  String? get _targetNegocioIdRead {
+    final roleMode = context.read<RoleModeCubit>().state.activeMode;
+    if (roleMode != RoleMode.business) return null;
+    final active = context.read<ActiveBusinessCubit>().state.activeBusiness;
+    return active?.id;
+  }
+
+  bool _isBusinessWallet() {
+    final roleMode = context.watch<RoleModeCubit>().state.activeMode;
+    if (roleMode != RoleMode.business) return false;
+    final active = context.watch<ActiveBusinessCubit>().state.activeBusiness;
+    return active != null && (active.id.isNotEmpty);
+  }
+
+  void _startPeriodicRefresh() {
+    _refreshTimer?.cancel();
+    _refreshTimer = Timer.periodic(
+      const Duration(seconds: 20),
+      (_) => _refreshIfVisible(),
+    );
+  }
+
+  void _refreshIfVisible() {
+    if (!mounted) return;
+    final observer = WidgetsBinding.instance;
+    final appIsVisible = observer.lifecycleState == AppLifecycleState.resumed;
+    if (!appIsVisible) return;
+    sl<CreditsCubit>().load(force: true, negocioId: _targetNegocioIdRead);
+  }
+
   @override
   void initState() {
     super.initState();
-    final cubit = sl<CreditsCubit>();
-    cubit.load();
+    WidgetsBinding.instance.addObserver(this);
+    _startPeriodicRefresh();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
-      final hasPrefill = (widget.initialAlias?.isNotEmpty ?? false) ||
+      final hasPrefill =
+          (widget.initialAlias?.isNotEmpty ?? false) ||
           (widget.initialUserId?.isNotEmpty ?? false) ||
           (widget.initialQrPayload?.isNotEmpty ?? false);
       if (hasPrefill) {
@@ -50,10 +99,45 @@ class _CreditsScreenState extends State<CreditsScreen> {
   }
 
   @override
+  void dispose() {
+    _refreshTimer?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshIfVisible();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final activeBusiness = context
+        .watch<ActiveBusinessCubit>()
+        .state
+        .activeBusiness;
+    final isBusiness = _isBusinessWallet();
+    final target = _targetNegocioId;
+    if (!_loadingModeDone) {
+      _loadingModeDone = true;
+      _loadedNegocioId = target;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) sl<CreditsCubit>().load(negocioId: target);
+      });
+    } else if (target != _loadedNegocioId) {
+      _loadedNegocioId = target;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) sl<CreditsCubit>().load(force: true, negocioId: target);
+      });
+    }
     return BlocProvider.value(
       value: sl<CreditsCubit>(),
       child: _CreditsView(
+        isBusiness: isBusiness,
+        businessName: activeBusiness?.name,
+        walletScope: target == null ? 'personal' : 'business:$target',
         onTransfer: () => _showTransferSheet(context),
         onRecharge: () => _showRechargeSheet(context),
         onSell: () => _showSellSheet(context),
@@ -70,6 +154,7 @@ class _CreditsScreenState extends State<CreditsScreen> {
     String? initialUserId,
     String? initialQrPayload,
   }) async {
+    final negocioId = _currentNegocioId(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -79,6 +164,7 @@ class _CreditsScreenState extends State<CreditsScreen> {
           initialAlias: initialAlias,
           initialUserId: initialUserId,
           initialQrPayload: initialQrPayload,
+          sourceNegocioId: negocioId,
         ),
       ),
     );
@@ -134,20 +220,27 @@ class _CreditsScreenState extends State<CreditsScreen> {
     );
     if (!mounted || payload == null || payload.isEmpty) return;
     final parsed = parseWalletQrPayload(payload);
-        if (!mounted) return;
-        await _showTransferSheet(
-          this.context,
-          initialAlias: parsed.alias,
-          initialUserId: parsed.userId,
-          initialQrPayload: payload,
-        );
-      }
-    }
+    if (!mounted) return;
+    await _showTransferSheet(
+      this.context,
+      initialAlias: parsed.alias,
+      initialUserId: parsed.userId,
+      initialQrPayload: payload,
+    );
+  }
+}
 
 class WalletQrParts {
   const WalletQrParts({this.userId, this.alias});
   final String? userId;
   final String? alias;
+}
+
+String? _currentNegocioId(BuildContext context) {
+  final roleMode = context.read<RoleModeCubit>().state.activeMode;
+  if (roleMode != RoleMode.business) return null;
+  final active = context.read<ActiveBusinessCubit>().state.activeBusiness;
+  return active?.id;
 }
 
 WalletQrParts parseWalletQrPayload(String raw) {
@@ -159,10 +252,12 @@ WalletQrParts parseWalletQrPayload(String raw) {
           uri.host.contains('wallet') ||
           value.toLowerCase().contains('wallet/pay'))) {
     return WalletQrParts(
-      userId: uri.queryParameters['uid'] ??
+      userId:
+          uri.queryParameters['uid'] ??
           uri.queryParameters['user_id'] ??
           uri.queryParameters['usuario_id'],
-      alias: uri.queryParameters['alias'] ??
+      alias:
+          uri.queryParameters['alias'] ??
           uri.queryParameters['email'] ??
           uri.queryParameters['telefono'],
     );
@@ -197,6 +292,9 @@ bool isWalletQrPayload(String raw) {
 
 class _CreditsView extends StatelessWidget {
   const _CreditsView({
+    required this.isBusiness,
+    this.businessName,
+    required this.walletScope,
     required this.onTransfer,
     required this.onRecharge,
     required this.onSell,
@@ -205,6 +303,9 @@ class _CreditsView extends StatelessWidget {
     required this.onConvertGrains,
   });
 
+  final bool isBusiness;
+  final String? businessName;
+  final String walletScope;
   final VoidCallback onTransfer;
   final VoidCallback onRecharge;
   final VoidCallback onSell;
@@ -217,18 +318,21 @@ class _CreditsView extends StatelessWidget {
     return BlocConsumer<CreditsCubit, CreditsState>(
       listener: (context, state) {
         if (state.message != null && state.message!.isNotEmpty) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text(state.message!)),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text(state.message!)));
         }
       },
       builder: (context, state) {
-        final summary = state.summary;
-        final movements = state.movements;
+        final isCurrentWallet = state.walletScope == walletScope;
+        final summary = isCurrentWallet ? state.summary : null;
+        final movements = isCurrentWallet
+            ? state.movements
+            : const <CreditMovement>[];
 
         return Scaffold(
           appBar: AppBar(
-            title: const Text('Billetera'),
+            title: Text(isBusiness ? 'Billetera del negocio' : 'Billetera'),
             actions: [
               IconButton(
                 tooltip: 'Recibir',
@@ -238,15 +342,29 @@ class _CreditsView extends StatelessWidget {
             ],
           ),
           body: RefreshIndicator(
-            onRefresh: () => context.read<CreditsCubit>().load(force: true),
+            onRefresh: () => context.read<CreditsCubit>().load(
+              force: true,
+              negocioId: isBusiness ? _currentNegocioId(context) : null,
+            ),
             child: ListView(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
               children: [
                 Text(
-                  'Saldo ConKkao, transferencias por alias o QR, recargas y movimientos.',
+                  isBusiness
+                      ? 'Saldo de granos del negocio, movimientos y ventas recibidas.'
+                      : 'Saldo ConKkao, transferencias por alias o QR, recargas y movimientos.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
                 const SizedBox(height: 16),
+                if (isBusiness) ...[
+                  BusinessSwitcher(
+                    onChanged: () => context.read<CreditsCubit>().load(
+                      force: true,
+                      negocioId: _currentNegocioId(context),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 if (state.status == CreditStatus.loading && summary == null)
                   const Center(child: CircularProgressIndicator())
                 else ...[
@@ -264,9 +382,16 @@ class _CreditsView extends StatelessWidget {
                                 size: 28,
                               ),
                               const SizedBox(width: 8),
-                              const Text(
-                                'Tu billetera',
-                                style: TextStyle(fontWeight: FontWeight.w900),
+                              Text(
+                                isBusiness
+                                    ? (businessName == null ||
+                                              businessName!.isEmpty
+                                          ? 'Billetera del negocio'
+                                          : businessName!)
+                                    : 'Tu billetera',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.w900,
+                                ),
                               ),
                             ],
                           ),
@@ -275,15 +400,11 @@ class _CreditsView extends StatelessWidget {
                             summary == null
                                 ? 'Cargando...'
                                 : '${summary.grains}',
-                            style: Theme.of(context)
-                                .textTheme
-                                .displaySmall
+                            style: Theme.of(context).textTheme.displaySmall
                                 ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                           Text(
-                            summary == null
-                                ? ''
-                                : 'granos totales (saldo)',
+                            summary == null ? '' : 'granos totales (saldo)',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           if (summary?.alias != null &&
@@ -339,8 +460,38 @@ class _CreditsView extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 12),
+                          Row(
+                            children: [
+                              _CircularActionButton(
+                                icon: Icons.add_card_rounded,
+                                label: 'Depositar',
+                                onTap: onRecharge,
+                              ),
+                              const Spacer(),
+                              _CircularActionButton(
+                                icon: Icons.currency_exchange_rounded,
+                                label: 'Retirar',
+                                onTap: onSell,
+                              ),
+                              const Spacer(),
+                              _CircularActionButton(
+                                icon: Icons.send_rounded,
+                                label: 'Enviar',
+                                onTap: onTransfer,
+                              ),
+                              const Spacer(),
+                              _CircularActionButton(
+                                icon: Icons.qr_code_2_rounded,
+                                label: 'QR',
+                                onTap: onReceive,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 12),
                           Text(
-                            '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con retiros y transferencias.',
+                            isBusiness
+                                ? 'Granos de la billetera del negocio. 1 grano = 1 CUP. Se suman las ventas y recargas; se restan retiros, conversiones y transferencias.'
+                                : '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con retiros y transferencias.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -348,45 +499,16 @@ class _CreditsView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 14),
-                  _WalletStatsCard(summary: summary),
-                  const SizedBox(height: 14),
-                  Wrap(
-                    spacing: 10,
-                    runSpacing: 10,
-                    children: [
-                      FilledButton.icon(
-                        onPressed: onTransfer,
-                        icon: const Icon(Icons.send_to_mobile_rounded),
-                        label: const Text('Transferir'),
-                      ),
-                      FilledButton.tonalIcon(
-                        onPressed: onScanPay,
-                        icon: const Icon(Icons.qr_code_scanner_rounded),
-                        label: const Text('Pagar con QR'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onReceive,
-                        icon: const Icon(Icons.qr_code_2_rounded),
-                        label: const Text('Mi QR'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onRecharge,
-                        icon: const Icon(Icons.account_balance_wallet_rounded),
-                        label: const Text('Recargar'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onSell,
-                        icon: const Icon(Icons.sell_rounded),
-                        label: const Text('Retirar granos'),
-                      ),
-                      OutlinedButton.icon(
-                        onPressed: onConvertGrains,
-                        icon: const Icon(Icons.swap_horiz_rounded),
-                        label: const Text('Convertir granos'),
-                      ),
-                    ],
+                  _WalletStatsCard(summary: summary, movements: movements),
+                  const SizedBox(height: 8),
+                  Center(
+                    child: TextButton.icon(
+                      onPressed: onConvertGrains,
+                      icon: const Icon(Icons.swap_horiz_rounded, size: 18),
+                      label: const Text('Convertir granos'),
+                    ),
                   ),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 12),
                   const Text(
                     'Movimientos recientes',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
@@ -413,6 +535,43 @@ class _CreditsView extends StatelessWidget {
   }
 }
 
+class _CircularActionButton extends StatelessWidget {
+  const _CircularActionButton({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(28),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 56,
+            height: 56,
+            decoration: BoxDecoration(
+              color: colors.primaryContainer,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: colors.onPrimaryContainer, size: 26),
+          ),
+          const SizedBox(height: 6),
+          Text(label, style: Theme.of(context).textTheme.labelMedium),
+        ],
+      ),
+    );
+  }
+}
+
 class _MetricTile extends StatelessWidget {
   const _MetricTile({required this.label, required this.value});
 
@@ -434,10 +593,9 @@ class _MetricTile extends StatelessWidget {
           const SizedBox(height: 8),
           Text(
             value,
-            style: Theme.of(context)
-                .textTheme
-                .titleMedium
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
           ),
         ],
       ),
@@ -446,9 +604,10 @@ class _MetricTile extends StatelessWidget {
 }
 
 class _WalletStatsCard extends StatelessWidget {
-  const _WalletStatsCard({this.summary});
+  const _WalletStatsCard({this.summary, this.movements = const []});
 
   final CreditSummary? summary;
+  final List<CreditMovement> movements;
 
   @override
   Widget build(BuildContext context) {
@@ -499,7 +658,7 @@ class _WalletStatsCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            _ScatterChart(entries: entries, total: summary?.grains ?? 0),
+            WalletChart(movements: movements),
             const SizedBox(height: 16),
             ...entries.map(
               (e) => Padding(
@@ -529,7 +688,7 @@ class _WalletStatsCard extends StatelessWidget {
             Row(
               children: [
                 const Text(
-                  'Total (saldo)',
+                  'Granos (saldo)',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const Spacer(),
@@ -539,148 +698,29 @@ class _WalletStatsCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 4),
+            Row(
+              children: [
+                const Text(
+                  'CUP disponible',
+                  style: TextStyle(fontWeight: FontWeight.w900),
+                ),
+                const Spacer(),
+                Text(
+                  '${summary?.availableBalance ?? 0}',
+                  style: const TextStyle(fontWeight: FontWeight.w900),
+                ),
+              ],
+            ),
             const SizedBox(height: 6),
             Text(
-              'Saldo = Ganados + Recargados + Depositados − Transferidos − Retirados − Gastados.',
+              '1 grano = 1 CUP. Saldo = Ganados + Recargados + Depositados − Transferidos − Retirados − Gastados. CUP disponible = granos convertidos.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
         ),
       ),
     );
-  }
-}
-
-class _ScatterChart extends StatelessWidget {
-  const _ScatterChart({required this.entries, required this.total});
-
-  final List<({String label, int value, Color color})> entries;
-  final int total;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        SizedBox(
-          height: 160,
-          width: double.infinity,
-          child: CustomPaint(
-            painter: _ScatterChartPainter(
-              entries: entries,
-              theme: Theme.of(context).colorScheme,
-            ),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Gráfica de puntos por categoría',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-      ],
-    );
-  }
-}
-
-class _ScatterChartPainter extends CustomPainter {
-  _ScatterChartPainter({required this.entries, required this.theme});
-
-  final List<({String label, int value, Color color})> entries;
-  final ColorScheme theme;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final maxValue = entries.fold<int>(
-      1,
-      (acc, e) => e.value > acc ? e.value : acc,
-    );
-    final leftPad = 34.0;
-    final rightPad = 14.0;
-    final topPad = 12.0;
-    final bottomPad = 22.0;
-    final chartWidth = size.width - leftPad - rightPad;
-    final chartHeight = size.height - topPad - bottomPad;
-
-    // axis labels (min/Max)
-    final labelStyle = TextStyle(
-      color: theme.onSurfaceVariant,
-      fontSize: 10,
-    );
-    final tp = TextPainter(
-      text: TextSpan(text: '$maxValue', style: labelStyle),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(leftPad - tp.width - 4, topPad - 4));
-
-    final tp0 = TextPainter(
-      text: const TextSpan(text: '0', style: TextStyle(fontSize: 10)),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp0.paint(
-      canvas,
-      Offset(leftPad - tp0.width - 4, topPad + chartHeight - 10),
-    );
-
-    // grid guides
-    final guidePaint = Paint()
-      ..color = theme.outlineVariant.withValues(alpha: 0.4)
-      ..strokeWidth = 1;
-    for (int i = 0; i <= 3; i++) {
-      final y =
-          topPad + chartHeight - (chartHeight * (i / 3));
-      canvas.drawLine(
-        Offset(leftPad, y),
-        Offset(leftPad + chartWidth, y),
-        guidePaint,
-      );
-    }
-
-    if (entries.isEmpty) return;
-
-    final stepX = chartWidth / (entries.length - 1);
-    final points = <Offset>[];
-    for (int i = 0; i < entries.length; i++) {
-      final v = entries[i].value.toDouble();
-      final x = leftPad + stepX * i;
-      final y = topPad + chartHeight - (v / maxValue) * chartHeight;
-      points.add(Offset(x, y));
-    }
-
-    // lines between points
-    final linePaint = Paint()
-      ..color = theme.primary.withValues(alpha: 0.5)
-      ..strokeWidth = 1.6
-      ..style = PaintingStyle.stroke;
-    final path = Path()..moveTo(points.first.dx, points.first.dy);
-    for (final p in points.skip(1)) {
-      path.lineTo(p.dx, p.dy);
-    }
-    canvas.drawPath(path, linePaint);
-
-    // points
-    for (int i = 0; i < entries.length; i++) {
-      final p = points[i];
-      final color = entries[i].color;
-      final halo = Paint()..color = color.withValues(alpha: 0.25);
-      canvas.drawCircle(p, 8, halo);
-      final dot = Paint()..color = color;
-      canvas.drawCircle(p, 4.5, dot);
-
-      final tpLabel = TextPainter(
-        text: TextSpan(
-          text: entries[i].label,
-          style: TextStyle(fontSize: 9, color: theme.onSurfaceVariant),
-        ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final labelX = (p.dx - tpLabel.width / 2)
-          .clamp(leftPad, leftPad + chartWidth - tpLabel.width);
-      tpLabel.paint(canvas, Offset(labelX, topPad + chartHeight + 3));
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant _ScatterChartPainter oldDelegate) {
-    return oldDelegate.entries != entries || oldDelegate.theme != theme;
   }
 }
 
@@ -697,10 +737,10 @@ class _CreditMovementTile extends StatelessWidget {
     final date = movement.createdAt == null
         ? 'Sin fecha'
         : '${movement.createdAt!.day.toString().padLeft(2, '0')}/'
-            '${movement.createdAt!.month.toString().padLeft(2, '0')}/'
-            '${movement.createdAt!.year} '
-            '${movement.createdAt!.hour.toString().padLeft(2, '0')}:'
-            '${movement.createdAt!.minute.toString().padLeft(2, '0')}';
+              '${movement.createdAt!.month.toString().padLeft(2, '0')}/'
+              '${movement.createdAt!.year} '
+              '${movement.createdAt!.hour.toString().padLeft(2, '0')}:'
+              '${movement.createdAt!.minute.toString().padLeft(2, '0')}';
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -736,10 +776,9 @@ class _ReceiveWalletSheet extends StatelessWidget {
         children: [
           Text(
             'Recibir en billetera',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 8),
           Text('Alias: $alias'),
@@ -747,11 +786,7 @@ class _ReceiveWalletSheet extends StatelessWidget {
           if (qr == null || qr.isEmpty)
             const Text('No se pudo generar tu QR de billetera.')
           else ...[
-            QrImageView(
-              data: qr,
-              size: 220,
-              backgroundColor: Colors.white,
-            ),
+            QrImageView(data: qr, size: 220, backgroundColor: Colors.white),
             const SizedBox(height: 12),
             SelectableText(
               qr,
@@ -799,11 +834,13 @@ class _TransferWalletSheet extends StatefulWidget {
     this.initialAlias,
     this.initialUserId,
     this.initialQrPayload,
+    this.sourceNegocioId,
   });
 
   final String? initialAlias;
   final String? initialUserId;
   final String? initialQrPayload;
+  final String? sourceNegocioId;
 
   @override
   State<_TransferWalletSheet> createState() => _TransferWalletSheetState();
@@ -820,8 +857,9 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
   @override
   void initState() {
     super.initState();
-    _destinationController =
-        TextEditingController(text: widget.initialAlias ?? '');
+    _destinationController = TextEditingController(
+      text: widget.initialAlias ?? '',
+    );
     _userId = widget.initialUserId;
     _qrPayload = widget.initialQrPayload;
   }
@@ -846,11 +884,12 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Transferir desde billetera',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            widget.sourceNegocioId?.isNotEmpty == true
+                ? 'Transferir desde billetera del negocio'
+                : 'Transferir desde billetera',
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
           if (hasQr)
@@ -862,8 +901,8 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
                   _userId?.isNotEmpty == true
                       ? 'Usuario: ${_userId!.substring(0, 8)}…'
                       : (_destinationController.text.isNotEmpty
-                          ? _destinationController.text
-                          : 'QR de billetera detectado'),
+                            ? _destinationController.text
+                            : 'QR de billetera detectado'),
                 ),
                 trailing: IconButton(
                   tooltip: 'Quitar QR',
@@ -893,9 +932,7 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
           const SizedBox(height: 12),
           TextField(
             controller: _conceptController,
-            decoration: const InputDecoration(
-              labelText: 'Concepto (opcional)',
-            ),
+            decoration: const InputDecoration(labelText: 'Concepto (opcional)'),
           ),
           const SizedBox(height: 16),
           FilledButton.icon(
@@ -906,12 +943,13 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
                         int.tryParse(_amountController.text.trim()) ?? 0;
                     setState(() => _submitting = true);
                     await context.read<CreditsCubit>().transferWallet(
-                          amount: amount,
-                          destination: _destinationController.text.trim(),
-                          destinationUserId: _userId,
-                          qrPayload: _qrPayload,
-                          concept: _conceptController.text.trim(),
-                        );
+                      amount: amount,
+                      destination: _destinationController.text.trim(),
+                      destinationUserId: _userId,
+                      qrPayload: _qrPayload,
+                      concept: _conceptController.text.trim(),
+                      sourceNegocioId: widget.sourceNegocioId,
+                    );
                     setState(() => _submitting = false);
                     if (context.mounted) Navigator.of(context).pop();
                   },
@@ -975,12 +1013,10 @@ class _WalletQrScanPageState extends State<_WalletQrScanPage> {
               child: Text(
                 'Apunta al QR de billetera del destinatario',
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
-                      fontWeight: FontWeight.w800,
-                      shadows: const [
-                        Shadow(blurRadius: 8, color: Colors.black),
-                      ],
-                    ),
+                  color: Colors.white,
+                  fontWeight: FontWeight.w800,
+                  shadows: const [Shadow(blurRadius: 8, color: Colors.black)],
+                ),
               ),
             ),
           ),
@@ -1022,10 +1058,9 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
         children: [
           Text(
             'Recargar billetera',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
           DropdownButtonFormField<String>(
@@ -1036,10 +1071,7 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
                 value: 'Cuenta',
                 child: Text('Cuenta bancaria / CUP'),
               ),
-              DropdownMenuItem(
-                value: 'Tarjeta',
-                child: Text('Tarjeta en CUB'),
-              ),
+              DropdownMenuItem(value: 'Tarjeta', child: Text('Tarjeta en CUB')),
             ],
             onChanged: (value) => setState(() => _method = value ?? 'Cuenta'),
           ),
@@ -1068,18 +1100,19 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
                     if (amount <= 0 || reference.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                          content:
-                              Text('Completa monto y referencia de recarga.'),
+                          content: Text(
+                            'Completa monto y referencia de recarga.',
+                          ),
                         ),
                       );
                       return;
                     }
                     setState(() => _submitting = true);
                     await context.read<CreditsCubit>().requestRecharge(
-                          amount: amount,
-                          method: _method,
-                          reference: reference,
-                        );
+                      amount: amount,
+                      method: _method,
+                      reference: reference,
+                    );
                     setState(() => _submitting = false);
                     if (context.mounted) Navigator.of(context).pop();
                   },
@@ -1127,10 +1160,9 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
         children: [
           Text(
             'Retirar granos',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -1159,9 +1191,9 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
                       return;
                     }
                     setState(() => _submitting = true);
-                    await context
-                        .read<CreditsCubit>()
-                        .sellCredits(amount: amount);
+                    await context.read<CreditsCubit>().sellCredits(
+                      amount: amount,
+                    );
                     setState(() => _submitting = false);
                     if (context.mounted) Navigator.of(context).pop();
                   },
@@ -1209,10 +1241,9 @@ class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
         children: [
           Text(
             'Convertir granos a creditos',
-            style: Theme.of(context)
-                .textTheme
-                .titleLarge
-                ?.copyWith(fontWeight: FontWeight.w900),
+            style: Theme.of(
+              context,
+            ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -1243,9 +1274,10 @@ class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
                       return;
                     }
                     setState(() => _submitting = true);
-                    await context
-                        .read<CreditsCubit>()
-                        .convertGrains(grains: amount);
+                    await context.read<CreditsCubit>().convertGrains(
+                      grains: amount,
+                      negocioId: _currentNegocioId(context),
+                    );
                     setState(() => _submitting = false);
                     if (context.mounted) Navigator.of(context).pop();
                   },

@@ -6,6 +6,9 @@ class CreditMovement {
     this.description,
     this.balanceAfter,
     this.createdAt,
+    this.granosDelta = 0,
+    this.creditosDelta = 0,
+    this.accionType,
   });
 
   final String id;
@@ -14,6 +17,9 @@ class CreditMovement {
   final String? description;
   final int? balanceAfter;
   final DateTime? createdAt;
+  final int granosDelta;
+  final int creditosDelta;
+  final String? accionType;
 
   factory CreditMovement.fromJson(Map<String, dynamic> json) {
     int parseInt(Object? value) {
@@ -32,7 +38,12 @@ class CreditMovement {
       balanceAfter: json['saldo_restante'] is num
           ? (json['saldo_restante'] as num).toInt()
           : int.tryParse('${json['saldo_restante'] ?? json['saldo'] ?? ''}'),
-      createdAt: DateTime.tryParse('${json['created_at'] ?? json['fecha'] ?? ''}'),
+      createdAt:
+          DateTime.tryParse('${json['created_at'] ?? json['fecha'] ?? ''}'),
+      granosDelta: parseInt(json['granos_delta'] ?? 0),
+      creditosDelta: parseInt(json['creditos_delta'] ?? 0),
+      accionType: json['tipo_movimiento']?.toString() ??
+          json['accion_clave']?.toString(),
     );
   }
 }

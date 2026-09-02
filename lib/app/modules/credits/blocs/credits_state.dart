@@ -11,27 +11,32 @@ class CreditsState extends Equatable {
     this.summary,
     this.movements = const [],
     this.message,
+    this.walletScope = 'unloaded',
   });
 
   final CreditStatus status;
   final CreditSummary? summary;
   final List<CreditMovement> movements;
   final String? message;
+  final String walletScope;
 
   @override
-  List<Object?> get props => [status, summary, movements, message];
+  List<Object?> get props => [status, summary, movements, message, walletScope];
 
   CreditsState copyWith({
     CreditStatus? status,
     CreditSummary? summary,
     List<CreditMovement>? movements,
     String? message,
+    String? walletScope,
+    bool clearWalletData = false,
   }) {
     return CreditsState(
       status: status ?? this.status,
-      summary: summary ?? this.summary,
-      movements: movements ?? this.movements,
+      summary: clearWalletData ? null : summary ?? this.summary,
+      movements: clearWalletData ? const [] : movements ?? this.movements,
       message: message,
+      walletScope: walletScope ?? this.walletScope,
     );
   }
 }

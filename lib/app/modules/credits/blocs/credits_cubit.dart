@@ -7,29 +7,33 @@ import 'credits_state.dart';
 
 class CreditsCubit extends Cubit<CreditsState> {
   CreditsCubit({required ApiClient apiClient})
-      : _apiClient = apiClient,
-        super(const CreditsState());
+    : _apiClient = apiClient,
+      super(const CreditsState());
 
   final ApiClient _apiClient;
-  DateTime? _lastLoadedAt;
+  int _loadVersion = 0;
 
   String _operationKey(String operation) =>
       '$operation-${DateTime.now().toUtc().microsecondsSinceEpoch}';
 
-  Future<void> load({bool force = false}) async {
-    final last = _lastLoadedAt;
-    if (!force &&
-        last != null &&
-        DateTime.now().difference(last) < const Duration(seconds: 20) &&
-        state.summary != null &&
-        state.status == CreditStatus.success) {
-      return;
-    }
+  Future<void> load({bool force = false, String? negocioId}) async {
+    final isBusiness = negocioId != null && negocioId.isNotEmpty;
+    final walletScope = isBusiness ? 'business:$negocioId' : 'personal';
+    final loadVersion = ++_loadVersion;
 
-    emit(state.copyWith(status: CreditStatus.loading, message: null));
+    emit(
+      state.copyWith(
+        status: CreditStatus.loading,
+        message: null,
+        walletScope: walletScope,
+        clearWalletData: state.walletScope != walletScope,
+      ),
+    );
 
     final summaryResult = await _apiClient.get<CreditSummary>(
-      '/creditos/mis-creditos',
+      isBusiness
+          ? '/negocios/$negocioId/billetera/resumen'
+          : '/creditos/mis-creditos',
       parser: (json) {
         if (json is Map) {
           return CreditSummary.fromJson(Map<String, dynamic>.from(json));
@@ -44,15 +48,16 @@ class CreditsCubit extends Cubit<CreditsState> {
     );
 
     final historyResult = await _apiClient.get<List<CreditMovement>>(
-      '/creditos/movimientos',
+      isBusiness
+          ? '/negocios/$negocioId/billetera/movimientos'
+          : '/creditos/movimientos',
       parser: (json) {
         if (json is List) {
           return json
               .whereType<Map>()
               .map(
-                (item) => CreditMovement.fromJson(
-                  Map<String, dynamic>.from(item),
-                ),
+                (item) =>
+                    CreditMovement.fromJson(Map<String, dynamic>.from(item)),
               )
               .toList();
         }
@@ -60,26 +65,38 @@ class CreditsCubit extends Cubit<CreditsState> {
       },
     );
 
+    if (isClosed || loadVersion != _loadVersion) return;
+
     if (!summaryResult.isSuccess) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message:
-            summaryResult.error?.message ?? 'No se pudo cargar la billetera.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message:
+              summaryResult.error?.message ?? 'No se pudo cargar la billetera.',
+          clearWalletData: true,
+        ),
+      );
       return;
     }
 
-    _lastLoadedAt = DateTime.now();
-    emit(state.copyWith(
-      status: CreditStatus.success,
-      summary: summaryResult.data,
-      movements: historyResult.isSuccess
-          ? (historyResult.data ??
-              summaryResult.data?.recentMovements ??
-              const [])
-          : (summaryResult.data?.recentMovements ?? const []),
-      message: null,
-    ));
+    emit(
+      state.copyWith(
+        status: CreditStatus.success,
+        summary: summaryResult.data,
+        movements: historyResult.isSuccess
+            ? (historyResult.data ??
+                  summaryResult.data?.recentMovements ??
+                  const [])
+            : (summaryResult.data?.recentMovements ?? const []),
+        message: null,
+        walletScope: walletScope,
+      ),
+    );
+  }
+
+  void clear() {
+    _loadVersion++;
+    emit(const CreditsState());
   }
 
   Future<void> transferWallet({
@@ -88,28 +105,35 @@ class CreditsCubit extends Cubit<CreditsState> {
     String? destinationUserId,
     String? qrPayload,
     String? concept,
+    String? sourceNegocioId,
   }) async {
     if (state.status == CreditStatus.submitting) return;
 
     final trimmedDestination = destination?.trim() ?? '';
     final trimmedUserId = destinationUserId?.trim() ?? '';
     final trimmedQr = qrPayload?.trim() ?? '';
+    final trimmedSourceNegocioId = sourceNegocioId?.trim() ?? '';
+    final isBusinessSource = trimmedSourceNegocioId.isNotEmpty;
 
     if (amount <= 0) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: 'Ingresa un monto mayor que cero.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'Ingresa un monto mayor que cero.',
+        ),
+      );
       return;
     }
 
     if (trimmedDestination.isEmpty &&
         trimmedUserId.isEmpty &&
         trimmedQr.isEmpty) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: 'Indica alias, email, teléfono o escanea un QR.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'Indica alias, email, teléfono o escanea un QR.',
+        ),
+      );
       return;
     }
 
@@ -117,6 +141,7 @@ class CreditsCubit extends Cubit<CreditsState> {
 
     final payload = <String, dynamic>{
       'monto': amount,
+      if (isBusinessSource) 'source_negocio_id': trimmedSourceNegocioId,
       if (trimmedUserId.isNotEmpty) 'destination_user_id': trimmedUserId,
       if (trimmedDestination.isNotEmpty) 'alias': trimmedDestination,
       if (trimmedQr.isNotEmpty) 'qr_payload': trimmedQr,
@@ -132,19 +157,29 @@ class CreditsCubit extends Cubit<CreditsState> {
     );
 
     if (!result.isSuccess) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: result.error?.message ??
-            'No se pudo transferir desde la billetera.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message:
+              result.error?.message ??
+              'No se pudo transferir desde la billetera.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: CreditStatus.success,
-      message: 'Transferencia enviada desde tu billetera.',
-    ));
-    await load(force: true);
+    emit(
+      state.copyWith(
+        status: CreditStatus.success,
+        message: isBusinessSource
+            ? 'Transferencia enviada desde la billetera del negocio.'
+            : 'Transferencia enviada desde tu billetera.',
+      ),
+    );
+    await load(
+      force: true,
+      negocioId: isBusinessSource ? trimmedSourceNegocioId : null,
+    );
   }
 
   Future<void> transferCredits({
@@ -161,10 +196,12 @@ class CreditsCubit extends Cubit<CreditsState> {
   }) async {
     if (state.status == CreditStatus.submitting) return;
     if (amount <= 0) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: 'El monto de la recarga debe ser mayor que cero.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'El monto de la recarga debe ser mayor que cero.',
+        ),
+      );
       return;
     }
 
@@ -182,29 +219,33 @@ class CreditsCubit extends Cubit<CreditsState> {
     );
 
     if (!result.isSuccess) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: result.error?.message ?? 'No se pudo solicitar la recarga.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: result.error?.message ?? 'No se pudo solicitar la recarga.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: CreditStatus.success,
-      message: 'Solicitud de recarga enviada.',
-    ));
+    emit(
+      state.copyWith(
+        status: CreditStatus.success,
+        message: 'Solicitud de recarga enviada.',
+      ),
+    );
     await load(force: true);
   }
 
-  Future<void> sellCredits({
-    required int amount,
-  }) async {
+  Future<void> sellCredits({required int amount}) async {
     if (state.status == CreditStatus.submitting) return;
     if (amount <= 0) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: 'La cantidad de granos debe ser mayor que cero.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'La cantidad de granos debe ser mayor que cero.',
+        ),
+      );
       return;
     }
 
@@ -212,36 +253,40 @@ class CreditsCubit extends Cubit<CreditsState> {
 
     final result = await _apiClient.post<void>(
       '/creditos/retirar',
-      data: {
-        'monto': amount,
-        'idempotency_key': _operationKey('withdrawal'),
-      },
+      data: {'monto': amount, 'idempotency_key': _operationKey('withdrawal')},
       parser: (_) {},
     );
 
     if (!result.isSuccess) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: result.error?.message ??
-            'No se pudo solicitar el retiro de granos.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message:
+              result.error?.message ??
+              'No se pudo solicitar el retiro de granos.',
+        ),
+      );
       return;
     }
 
-    emit(state.copyWith(
-      status: CreditStatus.success,
-      message: 'Solicitud de retiro enviada al superadmin.',
-    ));
+    emit(
+      state.copyWith(
+        status: CreditStatus.success,
+        message: 'Solicitud de retiro enviada al superadmin.',
+      ),
+    );
     await load(force: true);
   }
 
-  Future<void> convertGrains({required int grains}) async {
+  Future<void> convertGrains({required int grains, String? negocioId}) async {
     if (state.status == CreditStatus.submitting) return;
     if (grains <= 0) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: 'La cantidad de granos debe ser mayor que cero.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'La cantidad de granos debe ser mayor que cero.',
+        ),
+      );
       return;
     }
 
@@ -251,6 +296,7 @@ class CreditsCubit extends Cubit<CreditsState> {
       '/creditos/convertir-granos',
       data: {
         'granos': grains,
+        if (negocioId != null && negocioId.isNotEmpty) 'negocio_id': negocioId,
         'idempotency_key': _operationKey('convert'),
       },
       parser: (json) {
@@ -262,11 +308,12 @@ class CreditsCubit extends Cubit<CreditsState> {
     );
 
     if (!result.isSuccess) {
-      emit(state.copyWith(
-        status: CreditStatus.failure,
-        message: result.error?.message ??
-            'No se pudo convertir los granos.',
-      ));
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: result.error?.message ?? 'No se pudo convertir los granos.',
+        ),
+      );
       return;
     }
 
@@ -278,10 +325,7 @@ class CreditsCubit extends Cubit<CreditsState> {
         ? 'Convertidos $grains granos a $montoNeto CUP (comisión: $comision CUP).'
         : 'Convertidos $grains granos a $montoNeto CUP.';
 
-    emit(state.copyWith(
-      status: CreditStatus.success,
-      message: msg,
-    ));
-    await load(force: true);
+    emit(state.copyWith(status: CreditStatus.success, message: msg));
+    await load(force: true, negocioId: negocioId);
   }
 }
