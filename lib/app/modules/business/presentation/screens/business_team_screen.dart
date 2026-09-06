@@ -673,7 +673,7 @@ class _EditEmployeeSheetState extends State<_EditEmployeeSheet> {
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: _status == 'rechazado' ? 'inactivo' : _status,
+              initialValue: _status == 'rechazado' ? 'inactivo' : _status,
               items: const [
                 DropdownMenuItem(value: 'pendiente', child: Text('Pendiente')),
                 DropdownMenuItem(value: 'activo', child: Text('Activo')),
