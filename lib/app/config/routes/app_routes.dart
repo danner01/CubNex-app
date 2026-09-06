@@ -27,6 +27,7 @@ class AppRoutes {
   static const propertyDetail = '/properties/:id';
   static const transportDetail = '/transport/:id';
   static const businessPromotions = '/business/promotions';
+  static const businessPosts = '/business/posts';
   static const businessNetwork = '/business/network';
   static const businessJobs = '/business/jobs';
   static const businessProperties = '/business/properties';
@@ -41,8 +42,8 @@ class AppRoutes {
   static const businessInventory = '/business/inventory';
   static const businessSettings = '/business/settings';
   static const businessWizard = '/business/wizard';
-    static const businessTeam = '/business/team';
-    static const deliveryDashboard = '/delivery/dashboard';
+  static const businessTeam = '/business/team';
+  static const deliveryDashboard = '/delivery/dashboard';
   static const deliveryRequests = '/delivery/requests';
   static const deliveryRoute = '/delivery/route';
   static const deliveryHistory = '/delivery/history';

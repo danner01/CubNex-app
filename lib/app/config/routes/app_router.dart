@@ -30,6 +30,7 @@ import '../../modules/orders/presentation/screens/business_orders_screen.dart';
 import '../../modules/orders/presentation/screens/orders_screen.dart';
 import '../../modules/product/presentation/screens/product_detail_screen.dart';
 import '../../modules/posts/presentation/screens/posts_feed_screen.dart';
+import '../../modules/posts/presentation/screens/business_posts_screen.dart';
 import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/profile/presentation/screens/preferences_screen.dart';
 import '../../modules/promotions/presentation/screens/promotions_screen.dart';
@@ -194,22 +195,24 @@ GoRouter createAppRouter(
           ),
           GoRoute(
             path: AppRoutes.credits,
-                      builder: (_, state) => CreditsScreen(
-                        initialAlias: state.uri.queryParameters['alias'],
-                        initialUserId: state.uri.queryParameters['uid'] ??
-                            state.uri.queryParameters['user_id'],
-                        initialQrPayload: state.uri.queryParameters['qr'],
-                      ),
-                    ),
-                    GoRoute(
-                      path: AppRoutes.billetera,
-                      builder: (_, state) => CreditsScreen(
-                        initialAlias: state.uri.queryParameters['alias'],
-                        initialUserId: state.uri.queryParameters['uid'] ??
-                            state.uri.queryParameters['user_id'],
-                        initialQrPayload: state.uri.queryParameters['qr'],
-                      ),
-                    ),
+            builder: (_, state) => CreditsScreen(
+              initialAlias: state.uri.queryParameters['alias'],
+              initialUserId:
+                  state.uri.queryParameters['uid'] ??
+                  state.uri.queryParameters['user_id'],
+              initialQrPayload: state.uri.queryParameters['qr'],
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.billetera,
+            builder: (_, state) => CreditsScreen(
+              initialAlias: state.uri.queryParameters['alias'],
+              initialUserId:
+                  state.uri.queryParameters['uid'] ??
+                  state.uri.queryParameters['user_id'],
+              initialQrPayload: state.uri.queryParameters['qr'],
+            ),
+          ),
           GoRoute(
             path: AppRoutes.productDetail,
             builder: (_, state) => ProductDetailScreen(
@@ -229,6 +232,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.businessPromotions,
             builder: (_, __) => const BusinessPromotionsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessPosts,
+            builder: (_, __) => const BusinessPostsScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessNetwork,
@@ -275,11 +282,11 @@ GoRouter createAppRouter(
             builder: (_, __) => const BusinessWizardScreen(),
           ),
           GoRoute(
-                      path: AppRoutes.businessTeam,
-                      builder: (_, __) => const BusinessTeamScreen(),
-                    ),
-                    GoRoute(
-                      path: AppRoutes.deliveryDashboard,
+            path: AppRoutes.businessTeam,
+            builder: (_, __) => const BusinessTeamScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryDashboard,
             builder: (_, __) =>
                 const DeliveryHubScreen(section: DeliveryHubSection.dashboard),
           ),

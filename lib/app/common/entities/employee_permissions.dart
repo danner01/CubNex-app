@@ -13,6 +13,10 @@ class EmployeePermissionKeys {
   static const gestionarDelivery = 'gestionar_delivery';
   static const verReportes = 'ver_reportes';
   static const gestionarPromociones = 'gestionar_promociones';
+  static const gestionarPublicaciones = 'gestionar_publicaciones';
+  static const gestionarCampanasPagadas = 'gestionar_campanas_pagadas';
+  static const gestionarPresupuestoPublicitario =
+      'gestionar_presupuesto_publicitario';
   static const gestionarRed = 'gestionar_red';
   static const gestionarMenus = 'gestionar_menus';
   static const gestionarEmpleados = 'gestionar_empleados';
@@ -32,6 +36,9 @@ class EmployeePermissionKeys {
     gestionarDelivery,
     verReportes,
     gestionarPromociones,
+    gestionarPublicaciones,
+    gestionarCampanasPagadas,
+    gestionarPresupuestoPublicitario,
     gestionarRed,
     gestionarMenus,
     gestionarEmpleados,
@@ -52,6 +59,9 @@ class EmployeePermissionKeys {
     gestionarDelivery: 'Gestionar delivery',
     verReportes: 'Ver reportes y metricas',
     gestionarPromociones: 'Gestionar promociones',
+    gestionarPublicaciones: 'Gestionar publicaciones',
+    gestionarCampanasPagadas: 'Gestionar campanas pagadas',
+    gestionarPresupuestoPublicitario: 'Gestionar presupuesto publicitario',
     gestionarRed: 'Gestionar red B2B',
     gestionarMenus: 'Gestionar menus QR',
     gestionarEmpleados: 'Gestionar empleados',
@@ -61,9 +71,7 @@ class EmployeePermissionKeys {
 
   static Map<String, bool> defaultsForCargo(String cargo) {
     final normalized = cargo.trim().toLowerCase();
-    final base = <String, bool>{
-      for (final key in all) key: false,
-    };
+    final base = <String, bool>{for (final key in all) key: false};
 
     base[verPanel] = true;
     base[gestionarPedidos] = true;
@@ -108,9 +116,7 @@ class EmployeePermissionKeys {
   }
 
   static Map<String, bool> normalize(Map<String, dynamic>? raw) {
-    final result = <String, bool>{
-      for (final key in all) key: false,
-    };
+    final result = <String, bool>{for (final key in all) key: false};
     if (raw == null) return result;
     for (final key in all) {
       final value = raw[key];

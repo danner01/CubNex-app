@@ -53,18 +53,18 @@ class _BusinessDashboardView extends StatelessWidget {
               previous.needsWizard != current.needsWizard,
           listener: (context, state) {
             if (!state.needsWizard) return;
-                      final active = context
-                          .read<ActiveBusinessCubit>()
-                          .state
-                          .activeBusiness;
-                      // Employees must not be forced into the owner onboarding wizard.
-                      if (active?.isEmployeeAccess == true) return;
-                      WidgetsBinding.instance.addPostFrameCallback((_) {
-                        if (context.mounted) {
-                          context.go(AppRoutes.businessWizard);
-                        }
-                      });
-                    },
+            final active = context
+                .read<ActiveBusinessCubit>()
+                .state
+                .activeBusiness;
+            // Employees must not be forced into the owner onboarding wizard.
+            if (active?.isEmployeeAccess == true) return;
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (context.mounted) {
+                context.go(AppRoutes.businessWizard);
+              }
+            });
+          },
           builder: (context, state) {
             return RefreshIndicator(
               onRefresh: () => context.read<BusinessDashboardCubit>().load(
@@ -516,9 +516,9 @@ class _OperationalMetricRow extends StatelessWidget {
               ),
               Text(
                 item.formattedValue,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.w900,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
               ),
             ],
           ),
@@ -709,6 +709,12 @@ class _ActionsGrid extends StatelessWidget {
         EmployeePermissionKeys.gestionarPromociones,
       ),
       _BusinessActionCandidate(
+        'Publicaciones',
+        Icons.post_add_outlined,
+        AppRoutes.businessPosts,
+        EmployeePermissionKeys.gestionarPublicaciones,
+      ),
+      _BusinessActionCandidate(
         'Pedidos',
         Icons.receipt_long_outlined,
         AppRoutes.businessOrders,
@@ -813,4 +819,3 @@ class _BusinessMetric {
   final IconData icon;
   final String route;
 }
-

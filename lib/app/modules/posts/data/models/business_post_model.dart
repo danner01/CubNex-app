@@ -14,6 +14,14 @@ class BusinessPostModel {
     this.commentsCount = 0,
     this.sharesCount = 0,
     this.views = 0,
+    this.savesCount = 0,
+    this.status = 'publicado',
+    this.moderationStatus = 'aprobado',
+    this.rejectionReason,
+    this.scheduledAt,
+    this.publishedAt,
+    this.linkUrl,
+    this.ctaText,
     this.createdAt,
     this.business,
   });
@@ -30,6 +38,14 @@ class BusinessPostModel {
   final int commentsCount;
   final int sharesCount;
   final int views;
+  final int savesCount;
+  final String status;
+  final String moderationStatus;
+  final String? rejectionReason;
+  final DateTime? scheduledAt;
+  final DateTime? publishedAt;
+  final String? linkUrl;
+  final String? ctaText;
   final DateTime? createdAt;
   final BusinessModel? business;
 
@@ -47,9 +63,19 @@ class BusinessPostModel {
       commentsCount: int.tryParse('${json['comentarios_count'] ?? 0}') ?? 0,
       sharesCount: int.tryParse('${json['compartidos_count'] ?? 0}') ?? 0,
       views: int.tryParse('${json['vistas'] ?? 0}') ?? 0,
+      savesCount: int.tryParse('${json['guardados_count'] ?? 0}') ?? 0,
+      status: json['estado']?.toString() ?? 'publicado',
+      moderationStatus: json['estado_moderacion']?.toString() ?? 'aprobado',
+      rejectionReason: json['motivo_rechazo']?.toString(),
+      scheduledAt: DateTime.tryParse('${json['fecha_programada'] ?? ''}'),
+      publishedAt: DateTime.tryParse('${json['publicado_at'] ?? ''}'),
+      linkUrl: json['enlace_url']?.toString(),
+      ctaText: json['cta_texto']?.toString(),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
       business: json['negocios'] is Map
-          ? BusinessModel.fromJson(Map<String, dynamic>.from(json['negocios'] as Map))
+          ? BusinessModel.fromJson(
+              Map<String, dynamic>.from(json['negocios'] as Map),
+            )
           : null,
     );
   }
@@ -72,6 +98,14 @@ class BusinessPostModel {
       commentsCount: commentsCount ?? this.commentsCount,
       sharesCount: sharesCount ?? this.sharesCount,
       views: views,
+      savesCount: savesCount,
+      status: status,
+      moderationStatus: moderationStatus,
+      rejectionReason: rejectionReason,
+      scheduledAt: scheduledAt,
+      publishedAt: publishedAt,
+      linkUrl: linkUrl,
+      ctaText: ctaText,
       createdAt: createdAt,
       business: business,
     );
@@ -79,7 +113,10 @@ class BusinessPostModel {
 
   static List<String> _stringList(dynamic value) {
     if (value is List) {
-      return value.map((item) => item.toString()).where((item) => item.isNotEmpty).toList();
+      return value
+          .map((item) => item.toString())
+          .where((item) => item.isNotEmpty)
+          .toList();
     }
     return const [];
   }
