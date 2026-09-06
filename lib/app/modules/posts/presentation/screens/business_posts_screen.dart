@@ -180,7 +180,10 @@ class _BusinessPostsViewState extends State<_BusinessPostsView> {
   }) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => _PostEditorScreen(businessId: businessId, post: post),
+        builder: (_) => BlocProvider.value(
+          value: context.read<PostsCubit>(),
+          child: _PostEditorScreen(businessId: businessId, post: post),
+        ),
       ),
     );
     if (saved == true && context.mounted) {

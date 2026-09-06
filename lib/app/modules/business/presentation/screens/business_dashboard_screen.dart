@@ -691,6 +691,12 @@ class _ActionsGrid extends StatelessWidget {
     final parentCategory = business.businessParentCategory;
     final common = <_BusinessActionCandidate>[
       _BusinessActionCandidate(
+        'Publicaciones',
+        Icons.post_add_outlined,
+        AppRoutes.businessPosts,
+        EmployeePermissionKeys.gestionarPublicaciones,
+      ),
+      _BusinessActionCandidate(
         'Inventario',
         Icons.inventory_2_outlined,
         AppRoutes.businessInventory,
@@ -707,12 +713,6 @@ class _ActionsGrid extends StatelessWidget {
         Icons.campaign_outlined,
         AppRoutes.businessPromotions,
         EmployeePermissionKeys.gestionarPromociones,
-      ),
-      _BusinessActionCandidate(
-        'Publicaciones',
-        Icons.post_add_outlined,
-        AppRoutes.businessPosts,
-        EmployeePermissionKeys.gestionarPublicaciones,
       ),
       _BusinessActionCandidate(
         'Pedidos',
