@@ -53,9 +53,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
     } catch (error) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('No se pudo verificar actualizaciones: $error'),
-        ),
+        SnackBar(content: Text('No se pudo verificar actualizaciones: $error')),
       );
     } finally {
       if (mounted) setState(() => _checkingUpdates = false);
@@ -159,39 +157,42 @@ class _ProfileScreenState extends State<ProfileScreen> {
             _ModeSwitcher(state: roleMode),
             const SizedBox(height: 14),
           ],
-                    const _EmployeeInvitesCard(),
-                    if (session.isBusiness && activeMode == RoleMode.business)
-                      FilledButton.icon(
-                        onPressed: () => context.go(AppRoutes.businessDashboard),
-                        icon: const Icon(Icons.dashboard_outlined),
-                        label: const Text('Panel de mi negocio'),
-                      )
-                    else if (context.watch<EmployeeAccessCubit>().state.hasActiveMembership &&
-                        activeMode == RoleMode.business)
-                      FilledButton.icon(
-                        onPressed: () => context.go(AppRoutes.businessDashboard),
-                        icon: const Icon(Icons.badge_outlined),
-                        label: const Text('Panel del negocio (empleado)'),
-                      )
-                    else if ((session.isDelivery ||
-                            context
-                                .watch<EmployeeAccessCubit>()
-                                .state
-                                .hasDeliveryMembership) &&
-                        activeMode == RoleMode.delivery)
-                      FilledButton.icon(
-                        onPressed: () => context.go(AppRoutes.deliveryDashboard),
-                        icon: const Icon(Icons.delivery_dining_rounded),
-                        label: const Text('Panel delivery'),
-                      )
-                    else
-                      FilledButton.icon(
-                        onPressed: () => context.go(AppRoutes.businessWizard),
-                        icon: const Icon(Icons.add_business_rounded),
-                        label: const Text('Crear mi negocio'),
-                      ),
-                    const SizedBox(height: 18),
-                    ..._profileTilesForMode(context, activeMode),
+          const _EmployeeInvitesCard(),
+          if (session.isBusiness && activeMode == RoleMode.business)
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.businessDashboard),
+              icon: const Icon(Icons.dashboard_outlined),
+              label: const Text('Panel de mi negocio'),
+            )
+          else if (context
+                  .watch<EmployeeAccessCubit>()
+                  .state
+                  .hasActiveMembership &&
+              activeMode == RoleMode.business)
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.businessDashboard),
+              icon: const Icon(Icons.badge_outlined),
+              label: const Text('Panel del negocio (empleado)'),
+            )
+          else if ((session.isDelivery ||
+                  context
+                      .watch<EmployeeAccessCubit>()
+                      .state
+                      .hasDeliveryMembership) &&
+              activeMode == RoleMode.delivery)
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.deliveryDashboard),
+              icon: const Icon(Icons.delivery_dining_rounded),
+              label: const Text('Panel delivery'),
+            )
+          else
+            FilledButton.icon(
+              onPressed: () => context.go(AppRoutes.businessWizard),
+              icon: const Icon(Icons.add_business_rounded),
+              label: const Text('Crear mi negocio'),
+            ),
+          const SizedBox(height: 18),
+          ..._profileTilesForMode(context, activeMode),
           const SizedBox(height: 10),
           const _SectionLabel('Aplicación'),
           _ApkVersionCard(
@@ -227,9 +228,9 @@ class _ProfileScreenState extends State<ProfileScreen> {
 List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
   final common = [
     _ProfileTile(
-          icon: Icons.monetization_on_outlined,
-          title: 'Billetera',
-          subtitle: 'Saldo ConKkao, transferencias por alias/QR y movimientos.',
+      icon: Icons.monetization_on_outlined,
+      title: 'Billetera',
+      subtitle: 'Saldo ConKkao, transferencias por alias/QR y movimientos.',
       onTap: () => context.go(AppRoutes.credits),
     ),
     _ProfileTile(
@@ -286,43 +287,50 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
         onTap: () => context.go(AppRoutes.businessDashboard),
       ),
       _ProfileTile(
-            icon: Icons.groups_outlined,
-            title: 'Equipo',
-            subtitle: 'Invitar empleados, cargos y permisos.',
-            onTap: () => context.go(AppRoutes.businessTeam),
+        icon: Icons.groups_outlined,
+        title: 'Equipo',
+        subtitle: 'Invitar empleados, cargos y permisos.',
+        onTap: () => context.go(AppRoutes.businessTeam),
       ),
       _ProfileTile(
-            icon: Icons.add_business_rounded,
-            title: 'Crear otro negocio',
-            subtitle: 'Nueva tienda, franquicia o servicio asociado a tu cuenta.',
-            onTap: () => context.go(AppRoutes.businessWizard),
+        icon: Icons.add_business_rounded,
+        title: 'Crear otro negocio',
+        subtitle: 'Nueva tienda, franquicia o servicio asociado a tu cuenta.',
+        onTap: () => context.go(AppRoutes.businessWizard),
       ),
       _ProfileTile(
-            icon: Icons.receipt_long_outlined,
-            title: 'Pedidos recibidos',
-            subtitle: 'Reservas, ventas, QR y entregas de tus negocios.',
-            onTap: () => context.go(AppRoutes.businessOrders),
+        icon: Icons.receipt_long_outlined,
+        title: 'Pedidos recibidos',
+        subtitle: 'Reservas, ventas, QR y entregas de tus negocios.',
+        onTap: () => context.go(AppRoutes.businessOrders),
       ),
       _ProfileTile(
-            icon: Icons.inventory_2_outlined,
-            title: 'Inventario',
-            subtitle: 'Productos, stock, precios y visibilidad.',
-            onTap: () => context.go(AppRoutes.businessInventory),
+        icon: Icons.inventory_2_outlined,
+        title: 'Inventario',
+        subtitle: 'Productos, stock, precios y visibilidad.',
+        onTap: () => context.go(AppRoutes.businessInventory),
       ),
       _ProfileTile(
-            icon: Icons.campaign_outlined,
-            title: 'Promociones',
-            subtitle: 'Ofertas activas del negocio seleccionado.',
-            onTap: () => context.go(AppRoutes.businessPromotions),
+        icon: Icons.campaign_outlined,
+        title: 'Promociones',
+        subtitle: 'Ofertas activas del negocio seleccionado.',
+        onTap: () => context.go(AppRoutes.businessPromotions),
       ),
-          _ProfileTile(
-            icon: Icons.storefront_outlined,
-            title: 'Negocio',
-            subtitle: 'Marca, horarios, electricidad, delivery y apariencia.',
-            onTap: () => context.go(AppRoutes.businessSettings),
-          ),
-          ...common,
-        ],
+      _ProfileTile(
+        icon: Icons.workspace_premium_outlined,
+        title: 'Plan del negocio',
+        subtitle:
+            'Consulta los planes, privilegios y modalidades mensual o anual.',
+        onTap: () => context.go(AppRoutes.businessWizard),
+      ),
+      _ProfileTile(
+        icon: Icons.storefront_outlined,
+        title: 'Negocio',
+        subtitle: 'Marca, horarios, electricidad, delivery y apariencia.',
+        onTap: () => context.go(AppRoutes.businessSettings),
+      ),
+      ...common,
+    ],
     RoleMode.delivery => [
       const _SectionLabel('Operacion delivery'),
       _ProfileTile(
@@ -465,7 +473,9 @@ class _PendingInviteTileState extends State<_PendingInviteTile> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (error != null) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error)));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(error)));
       return;
     }
     ScaffoldMessenger.of(context).showSnackBar(
@@ -624,14 +634,17 @@ class _ApkVersionCard extends StatelessWidget {
               children: [
                 Text(
                   'Version APK',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 if (hasUpdate) ...[
                   const SizedBox(width: 8),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       color: Colors.orange,
                       borderRadius: BorderRadius.circular(12),
@@ -663,8 +676,14 @@ class _ApkVersionCard extends StatelessWidget {
                       height: 18,
                       child: CircularProgressIndicator(strokeWidth: 2),
                     )
-                  : Icon(hasUpdate ? Icons.system_update_alt_rounded : Icons.refresh_rounded),
-              label: Text(hasUpdate ? 'Actualizar ahora' : 'Buscar actualizaciones'),
+                  : Icon(
+                      hasUpdate
+                          ? Icons.system_update_alt_rounded
+                          : Icons.refresh_rounded,
+                    ),
+              label: Text(
+                hasUpdate ? 'Actualizar ahora' : 'Buscar actualizaciones',
+              ),
             ),
           ],
         ),

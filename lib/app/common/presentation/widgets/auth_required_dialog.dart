@@ -25,23 +25,23 @@ Future<void> showAuthRequiredDialog(BuildContext context) async {
     context: context,
     builder: (dialogContext) {
       return AlertDialog(
-        title: const Text('Cuenta requerida'),
+        title: const Text('Acceso requerido'),
         content: const Text(
-          'Debes registrarte o iniciar sesión para acceder a esta función.',
+          'Esta función requiere una cuenta y un plan activo para el negocio.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cerrar'),
+            child: const Text('Cancelar'),
           ),
           FilledButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
               if (context.mounted) {
-                context.go(AppRoutes.login);
+                context.go(AppRoutes.businessWizard);
               }
             },
-            child: const Text('Registrarse'),
+            child: const Text('Ver planes'),
           ),
         ],
       );
