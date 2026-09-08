@@ -25,27 +25,64 @@ Future<void> showAuthRequiredDialog(BuildContext context) async {
     context: context,
     builder: (dialogContext) {
       return AlertDialog(
-        title: const Text('Acceso requerido'),
+        title: const Text('Cuenta requerida'),
         content: const Text(
-          'Esta función requiere una cuenta y un plan activo para el negocio.',
+          'Debes registrarte o iniciar sesión para acceder a esta función.',
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(),
-            child: const Text('Cancelar'),
+            child: const Text('Cerrar'),
           ),
           FilledButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
               if (context.mounted) {
-                context.go(AppRoutes.businessWizard);
+                context.go(AppRoutes.login);
               }
             },
-            child: const Text('Ver planes'),
+            child: const Text('Registrarse'),
           ),
         ],
       );
     },
+  );
+}
+
+bool isPlanRequiredMessage(String? message, {String? code, int? statusCode}) {
+  final text = '${message ?? ''} ${code ?? ''}'.toLowerCase();
+  return statusCode == 402 ||
+      text.contains('plan_premium_requerido') ||
+      text.contains('limite_imagenes_plan') ||
+      text.contains('plan premium') ||
+      text.contains('actualiza a premium') ||
+      text.contains('tu plan permite');
+}
+
+Future<void> showPlanRequiredDialog(
+  BuildContext context,
+  String message,
+) async {
+  await showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      icon: const Icon(Icons.workspace_premium_outlined),
+      title: const Text('Plan del negocio requerido'),
+      content: Text(message),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop();
+            if (context.mounted) context.go(AppRoutes.businessPlans);
+          },
+          child: const Text('Ver planes'),
+        ),
+      ],
+    ),
   );
 }
 
@@ -57,6 +94,10 @@ void showSnackOrAuthDialog(
   final resolvedMessage = message?.isNotEmpty == true ? message! : fallback;
   if (isAuthRequiredMessage(resolvedMessage)) {
     showAuthRequiredDialog(context);
+    return;
+  }
+  if (isPlanRequiredMessage(resolvedMessage)) {
+    showPlanRequiredDialog(context, resolvedMessage);
     return;
   }
   ScaffoldMessenger.of(

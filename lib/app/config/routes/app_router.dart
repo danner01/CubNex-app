@@ -31,6 +31,7 @@ import '../../modules/orders/presentation/screens/orders_screen.dart';
 import '../../modules/product/presentation/screens/product_detail_screen.dart';
 import '../../modules/posts/presentation/screens/posts_feed_screen.dart';
 import '../../modules/posts/presentation/screens/business_posts_screen.dart';
+import '../../modules/business/presentation/screens/business_plans_screen.dart';
 import '../../modules/profile/presentation/screens/profile_screen.dart';
 import '../../modules/profile/presentation/screens/preferences_screen.dart';
 import '../../modules/promotions/presentation/screens/promotions_screen.dart';
@@ -236,6 +237,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.businessPosts,
             builder: (_, __) => const BusinessPostsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessPlans,
+            builder: (_, __) => const BusinessPlansScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessNetwork,

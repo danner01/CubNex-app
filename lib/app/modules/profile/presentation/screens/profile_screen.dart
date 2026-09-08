@@ -321,7 +321,13 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
         title: 'Plan del negocio',
         subtitle:
             'Consulta los planes, privilegios y modalidades mensual o anual.',
-        onTap: () => context.go(AppRoutes.businessWizard),
+        onTap: () => context.go(AppRoutes.businessPlans),
+      ),
+      _ProfileTile(
+        icon: Icons.post_add_outlined,
+        title: 'Mis publicaciones',
+        subtitle: 'Crea, edita y consulta el estado de las publicaciones.',
+        onTap: () => context.go(AppRoutes.businessPosts),
       ),
       _ProfileTile(
         icon: Icons.storefront_outlined,

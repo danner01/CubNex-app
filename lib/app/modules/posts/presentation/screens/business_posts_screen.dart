@@ -180,8 +180,10 @@ class _BusinessPostsViewState extends State<_BusinessPostsView> {
   }) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
-        builder: (_) => BlocProvider.value(
-          value: context.read<PostsCubit>(),
+        builder: (_) => BlocProvider(
+          // A pushed route is a sibling of this page's route, not its child.
+          // Give the editor its own cubit and reload the list when it returns.
+          create: (_) => sl<PostsCubit>(),
           child: _PostEditorScreen(businessId: businessId, post: post),
         ),
       ),

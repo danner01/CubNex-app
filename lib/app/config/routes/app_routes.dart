@@ -28,6 +28,7 @@ class AppRoutes {
   static const transportDetail = '/transport/:id';
   static const businessPromotions = '/business/promotions';
   static const businessPosts = '/business/posts';
+  static const businessPlans = '/business/plans';
   static const businessNetwork = '/business/network';
   static const businessJobs = '/business/jobs';
   static const businessProperties = '/business/properties';
