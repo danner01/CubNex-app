@@ -15,6 +15,7 @@ import '../../blocs/credits_cubit.dart';
 import '../../blocs/credits_state.dart';
 import '../../data/models/credit_movement.dart';
 import '../../data/models/credit_summary.dart';
+import '../../data/models/verified_topup.dart';
 import '../widgets/wallet_chart.dart';
 
 class CreditsScreen extends StatefulWidget {
@@ -181,12 +182,13 @@ class _CreditsScreenState extends State<CreditsScreen>
   }
 
   Future<void> _showRechargeSheet(BuildContext context) async {
+    final negocioId = _currentNegocioId(context);
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       builder: (_) => BlocProvider.value(
         value: sl<CreditsCubit>(),
-        child: const _RechargeCreditsSheet(),
+        child: _RechargeCreditsSheet(sourceNegocioId: negocioId),
       ),
     );
   }
@@ -315,6 +317,9 @@ class _CreditsView extends StatelessWidget {
         final movements = isCurrentWallet
             ? state.movements
             : const <CreditMovement>[];
+        final topupRequests = isCurrentWallet
+            ? state.topupRequests
+            : const <VerifiedTopupRequest>[];
 
         return Scaffold(
           appBar: AppBar(
@@ -450,7 +455,7 @@ class _CreditsView extends StatelessWidget {
                             children: [
                               _CircularActionButton(
                                 icon: Icons.add_card_rounded,
-                                label: 'Depositar',
+                                label: 'Recargar',
                                 onTap: onRecharge,
                               ),
                               const Spacer(),
@@ -489,6 +494,23 @@ class _CreditsView extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 12),
+                  if (topupRequests.isNotEmpty) ...[
+                    const Text(
+                      'Solicitudes de recarga',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w900,
+                        fontSize: 16,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...topupRequests.map(
+                      (request) => _VerifiedTopupRequestTile(
+                        request: request,
+                        isBusinessWallet: isBusiness,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                  ],
                   const Text(
                     'Movimientos recientes',
                     style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
@@ -733,6 +755,57 @@ class _CreditMovementTile extends StatelessWidget {
             fontWeight: FontWeight.w900,
             color: movement.amount < 0 ? Colors.redAccent : Colors.green,
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _VerifiedTopupRequestTile extends StatelessWidget {
+  const _VerifiedTopupRequestTile({
+    required this.request,
+    required this.isBusinessWallet,
+  });
+
+  final VerifiedTopupRequest request;
+  final bool isBusinessWallet;
+
+  @override
+  Widget build(BuildContext context) {
+    final status = request.status.toLowerCase();
+    final isPending = status == 'pendiente';
+    final isApproved = status == 'aprobada';
+    final color = isPending
+        ? Colors.orange
+        : isApproved
+        ? Colors.green
+        : Colors.redAccent;
+    final date = request.createdAt == null
+        ? 'Sin fecha'
+        : '${request.createdAt!.day.toString().padLeft(2, '0')}/'
+              '${request.createdAt!.month.toString().padLeft(2, '0')}/'
+              '${request.createdAt!.year}';
+    final target = request.walletScope == 'negocio' || isBusinessWallet
+        ? 'Billetera del negocio'
+        : 'Billetera personal';
+
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      child: ListTile(
+        leading: CircleAvatar(
+          backgroundColor: color.withValues(alpha: 0.14),
+          child: Icon(Icons.account_balance_rounded, color: color),
+        ),
+        title: Text('Recarga $target'),
+        subtitle: Text(
+          'Ref.: ${request.reference ?? '—'}\n'
+          '${request.status.toUpperCase()} · $date'
+          '${request.adminNotes?.isNotEmpty == true ? '\n${request.adminNotes}' : ''}',
+        ),
+        isThreeLine: request.adminNotes?.isNotEmpty == true,
+        trailing: Text(
+          '${request.amount} CUP',
+          style: TextStyle(fontWeight: FontWeight.w900, color: color),
         ),
       ),
     );
@@ -1007,7 +1080,9 @@ class _WalletQrScanPageState extends State<_WalletQrScanPage> {
 }
 
 class _RechargeCreditsSheet extends StatefulWidget {
-  const _RechargeCreditsSheet();
+  const _RechargeCreditsSheet({this.sourceNegocioId});
+
+  final String? sourceNegocioId;
 
   @override
   State<_RechargeCreditsSheet> createState() => _RechargeCreditsSheetState();
@@ -1016,8 +1091,17 @@ class _RechargeCreditsSheet extends StatefulWidget {
 class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
   final _amountController = TextEditingController();
   final _referenceController = TextEditingController();
-  String _method = 'Cuenta';
+  WalletReceivingAccount? _account;
+  VerifiedTopupRequest? _request;
+  String? _accountError;
+  bool _loadingAccount = true;
   bool _submitting = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadAccount();
+  }
 
   @override
   void dispose() {
@@ -1026,9 +1110,114 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
     super.dispose();
   }
 
+  Future<void> _loadAccount() async {
+    setState(() {
+      _loadingAccount = true;
+      _accountError = null;
+    });
+    final account = await context.read<CreditsCubit>().loadReceivingAccount();
+    if (!mounted) return;
+    setState(() {
+      _account = account;
+      _loadingAccount = false;
+      _accountError = account == null
+          ? 'La cuenta receptora no está disponible en este momento.'
+          : null;
+    });
+  }
+
+  Future<void> _submit() async {
+    final amount = int.tryParse(_amountController.text.trim()) ?? 0;
+    final reference = _referenceController.text.trim();
+    if (amount <= 0 || reference.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Completa el monto y el código de operación.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _submitting = true);
+    final request = await context.read<CreditsCubit>().requestRecharge(
+      amount: amount,
+      reference: reference,
+      sourceNegocioId: widget.sourceNegocioId,
+    );
+    if (!mounted) return;
+    setState(() {
+      _submitting = false;
+      _request = request;
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final account = _account;
+
+    if (_request != null) {
+      final target = _request!.walletScope == 'negocio'
+          ? 'Billetera del negocio'
+          : 'Billetera personal';
+      return Padding(
+        padding: EdgeInsets.fromLTRB(16, 24, 16, bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(
+              Icons.hourglass_top_rounded,
+              size: 52,
+              color: Theme.of(context).colorScheme.primary,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'Solicitud enviada',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Paso 2 de 2 · Espera la verificación de la transferencia antes de que se acredite el saldo.',
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            Card(
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _StatusLine(
+                      label: 'Estado',
+                      value: _request!.status.toUpperCase(),
+                    ),
+                    _StatusLine(
+                      label: 'Referencia',
+                      value: _request!.reference ?? '—',
+                    ),
+                    _StatusLine(label: 'Destino', value: target),
+                    _StatusLine(
+                      label: 'Monto solicitado',
+                      value: '${_request!.amount} CUP / granos',
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: const Text('Cerrar y volver a la billetera'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
 
     return Padding(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
@@ -1043,68 +1232,121 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
           ),
           const SizedBox(height: 12),
-          DropdownButtonFormField<String>(
-            initialValue: _method,
-            decoration: const InputDecoration(labelText: 'Método de recarga'),
-            items: const [
-              DropdownMenuItem(
-                value: 'Cuenta',
-                child: Text('Cuenta bancaria / CUP'),
-              ),
-              DropdownMenuItem(value: 'Tarjeta', child: Text('Tarjeta en CUB')),
-            ],
-            onChanged: (value) => setState(() => _method = value ?? 'Cuenta'),
+          const Text(
+            'Paso 1 de 2 · Transfiere el monto a la cuenta configurada y después registra aquí el código de operación.',
           ),
           const SizedBox(height: 12),
-          TextField(
-            controller: _amountController,
-            keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Cantidad en CUP'),
-          ),
-          const SizedBox(height: 12),
-          TextField(
-            controller: _referenceController,
-            decoration: const InputDecoration(
-              labelText: 'Cuenta / Tarjeta / Referencia',
-              hintText: 'Número de cuenta o tarjeta',
+          if (_loadingAccount)
+            const Center(child: Padding(
+              padding: EdgeInsets.all(20),
+              child: CircularProgressIndicator(),
+            ))
+          else if (account == null) ...[
+            Text(
+              _accountError ?? 'No hay cuenta receptora configurada.',
+              style: TextStyle(color: Theme.of(context).colorScheme.error),
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              onPressed: _loadAccount,
+              icon: const Icon(Icons.refresh_rounded),
+              label: const Text('Reintentar'),
+            ),
+          ] else ...[
+            Card(
+              color: Theme.of(context).colorScheme.primaryContainer,
+              child: Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      account.type == 'tarjeta'
+                          ? 'TARJETA RECEPTORA'
+                          : 'CUENTA RECEPTORA',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      account.cardNumber ??
+                          account.accountNumber ??
+                          'Cuenta no disponible',
+                      style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('Titular: ${account.holder}'),
+                    if (account.bank?.isNotEmpty == true)
+                      Text('Banco: ${account.bank}'),
+                    if (account.instructions?.isNotEmpty == true) ...[
+                      const SizedBox(height: 8),
+                      Text(account.instructions!),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _amountController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Cantidad en CUP',
+                helperText: '1 CUP = 1 grano',
+              ),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: _referenceController,
+              textCapitalization: TextCapitalization.characters,
+              decoration: const InputDecoration(
+                labelText: 'Código de operación o referencia',
+                hintText: 'Obligatorio; debe coincidir con la transferencia',
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _submitting ? null : _submit,
+                icon: _submitting
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.verified_user_rounded),
+                label: const Text('Confirmar transferencia'),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusLine extends StatelessWidget {
+  const _StatusLine({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 122,
+            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
           ),
-          const SizedBox(height: 16),
-          FilledButton.icon(
-            onPressed: _submitting
-                ? null
-                : () async {
-                    final amount =
-                        int.tryParse(_amountController.text.trim()) ?? 0;
-                    final reference = _referenceController.text.trim();
-                    if (amount <= 0 || reference.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Completa monto y referencia de recarga.',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
-                    setState(() => _submitting = true);
-                    await context.read<CreditsCubit>().requestRecharge(
-                      amount: amount,
-                      method: _method,
-                      reference: reference,
-                    );
-                    setState(() => _submitting = false);
-                    if (context.mounted) Navigator.of(context).pop();
-                  },
-            icon: _submitting
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.account_balance_wallet_rounded),
-            label: const Text('Solicitar recarga'),
-          ),
+          Expanded(child: SelectableText(value)),
         ],
       ),
     );

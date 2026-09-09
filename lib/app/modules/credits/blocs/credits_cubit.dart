@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../config/http/api_client.dart';
 import '../data/models/credit_movement.dart';
 import '../data/models/credit_summary.dart';
+import '../data/models/verified_topup.dart';
 import 'credits_state.dart';
 
 class CreditsCubit extends Cubit<CreditsState> {
@@ -65,6 +66,25 @@ class CreditsCubit extends Cubit<CreditsState> {
       },
     );
 
+    final topupsResult = await _apiClient.get<List<VerifiedTopupRequest>>(
+      isBusiness
+          ? '/creditos/recargas-verificadas?negocio_id=$negocioId'
+          : '/creditos/recargas-verificadas',
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) => VerifiedTopupRequest.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        }
+        return const [];
+      },
+    );
+
     if (isClosed || loadVersion != _loadVersion) return;
 
     if (!summaryResult.isSuccess) {
@@ -88,6 +108,9 @@ class CreditsCubit extends Cubit<CreditsState> {
                   summaryResult.data?.recentMovements ??
                   const [])
             : (summaryResult.data?.recentMovements ?? const []),
+        topupRequests: topupsResult.isSuccess
+            ? (topupsResult.data ?? const [])
+            : const [],
         message: null,
         walletScope: walletScope,
       ),
@@ -189,12 +212,25 @@ class CreditsCubit extends Cubit<CreditsState> {
     return transferWallet(destination: recipientEmail, amount: amount);
   }
 
-  Future<void> requestRecharge({
+  Future<WalletReceivingAccount?> loadReceivingAccount() async {
+    final result = await _apiClient.get<WalletReceivingAccount>(
+      '/creditos/cuenta-receptora',
+      parser: (json) {
+        if (json is Map) {
+          return WalletReceivingAccount.fromJson(Map<String, dynamic>.from(json));
+        }
+        throw const FormatException('La cuenta receptora no está disponible.');
+      },
+    );
+    return result.isSuccess ? result.data : null;
+  }
+
+  Future<VerifiedTopupRequest?> requestRecharge({
     required int amount,
-    required String method,
     required String reference,
+    String? sourceNegocioId,
   }) async {
-    if (state.status == CreditStatus.submitting) return;
+    if (state.status == CreditStatus.submitting) return null;
     if (amount <= 0) {
       emit(
         state.copyWith(
@@ -202,20 +238,42 @@ class CreditsCubit extends Cubit<CreditsState> {
           message: 'El monto de la recarga debe ser mayor que cero.',
         ),
       );
-      return;
+      return null;
+    }
+    if (reference.trim().isEmpty) {
+      emit(
+        state.copyWith(
+          status: CreditStatus.failure,
+          message: 'Indica el código de operación de la transferencia.',
+        ),
+      );
+      return null;
     }
 
     emit(state.copyWith(status: CreditStatus.submitting, message: null));
 
-    final result = await _apiClient.post<void>(
+    final result = await _apiClient.post<VerifiedTopupRequest>(
       '/creditos/recargar',
       data: {
         'monto': amount,
-        'metodo': method,
         'referencia': reference,
+        if (sourceNegocioId != null && sourceNegocioId.isNotEmpty)
+          'negocio_id': sourceNegocioId,
         'idempotency_key': _operationKey('recharge'),
       },
-      parser: (_) {},
+      parser: (json) {
+        if (json is Map) {
+          final data = Map<String, dynamic>.from(json);
+          final request = data['solicitud'];
+          if (request is Map) {
+            return VerifiedTopupRequest.fromJson(
+              Map<String, dynamic>.from(request),
+            );
+          }
+          return VerifiedTopupRequest.fromJson(data);
+        }
+        throw const FormatException('Respuesta de recarga inválida.');
+      },
     );
 
     if (!result.isSuccess) {
@@ -225,16 +283,18 @@ class CreditsCubit extends Cubit<CreditsState> {
           message: result.error?.message ?? 'No se pudo solicitar la recarga.',
         ),
       );
-      return;
+      return null;
     }
 
+    final request = result.data;
     emit(
       state.copyWith(
         status: CreditStatus.success,
-        message: 'Solicitud de recarga enviada.',
+        message: 'Solicitud de recarga por transferencia enviada.',
       ),
     );
-    await load(force: true);
+    await load(force: true, negocioId: sourceNegocioId);
+    return request;
   }
 
   Future<void> sellCredits({required int amount}) async {
