@@ -140,7 +140,6 @@ class _CreditsScreenState extends State<CreditsScreen>
         walletScope: target == null ? 'personal' : 'business:$target',
         onTransfer: () => _showTransferSheet(context),
         onRecharge: () => _showRechargeSheet(context),
-        onSell: () => _showSellSheet(context),
         onReceive: () => _showReceiveSheet(context),
         onScanPay: () => _scanAndPay(context),
         onConvertGrains: () => _showConvertGrainsSheet(context),
@@ -188,17 +187,6 @@ class _CreditsScreenState extends State<CreditsScreen>
       builder: (_) => BlocProvider.value(
         value: sl<CreditsCubit>(),
         child: const _RechargeCreditsSheet(),
-      ),
-    );
-  }
-
-  Future<void> _showSellSheet(BuildContext context) async {
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => BlocProvider.value(
-        value: sl<CreditsCubit>(),
-        child: const _SellCreditsSheet(),
       ),
     );
   }
@@ -297,7 +285,6 @@ class _CreditsView extends StatelessWidget {
     required this.walletScope,
     required this.onTransfer,
     required this.onRecharge,
-    required this.onSell,
     required this.onReceive,
     required this.onScanPay,
     required this.onConvertGrains,
@@ -308,7 +295,6 @@ class _CreditsView extends StatelessWidget {
   final String walletScope;
   final VoidCallback onTransfer;
   final VoidCallback onRecharge;
-  final VoidCallback onSell;
   final VoidCallback onReceive;
   final VoidCallback onScanPay;
   final VoidCallback onConvertGrains;
@@ -469,12 +455,6 @@ class _CreditsView extends StatelessWidget {
                               ),
                               const Spacer(),
                               _CircularActionButton(
-                                icon: Icons.currency_exchange_rounded,
-                                label: 'Retirar',
-                                onTap: onSell,
-                              ),
-                              const Spacer(),
-                              _CircularActionButton(
                                 icon: Icons.send_rounded,
                                 label: 'Enviar',
                                 onTap: onTransfer,
@@ -490,8 +470,8 @@ class _CreditsView extends StatelessWidget {
                           const SizedBox(height: 12),
                           Text(
                             isBusiness
-                                ? 'Granos de la billetera del negocio. 1 grano = 1 CUP. Se suman las ventas y recargas; se restan retiros, conversiones y transferencias.'
-                                : '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con retiros y transferencias.',
+                                ? 'Granos de la billetera del negocio. 1 grano = 1 CUP. Se suman las ventas y recargas; se restan conversiones y transferencias.'
+                                : '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con transferencias.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
