@@ -930,7 +930,7 @@ class _TransferWalletSheetState extends State<_TransferWalletSheet> {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
     final hasQr = _qrPayload != null && _qrPayload!.isNotEmpty;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1160,7 +1160,7 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
       final target = _request!.walletScope == 'negocio'
           ? 'Billetera del negocio'
           : 'Billetera personal';
-      return Padding(
+      return SingleChildScrollView(
         padding: EdgeInsets.fromLTRB(16, 24, 16, bottom + 24),
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -1219,7 +1219,7 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
       );
     }
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1374,7 +1374,7 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -1455,7 +1455,7 @@ class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
+    return SingleChildScrollView(
       padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
       child: Column(
         mainAxisSize: MainAxisSize.min,
