@@ -51,7 +51,11 @@ class _BusinessSpecialCatalogScreenState
     return response.data ?? const [];
   }
 
-  void _reload() => setState(() => _catalog = _load());
+  void _reload() {
+    setState(() {
+      _catalog = _load();
+    });
+  }
 
   Future<void> _edit([Map<String, dynamic>? current]) async {
     final saved = await showModalBottomSheet<bool>(

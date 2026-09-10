@@ -62,7 +62,11 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
     );
   }
 
-  void _reload() => setState(() => _future = _load());
+  void _reload() {
+    setState(() {
+      _future = _load();
+    });
+  }
 
   String _keyFor(_Plan plan, String? businessId) {
     final key = '${plan.id}:${businessId ?? 'personal'}:${_annual ? 'anual' : 'mensual'}';
