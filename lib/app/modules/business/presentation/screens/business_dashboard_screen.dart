@@ -9,6 +9,7 @@ import '../../../../common/entities/employee_permissions.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../home/data/models/business_model.dart';
+import '../../../plans/presentation/widgets/active_plan_card.dart';
 import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
 import '../../data/models/business_operational_references.dart';
@@ -105,6 +106,8 @@ class _BusinessDashboardView extends StatelessWidget {
                     )
                   else ...[
                     _HeroSummary(summary: state.summary!),
+                    const SizedBox(height: 14),
+                    ActivePlanCard(plan: state.activePlan),
                     const SizedBox(height: 14),
                     _PerformancePanel(
                       summary: state.summary!,

@@ -11,6 +11,7 @@ import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../business/data/models/business_employee_model.dart';
+import '../../../plans/presentation/widgets/personal_plan_card.dart';
 
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
@@ -152,6 +153,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
               ),
             ),
           ),
+          const SizedBox(height: 14),
+          const PersonalPlanCard(),
           const SizedBox(height: 14),
           if (roleMode.canSwitch) ...[
             _ModeSwitcher(state: roleMode),

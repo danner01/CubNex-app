@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../home/data/models/business_model.dart';
+import '../../../plans/data/models/plan_status.dart';
 import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
 import 'business_dashboard_state.dart';
@@ -14,7 +15,7 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
   final ApiClient _apiClient;
 
   Future<void> load({BusinessModel? selectedBusiness}) async {
-    _safeEmit(state.copyWith(status: BusinessDashboardStatus.loading));
+    _safeEmit(BusinessDashboardState(status: BusinessDashboardStatus.loading));
     try {
       final business = selectedBusiness ?? await _loadFallbackBusiness();
       if (isClosed) return;
@@ -66,11 +67,15 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
       ]);
       if (isClosed) return;
 
+      final activePlan = await _loadActivePlan(business.id);
+      if (isClosed) return;
+
       _safeEmit(
         state.copyWith(
           status: BusinessDashboardStatus.success,
           needsWizard: false,
           operationalReferences: remoteRefs,
+          activePlan: activePlan,
           summary: baseSummary.copyWith(
             products: counts[0],
             reviews: counts[1],
@@ -110,6 +115,22 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
 
   void _safeEmit(BusinessDashboardState nextState) {
     if (!isClosed) emit(nextState);
+  }
+
+  Future<ActiveSubscription?> _loadActivePlan(String businessId) async {
+    try {
+      final result = await _apiClient
+          .get<PlanStatus?>(
+            '/suscripciones/solicitudes-plan',
+            parser: (json) => json is Map
+                ? PlanStatus.fromJson(Map<String, dynamic>.from(json))
+                : null,
+          )
+          .timeout(const Duration(seconds: 8));
+      return result.data?.activeFor(businessId);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<Map<String, dynamic>> _loadStats(String businessId) async {

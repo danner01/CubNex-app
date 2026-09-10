@@ -4,6 +4,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../plans/data/models/plan_status.dart';
+import '../../../plans/presentation/widgets/active_plan_card.dart';
 import '../widgets/business_switcher.dart';
 
 class BusinessPlansScreen extends StatefulWidget {
@@ -42,9 +44,9 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
       );
     }
 
-    final statusResult = await sl<ApiClient>().get<_PlanStatus>(
+    final statusResult = await sl<ApiClient>().get<PlanStatus>(
       '/suscripciones/solicitudes-plan',
-      parser: (json) => _PlanStatus.fromJson(
+      parser: (json) => PlanStatus.fromJson(
         json is Map ? Map<String, dynamic>.from(json) : const {},
       ),
     );
@@ -56,7 +58,7 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
     }
     return _PlansData(
       plans: plansResult.data ?? const [],
-      status: statusResult.data ?? const _PlanStatus(),
+      status: statusResult.data ?? const PlanStatus(),
     );
   }
 
@@ -130,7 +132,7 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
     _reload();
   }
 
-  Future<void> _cancelRequest(_PlanRequest request) async {
+  Future<void> _cancelRequest(PlanRequest request) async {
     setState(() => _submittingPlanId = request.id);
     final result = await sl<ApiClient>().post<void>(
       '/suscripciones/solicitudes-plan/${request.id}/cancelar',
@@ -225,8 +227,9 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
                   ),
                 )
               else ...[
-                _ActivePlanCard(
-                  active: snapshot.data!.status.activeFor(businessId),
+                ActivePlanCard(
+                  plan: snapshot.data!.status.activeFor(businessId),
+                  title: 'Plan activo',
                 ),
                 ...snapshot.data!.status
                     .requestsFor(businessId)
@@ -262,32 +265,13 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
   }
 }
 
-class _ActivePlanCard extends StatelessWidget {
-  const _ActivePlanCard({this.active});
-  final _ActiveSubscription? active;
-
-  @override
-  Widget build(BuildContext context) {
-    if (active == null) return const SizedBox.shrink();
-    return Card(
-      color: Theme.of(context).colorScheme.primaryContainer,
-      margin: const EdgeInsets.only(bottom: 12),
-      child: ListTile(
-        leading: const Icon(Icons.verified_rounded),
-        title: Text('Plan activo: ${active!.planName}'),
-        subtitle: Text('Vigente hasta ${active!.endDate}'),
-      ),
-    );
-  }
-}
-
 class _RequestCard extends StatelessWidget {
   const _RequestCard({
     required this.request,
     required this.busy,
     this.onCancel,
   });
-  final _PlanRequest request;
+  final PlanRequest request;
   final bool busy;
   final VoidCallback? onCancel;
 
@@ -438,95 +422,7 @@ class _PlanCard extends StatelessWidget {
 class _PlansData {
   const _PlansData({required this.plans, required this.status});
   final List<_Plan> plans;
-  final _PlanStatus status;
-}
-
-class _PlanStatus {
-  const _PlanStatus({
-    this.requests = const [],
-    this.businessSubscriptions = const [],
-    this.personalSubscription,
-  });
-  final List<_PlanRequest> requests;
-  final List<_ActiveSubscription> businessSubscriptions;
-  final _ActiveSubscription? personalSubscription;
-
-  factory _PlanStatus.fromJson(Map<String, dynamic> json) => _PlanStatus(
-    requests: _maps(json['solicitudes']).map(_PlanRequest.fromJson).toList(),
-    businessSubscriptions: _maps(
-      json['suscripciones_negocio'],
-    ).map(_ActiveSubscription.fromJson).toList(),
-    personalSubscription: json['suscripcion_personal'] is Map
-        ? _ActiveSubscription.fromJson(
-            Map<String, dynamic>.from(json['suscripcion_personal'] as Map),
-          )
-        : null,
-  );
-
-  Iterable<_PlanRequest> requestsFor(String? businessId) => requests.where(
-    (request) => businessId == null
-        ? request.businessId == null
-        : request.businessId == businessId,
-  );
-
-  _ActiveSubscription? activeFor(String? businessId) {
-    if (businessId == null) return personalSubscription;
-    for (final subscription in businessSubscriptions) {
-      if (subscription.businessId == businessId) return subscription;
-    }
-    return null;
-  }
-}
-
-class _PlanRequest {
-  const _PlanRequest({
-    required this.id,
-    required this.status,
-    required this.period,
-    required this.wallet,
-    required this.price,
-    this.businessId,
-    this.planName = 'Plan',
-  });
-  final String id, status, period, wallet, planName;
-  final double price;
-  final String? businessId;
-
-  factory _PlanRequest.fromJson(Map<String, dynamic> json) {
-    final plan = json['planes_suscripcion'];
-    return _PlanRequest(
-      id: '${json['id'] ?? ''}',
-      status: '${json['estado'] ?? 'pendiente'}',
-      period: '${json['periodo'] ?? 'mensual'}',
-      wallet: '${json['wallet_origen'] ?? 'personal'}',
-      price: _number(json['precio_reservado']),
-      businessId: json['negocio_id']?.toString(),
-      planName: plan is Map ? '${plan['nombre'] ?? 'Plan'}' : 'Plan',
-    );
-  }
-}
-
-class _ActiveSubscription {
-  const _ActiveSubscription({
-    required this.planName,
-    required this.endDate,
-    this.businessId,
-  });
-  final String planName, endDate;
-  final String? businessId;
-
-  factory _ActiveSubscription.fromJson(Map<String, dynamic> json) {
-    final plan = json['planes_suscripcion'];
-    final rawEnd = json['fecha_fin']?.toString();
-    final end = DateTime.tryParse(rawEnd ?? '');
-    return _ActiveSubscription(
-      planName: plan is Map ? '${plan['nombre'] ?? 'Plan'}' : 'Plan',
-      endDate: end == null
-          ? (rawEnd ?? '—')
-          : '${end.day.toString().padLeft(2, '0')}/${end.month.toString().padLeft(2, '0')}/${end.year}',
-      businessId: json['negocio_id']?.toString(),
-    );
-  }
+  final PlanStatus status;
 }
 
 class _Plan {
@@ -611,13 +507,6 @@ class _Plan {
 }
 
 double _number(dynamic value) => double.tryParse('${value ?? 0}') ?? 0;
-
-List<Map<String, dynamic>> _maps(dynamic value) => value is List
-    ? value
-          .whereType<Map>()
-          .map((item) => Map<String, dynamic>.from(item))
-          .toList()
-    : const [];
 
 List<String> _strings(dynamic value) => value is List
     ? value

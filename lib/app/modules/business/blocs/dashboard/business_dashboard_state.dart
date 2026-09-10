@@ -1,5 +1,6 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../plans/data/models/plan_status.dart';
 import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
 
@@ -10,6 +11,7 @@ class BusinessDashboardState extends Equatable {
     this.status = BusinessDashboardStatus.initial,
     this.summary,
     this.operationalReferences,
+    this.activePlan,
     this.message,
     this.needsWizard = false,
   });
@@ -17,6 +19,7 @@ class BusinessDashboardState extends Equatable {
   final BusinessDashboardStatus status;
   final BusinessDashboardSummary? summary;
   final BusinessOperationalReferences? operationalReferences;
+  final ActiveSubscription? activePlan;
   final String? message;
   final bool needsWizard;
 
@@ -24,6 +27,7 @@ class BusinessDashboardState extends Equatable {
     BusinessDashboardStatus? status,
     BusinessDashboardSummary? summary,
     BusinessOperationalReferences? operationalReferences,
+    ActiveSubscription? activePlan,
     String? message,
     bool? needsWizard,
   }) {
@@ -31,6 +35,7 @@ class BusinessDashboardState extends Equatable {
       status: status ?? this.status,
       summary: summary ?? this.summary,
       operationalReferences: operationalReferences ?? this.operationalReferences,
+      activePlan: activePlan ?? this.activePlan,
       message: message,
       needsWizard: needsWizard ?? this.needsWizard,
     );
@@ -41,6 +46,7 @@ class BusinessDashboardState extends Equatable {
     status,
     summary,
     operationalReferences,
+    activePlan,
     message,
     needsWizard,
   ];
