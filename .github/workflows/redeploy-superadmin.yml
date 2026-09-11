@@ -1,0 +1,22 @@
+name: Redeploy SuperAdmin
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  redeploy-superadmin:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Trigger SuperAdmin redeploy
+        env:
+          VERCEL_DEPLOY_HOOK_URL: ${{ secrets.VERCEL_DEPLOY_HOOK_URL || vars.VERCEL_DEPLOY_HOOK_URL }}
+        run: |
+          if [ -z "$VERCEL_DEPLOY_HOOK_URL" ]; then
+            echo "VERCEL_DEPLOY_HOOK_URL not configured."
+            exit 1
+          fi
+          curl -L -X POST "$VERCEL_DEPLOY_HOOK_URL"
