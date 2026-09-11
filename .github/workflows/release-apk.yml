@@ -55,7 +55,7 @@ jobs:
           BUILD_NUMBER=${RAW_VERSION##*+}
           echo "app_version=${APP_VERSION}" >> "$GITHUB_OUTPUT"
           echo "build_number=${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
-          echo "tag=apk-v${APP_VERSION}+${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
+          echo "tag=apk-v${APP_VERSION}-${BUILD_NUMBER}" >> "$GITHUB_OUTPUT"
 
       - name: Prepare artifact
         run: |
