@@ -8,9 +8,11 @@ import 'common/blocs/active_business/active_business_cubit.dart';
 import 'common/blocs/employee_access/employee_access_cubit.dart';
 import 'common/blocs/role_mode/role_mode_cubit.dart';
 import 'common/entities/user_role.dart';
+import 'common/services/deep_link_service.dart';
 import 'common/services/push_notification_service.dart';
 import 'config/injection/injection.dart';
 import 'config/routes/app_router.dart';
+import 'config/routes/app_routes.dart';
 import 'config/theme/app_theme.dart';
 import 'modules/credits/blocs/credits_cubit.dart';
 import 'modules/orders/blocs/cart/cart_cubit.dart';
@@ -20,6 +22,12 @@ class ConKkaoApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final router = createAppRouter(
+      sl<AppSessionCubit>(),
+      sl<RoleModeCubit>(),
+    );
+    DeepLinkService.instance.initialize(router);
+
     return MultiBlocProvider(
       providers: [
         BlocProvider(create: (_) => sl<AppSessionCubit>()..restoreSession()),
@@ -48,6 +56,10 @@ class ConKkaoApp extends StatelessWidget {
                 activeBusiness.clear();
                 sl<CreditsCubit>().clear();
                 return;
+              }
+
+              if (DeepLinkService.instance.consumePendingPost()) {
+                router.go(AppRoutes.posts);
               }
 
               sl<CreditsCubit>().load();
@@ -94,31 +106,22 @@ class ConKkaoApp extends StatelessWidget {
             },
           ),
         ],
-        child: Builder(
-          builder: (context) {
-            final router = createAppRouter(
-              context.read<AppSessionCubit>(),
-              context.read<RoleModeCubit>(),
-            );
-
-            return BlocBuilder<AppThemeCubit, ThemeMode>(
-              builder: (context, themeMode) {
-                return MaterialApp.router(
-                  title: 'ConKkao',
-                  debugShowCheckedModeBanner: false,
-                  scaffoldMessengerKey: PushNotificationService.messengerKey,
-                  localizationsDelegates: const [
-                    GlobalMaterialLocalizations.delegate,
-                    GlobalWidgetsLocalizations.delegate,
-                    GlobalCupertinoLocalizations.delegate,
-                  ],
-                  supportedLocales: const [Locale('es'), Locale('en')],
-                  theme: AppTheme.light,
-                  darkTheme: AppTheme.dark,
-                  themeMode: themeMode,
-                  routerConfig: router,
-                );
-              },
+        child: BlocBuilder<AppThemeCubit, ThemeMode>(
+          builder: (context, themeMode) {
+            return MaterialApp.router(
+              title: 'ConKkao',
+              debugShowCheckedModeBanner: false,
+              scaffoldMessengerKey: PushNotificationService.messengerKey,
+              localizationsDelegates: const [
+                GlobalMaterialLocalizations.delegate,
+                GlobalWidgetsLocalizations.delegate,
+                GlobalCupertinoLocalizations.delegate,
+              ],
+              supportedLocales: const [Locale('es'), Locale('en')],
+              theme: AppTheme.light,
+              darkTheme: AppTheme.dark,
+              themeMode: themeMode,
+              routerConfig: router,
             );
           },
         ),

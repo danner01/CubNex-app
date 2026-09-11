@@ -49,3 +49,7 @@ app.*.map.json
 # Local exported binaries
 apk/
 dist/
+
+# Keystore and signing config (local secrets, never commit)
+android/key.properties
+android/app/upload-keystore.jks

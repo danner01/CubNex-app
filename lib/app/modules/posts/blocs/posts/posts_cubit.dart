@@ -179,7 +179,7 @@ class PostsCubit extends Cubit<PostsState> {
     );
   }
 
-  Future<void> share(String postId) async {
+  Future<String?> share(String postId) async {
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/publicaciones/$postId/compartir',
       data: const {},
@@ -194,7 +194,7 @@ class PostsCubit extends Cubit<PostsState> {
           message: result.error?.message,
         ),
       );
-      return;
+      return null;
     }
 
     final nextCount = int.tryParse(
@@ -214,6 +214,9 @@ class PostsCubit extends Cubit<PostsState> {
             .toList(),
       ),
     );
+
+    final url = result.data?['url'];
+    return url is String && url.isNotEmpty ? url : null;
   }
 
   Future<void> loadComments(String postId) async {

@@ -155,9 +155,17 @@ class _PostCard extends StatelessWidget {
                       icon: Icons.ios_share_rounded,
                       label: '${post.sharesCount}',
                       onTap: () async {
-                        await context.read<PostsCubit>().share(post.id);
+                        final link =
+                            await context.read<PostsCubit>().share(post.id);
+                        final title =
+                            post.title ?? business?.name ?? 'Publicacion ConKkao';
+                        final text = [
+                          title,
+                          if (post.content.trim().isNotEmpty) post.content.trim(),
+                          if (link != null && link.isNotEmpty) link,
+                        ].join('\n');
                         await Share.share(
-                          '${post.title ?? business?.name ?? 'Publicacion ConKkao'}\n${post.content}',
+                          text,
                           subject: post.title ?? business?.name ?? 'ConKkao',
                         );
                       },
