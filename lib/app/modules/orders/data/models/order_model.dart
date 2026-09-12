@@ -17,6 +17,7 @@ class OrderModel {
     this.quantity,
     this.currency,
     this.estimatedTotal,
+    this.tarifaCobrada,
     this.metadata,
     this.qrCode,
     this.qrUrl,
@@ -38,6 +39,7 @@ class OrderModel {
   final int? quantity;
   final String? currency;
   final double? estimatedTotal;
+  final double? tarifaCobrada;
   final Map<String, dynamic>? metadata;
   final String? qrCode;
   final String? qrUrl;
@@ -223,6 +225,16 @@ class OrderModel {
     final qrMap = qrEntry is Map
         ? Map<String, dynamic>.from(qrEntry)
         : <String, dynamic>{};
+    final entregasRaw = json['entregas'];
+    final entregaEntry = entregasRaw is List && entregasRaw.isNotEmpty
+        ? entregasRaw.first
+        : entregasRaw;
+    final entregaMap = entregaEntry is Map
+        ? Map<String, dynamic>.from(entregaEntry)
+        : <String, dynamic>{};
+    final tarifaCobrada = double.tryParse(
+      '${entregaMap['monto_liquidado'] ?? ''}',
+    );
     final synthesizedMetadata = <String, dynamic>{
       if (json['nombre_producto'] != null)
         'nombre_producto': json['nombre_producto'],
@@ -280,6 +292,9 @@ class OrderModel {
       estimatedTotal: double.tryParse(
         '${json['total_estimado'] ?? json['precio_referencia'] ?? ''}',
       ),
+      tarifaCobrada: (tarifaCobrada != null && tarifaCobrada > 0)
+          ? tarifaCobrada
+          : null,
       metadata: mergedMetadata.isEmpty ? null : mergedMetadata,
       qrCode: _normalizedQrValue(
         json['qr_codigo'] ?? json['qrCode'] ?? qrMap['token'],

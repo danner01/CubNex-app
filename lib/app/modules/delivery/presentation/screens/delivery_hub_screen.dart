@@ -1043,6 +1043,12 @@ class _DeliveryOrderCard extends StatelessWidget {
                 ),
                 _MetaChip(icon: Icons.calendar_today_outlined, label: created),
                 _MetaChip(icon: Icons.payments_outlined, label: total),
+                if (order.tarifaCobrada != null)
+                  _MetaChip(
+                    icon: Icons.savings_outlined,
+                    label:
+                        'Tarifa cobrada: ${_formatMoney(order.tarifaCobrada, order.currency ?? 'CUP')}',
+                  ),
                 _MetaChip(
                   icon: Icons.tag_rounded,
                   label: 'Cantidad ${order.quantity ?? 1}',
