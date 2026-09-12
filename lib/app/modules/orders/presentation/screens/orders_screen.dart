@@ -172,10 +172,26 @@ class _OrdersViewState extends State<_OrdersView> {
                       Text(subtitle),
                       if (!isBusinessIncomingOrders) ...[
                         const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: () => context.push(AppRoutes.scanner),
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          label: const Text('Escanear pedido'),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    context.push(AppRoutes.scanner),
+                                icon: const Icon(Icons.qr_code_scanner_rounded),
+                                label: const Text('Escanear pedido'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    context.push(AppRoutes.deliveryNearby),
+                                icon: const Icon(Icons.local_shipping_rounded),
+                                label: const Text('Repartidores cerca'),
+                              ),
+                            ),
+                          ],
                         ),
                       ],
                       if (_showSearch) ...[

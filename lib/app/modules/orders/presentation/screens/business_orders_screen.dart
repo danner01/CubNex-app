@@ -46,6 +46,7 @@ const _typeFilters = [
 ];
 
 enum _DateFilter { all, today, last7, thisMonth }
+
 enum _DurationUnit { minutes, hours, days }
 
 // Top-level helpers shared by _BusinessOrderCard and _ReservationDurationDialog.
@@ -139,7 +140,9 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
     _handledScanRefresh = true;
 
     final message = query['scan_msg'] ?? 'Pedido actualizado correctamente.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
     _reloadOrders();
 
     final cleanParams = Map<String, String>.from(query)
@@ -198,10 +201,26 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
                           'Pedidos y solicitudes de clientes hacia tu negocio.',
                         ),
                         const SizedBox(height: 10),
-                        OutlinedButton.icon(
-                          onPressed: () => context.push(AppRoutes.scanner),
-                          icon: const Icon(Icons.qr_code_scanner_rounded),
-                          label: const Text('Escanear QR de pedido'),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    context.push(AppRoutes.scanner),
+                                icon: const Icon(Icons.qr_code_scanner_rounded),
+                                label: const Text('Escanear QR de pedido'),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: () =>
+                                    context.push(AppRoutes.deliveryNearby),
+                                icon: const Icon(Icons.local_shipping_rounded),
+                                label: const Text('Repartidores cerca'),
+                              ),
+                            ),
+                          ],
                         ),
                         if (_showSearch) ...[
                           const SizedBox(height: 12),
@@ -244,7 +263,7 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
                       }
 
                       return RefreshIndicator(
-                      onRefresh: _reloadOrders,
+                        onRefresh: _reloadOrders,
                         child: ListView(
                           padding: const EdgeInsets.fromLTRB(16, 0, 16, 28),
                           children: [
@@ -722,7 +741,9 @@ class _BusinessOrderCard extends StatelessWidget {
                               .activeBusiness
                               ?.id;
                           if (businessId == null) {
-                            await context.read<OrdersCubit>().loadBusinessOrders();
+                            await context
+                                .read<OrdersCubit>()
+                                .loadBusinessOrders();
                             return;
                           }
                           await context.read<OrdersCubit>().load(
@@ -887,17 +908,20 @@ class _BusinessOrderCard extends StatelessWidget {
                         onPressed: () async {
                           final minutes = await _askReservationMinutes(context);
                           if (minutes == null || !context.mounted) return;
-                          await context.read<OrdersCubit>().updateStatusWithOptions(
-                            order.id,
-                            status: order.status ?? 'listo_para_recoger',
-                            reservationMinutes: minutes,
-                          );
+                          await context
+                              .read<OrdersCubit>()
+                              .updateStatusWithOptions(
+                                order.id,
+                                status: order.status ?? 'listo_para_recoger',
+                                reservationMinutes: minutes,
+                              );
                         },
                         icon: const Icon(Icons.timer_outlined, size: 18),
                         label: const Text('Ajustar caducidad'),
                       ),
                     ),
-                  if (order.supportsReservationExpiry) const SizedBox(height: 10),
+                  if (order.supportsReservationExpiry)
+                    const SizedBox(height: 10),
                   if (selectedStatus != null)
                     DropdownButtonFormField<String>(
                       initialValue: selectedStatus,
@@ -916,7 +940,10 @@ class _BusinessOrderCard extends StatelessWidget {
                           _handleStatusUpdateWithExpiry(context, value);
                           return;
                         }
-                        context.read<OrdersCubit>().updateStatus(order.id, value);
+                        context.read<OrdersCubit>().updateStatus(
+                          order.id,
+                          value,
+                        );
                       },
                     ),
                 ],
@@ -1393,10 +1420,7 @@ class _ReservationDurationDialogState
           onPressed: () => Navigator.of(context).pop(null),
           child: const Text('Cancelar'),
         ),
-        FilledButton(
-          onPressed: _submit,
-          child: const Text('Guardar'),
-        ),
+        FilledButton(onPressed: _submit, child: const Text('Guardar')),
       ],
       contentPadding: const EdgeInsets.fromLTRB(24, 20, 24, 0),
       content: Column(

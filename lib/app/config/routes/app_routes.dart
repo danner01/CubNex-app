@@ -49,6 +49,7 @@ class AppRoutes {
   static const deliveryRoute = '/delivery/route';
   static const deliveryHistory = '/delivery/history';
   static const deliveryProfile = '/delivery/profile';
+  static const deliveryNearby = '/delivery/nearby';
 
   static String product(String id) => '/product/$id';
   static String store(String id) => '/store/$id';

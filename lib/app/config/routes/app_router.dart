@@ -17,6 +17,7 @@ import '../../modules/business/presentation/screens/business_team_screen.dart';
 import '../../modules/business_directory/presentation/screens/business_detail_screen.dart';
 import '../../modules/business_network/presentation/screens/business_network_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
+import '../../modules/delivery/presentation/screens/delivery_nearby_screen.dart';
 import '../../modules/favorites/presentation/screens/favorites_screen.dart';
 import '../../modules/credits/presentation/screens/credits_screen.dart';
 import '../../modules/gamification/presentation/screens/gamification_screen.dart';
@@ -314,6 +315,10 @@ GoRouter createAppRouter(
             path: AppRoutes.deliveryProfile,
             builder: (_, __) =>
                 const DeliveryHubScreen(section: DeliveryHubSection.profile),
+          ),
+          GoRoute(
+            path: AppRoutes.deliveryNearby,
+            builder: (_, __) => const DeliveryNearbyScreen(),
           ),
         ],
       ),
