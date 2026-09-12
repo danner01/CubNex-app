@@ -8,6 +8,7 @@ import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
 import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../../delivery/presentation/widgets/delivery_tracking_sheet.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
@@ -75,6 +76,12 @@ const _statusShortLabels = {
   'cancelado': 'Cancelado',
 };
 
+const _deliveryTrackableStatuses = {
+  'delivery_asignado',
+  'recogido_por_delivery',
+  'en_ruta',
+};
+
 class _OrdersView extends StatefulWidget {
   const _OrdersView({this.businessId, required this.businessRequesterView});
 
@@ -109,7 +116,9 @@ class _OrdersViewState extends State<_OrdersView> {
     _handledScanRefresh = true;
 
     final message = query['scan_msg'] ?? 'Pedido actualizado correctamente.';
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
     context.read<OrdersCubit>().load(businessId: widget.businessId);
 
     final cleanParams = Map<String, String>.from(query)
@@ -245,10 +254,12 @@ class _OrdersViewState extends State<_OrdersView> {
                                   'No hay pedidos en el rango de fecha seleccionado.',
                             )
                           else
-                          ...visibleItems.map(
-                            (order) =>
-                                _OrderCard(order, businessId: widget.businessId),
-                          ),
+                            ...visibleItems.map(
+                              (order) => _OrderCard(
+                                order,
+                                businessId: widget.businessId,
+                              ),
+                            ),
                         ],
                       ),
                     );
@@ -578,6 +589,13 @@ class _OrderCard extends StatelessWidget {
                   ),
               ],
             ),
+            const SizedBox(height: 12),
+            if (_deliveryTrackableStatuses.contains(order.status))
+              OutlinedButton.icon(
+                onPressed: () => showDeliveryTrackingSheet(context, order.id),
+                icon: const Icon(Icons.near_me_rounded),
+                label: const Text('Ver seguimiento del repartidor'),
+              ),
           ],
         ),
       ),

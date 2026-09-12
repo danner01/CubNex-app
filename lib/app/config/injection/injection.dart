@@ -33,6 +33,8 @@ import '../../modules/favorites/blocs/engagement/engagement_cubit.dart';
 import '../../modules/favorites/blocs/favorites/favorites_cubit.dart';
 import '../../modules/gamification/blocs/gamification/gamification_cubit.dart';
 import '../../modules/credits/blocs/credits_cubit.dart';
+import '../../modules/delivery/blocs/delivery/delivery_accepted_store.dart';
+import '../../modules/delivery/blocs/delivery/delivery_cubit.dart';
 import '../../modules/home/blocs/home/home_cubit.dart';
 import '../../modules/menus/blocs/menus/menus_cubit.dart';
 import '../../modules/notifications/blocs/notifications/notifications_cubit.dart';
@@ -73,10 +75,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(() => FirebaseAuth.instance)
     ..registerLazySingleton(() => FirebaseMessaging.instance)
     ..registerLazySingleton(
-      () => PushNotificationService(
-        firebaseMessaging: sl(),
-        apiClient: sl(),
-      ),
+      () => PushNotificationService(firebaseMessaging: sl(), apiClient: sl()),
     )
     ..registerLazySingleton(
       () => AppEnvironment.googleWebClientId.isEmpty
@@ -105,23 +104,16 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(
       () => AppThemeCubit(sharedPreferences: sl())..load(),
     )
-    ..registerLazySingleton(
-      () => RoleModeCubit(sharedPreferences: sl()),
-    )
+    ..registerLazySingleton(() => RoleModeCubit(sharedPreferences: sl()))
     ..registerLazySingleton(
       () => ActiveBusinessCubit(apiClient: sl(), sharedPreferences: sl()),
     )
-        ..registerLazySingleton(
-          () => EmployeeAccessCubit(apiClient: sl()),
-        )
-        ..registerFactory(() => MapCubit(apiClient: sl()))
+    ..registerLazySingleton(() => EmployeeAccessCubit(apiClient: sl()))
+    ..registerFactory(() => MapCubit(apiClient: sl()))
     ..registerFactory(() => HomeCubit(apiClient: sl()))
     ..registerFactory(() => MenusCubit(apiClient: sl()))
     ..registerFactory(
-      () => NotificationsCubit(
-        apiClient: sl(),
-        pushNotificationService: sl(),
-      ),
+      () => NotificationsCubit(apiClient: sl(), pushNotificationService: sl()),
     )
     ..registerFactory(() => SearchCubit(apiClient: sl()))
     ..registerFactory(() => ProductDetailCubit(apiClient: sl()))
@@ -138,11 +130,14 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => EngagementCubit(apiClient: sl()))
     ..registerFactory(() => FavoritesCubit(apiClient: sl()))
     ..registerFactory(() => GamificationCubit(apiClient: sl()))
-        ..registerLazySingleton(() => CreditsCubit(apiClient: sl()))
+    ..registerLazySingleton(() => CreditsCubit(apiClient: sl()))
     ..registerLazySingleton(
-      () => CartCubit(apiClient: sl(), cartBox: Hive.box<dynamic>('cart_items')),
+      () =>
+          CartCubit(apiClient: sl(), cartBox: Hive.box<dynamic>('cart_items')),
     )
     ..registerFactory(() => OrdersCubit(apiClient: sl()))
+    ..registerLazySingleton(() => DeliveryAcceptedStore())
+    ..registerFactory(() => DeliveryCubit(apiClient: sl(), acceptedStore: sl()))
     ..registerFactory(() => ScannerCubit(apiClient: sl()))
     ..registerFactory(() => ScanHistoryCubit(apiClient: sl()))
     ..registerFactory(() => BusinessDashboardCubit(apiClient: sl()))
