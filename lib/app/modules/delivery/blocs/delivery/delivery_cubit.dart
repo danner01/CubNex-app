@@ -146,6 +146,56 @@ class DeliveryCubit extends Cubit<DeliveryState> {
     );
   }
 
+  Future<void> updateProfile({
+    required String vehicleType,
+    String? plate,
+    required double baseRate,
+    required double perKmRate,
+    required double operatingRadiusKm,
+  }) async {
+    final profile = state.profile;
+    if (profile == null || state.isUpdatingProfile) return;
+    emit(state.copyWith(isUpdatingProfile: true, errorMessage: null));
+
+    final result = await _apiClient.put<void>(
+      '/delivery-perfiles/${profile.id}',
+      data: {
+        'tipo_vehiculo': vehicleType,
+        if (plate != null && plate.trim().isNotEmpty) 'placa': plate.trim(),
+        'tarifa_base': baseRate,
+        'tarifa_por_km': perKmRate,
+        'radio_operacion_km': operatingRadiusKm,
+      },
+      parser: (_) {},
+    );
+    if (isClosed) return;
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          isUpdatingProfile: false,
+          errorMessage:
+              result.error?.message ?? 'No se pudo guardar tu perfil delivery.',
+        ),
+      );
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        isUpdatingProfile: false,
+        errorMessage: null,
+        profile: profile.copyWith(
+          vehicleType: vehicleType,
+          plate: plate?.trim().isNotEmpty == true ? plate!.trim() : null,
+          baseRate: baseRate,
+          perKmRate: perKmRate,
+          operatingRadiusKm: operatingRadiusKm,
+        ),
+      ),
+    );
+  }
+
   Future<void> loadDisponibles({bool silent = false}) async {
     final profile = state.profile;
     if (profile == null || !profile.available) return;

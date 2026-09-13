@@ -31,17 +31,24 @@ class DeliveryProfileModel {
   final double traveledKm;
   final String? trustLevel;
 
-  DeliveryProfileModel copyWith({bool? available}) {
+  DeliveryProfileModel copyWith({
+    bool? available,
+    String? vehicleType,
+    String? plate,
+    double? baseRate,
+    double? perKmRate,
+    double? operatingRadiusKm,
+  }) {
     return DeliveryProfileModel(
       id: id,
       userId: userId,
       active: active,
       available: available ?? this.available,
-      vehicleType: vehicleType,
-      plate: plate,
-      baseRate: baseRate,
-      perKmRate: perKmRate,
-      operatingRadiusKm: operatingRadiusKm,
+      vehicleType: vehicleType ?? this.vehicleType,
+      plate: plate ?? this.plate,
+      baseRate: baseRate ?? this.baseRate,
+      perKmRate: perKmRate ?? this.perKmRate,
+      operatingRadiusKm: operatingRadiusKm ?? this.operatingRadiusKm,
       averageRating: averageRating,
       completedDeliveries: completedDeliveries,
       cancelledDeliveries: cancelledDeliveries,
