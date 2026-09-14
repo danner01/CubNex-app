@@ -116,16 +116,16 @@ class DeliveryHubProfileView extends StatelessWidget {
                 ),
                 const SizedBox(height: 18),
                 _sectionTitle(context, 'Gestion'),
-                const SizedBox(height: 4),
-                ..._buildGestions(context, profile),
+                const SizedBox(height: 12),
+                _buildGestions(context, profile),
               ] else ...[
                 _buildAvailabilityCard(context, state),
                 const SizedBox(height: 12),
                 DeliveryProfileSummaryCard(profile: profile),
                 const SizedBox(height: 18),
                 _sectionTitle(context, 'Gestion'),
-                const SizedBox(height: 4),
-                ..._buildGestions(context, profile),
+                const SizedBox(height: 12),
+                _buildGestions(context, profile),
               ],
             ],
           );
@@ -143,66 +143,52 @@ class DeliveryHubProfileView extends StatelessWidget {
     );
   }
 
-  List<Widget> _buildGestions(
-    BuildContext context,
-    DeliveryProfileModel? profile,
-  ) {
-    final items = [
-      if (profile != null)
-        _DeliveryProfileItem(
-          title: 'Editar perfil',
-          subtitle: 'Vehiculo, tarifa, radio y placa.',
-          icon: Icons.edit_outlined,
-          onTap: () => showDeliveryProfileEditSheet(context, profile),
-        ),
-      const _DeliveryProfileItem(
-        title: 'Ruta y mapa',
-        subtitle: 'Entregas activas y ubicacion en tiempo real.',
-        icon: Icons.map_outlined,
-        route: AppRoutes.deliveryRoute,
-      ),
-      const _DeliveryProfileItem(
-        title: 'Solicitudes',
-        subtitle: 'Ordenes disponibles para aceptar.',
-        icon: Icons.assignment_outlined,
-        route: AppRoutes.deliveryRequests,
-      ),
-      const _DeliveryProfileItem(
-        title: 'Historial de entregas',
-        subtitle: 'Ordenes completadas, kilometros y pagos.',
-        icon: Icons.history_rounded,
-        route: AppRoutes.deliveryHistory,
-      ),
-      const _DeliveryProfileItem(
-        title: 'Panel delivery',
-        subtitle: 'Solicitudes, entregas y estado operativo.',
-        icon: Icons.space_dashboard_outlined,
-        route: AppRoutes.deliveryDashboard,
-      ),
-      const _DeliveryProfileItem(
-        title: 'Billetera',
-        subtitle: 'Saldo ConKkao, transferencias y movimientos.',
-        icon: Icons.account_balance_wallet_outlined,
-        route: AppRoutes.credits,
-      ),
-    ];
-    return items
-        .map(
-          (item) => _DeliveryProfileTile(
-            icon: item.icon,
-            title: item.title,
-            subtitle: item.subtitle,
-            onTap: () {
-              final route = item.route;
-              if (route != null) {
-                context.go(route);
-              } else {
-                item.onTap?.call();
-              }
-            },
+  Widget _buildGestions(BuildContext context, DeliveryProfileModel? profile) {
+    return DeliveryActionsGrid(
+      actions: [
+        if (profile != null)
+          DeliveryActionData(
+            icon: Icons.edit_outlined,
+            label: 'Editar perfil',
+            onTap: () => showDeliveryProfileEditSheet(context, profile),
           ),
-        )
-        .toList();
+        DeliveryActionData(
+          icon: Icons.space_dashboard_outlined,
+          label: 'Panel delivery',
+          onTap: () => context.go(AppRoutes.deliveryDashboard),
+        ),
+        DeliveryActionData(
+          icon: Icons.receipt_long_outlined,
+          label: 'Solicitudes',
+          onTap: () => context.go(AppRoutes.deliveryRequests),
+        ),
+        DeliveryActionData(
+          icon: Icons.map_outlined,
+          label: 'Ruta y mapa',
+          onTap: () => context.go(AppRoutes.deliveryRoute),
+        ),
+        DeliveryActionData(
+          icon: Icons.history_rounded,
+          label: 'Historial de entregas',
+          onTap: () => context.go(AppRoutes.deliveryHistory),
+        ),
+        DeliveryActionData(
+          icon: Icons.near_me_outlined,
+          label: 'Repartidores cerca',
+          onTap: () => context.go(AppRoutes.deliveryNearby),
+        ),
+        DeliveryActionData(
+          icon: Icons.account_balance_wallet_outlined,
+          label: 'Billetera',
+          onTap: () => context.go(AppRoutes.credits),
+        ),
+        DeliveryActionData(
+          icon: Icons.notifications_none_rounded,
+          label: 'Notificaciones',
+          onTap: () => context.go(AppRoutes.notifications),
+        ),
+      ],
+    );
   }
 
   Widget _buildAvailabilityCard(BuildContext context, DeliveryState state) {
@@ -249,71 +235,6 @@ class DeliveryHubProfileView extends StatelessWidget {
       ),
     );
   }
-}
-
-class _DeliveryProfileTile extends StatelessWidget {
-  const _DeliveryProfileTile({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Card(
-        elevation: 0,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(16),
-          side: BorderSide(
-            color: Theme.of(
-              context,
-            ).colorScheme.outlineVariant.withValues(alpha: 0.55),
-          ),
-        ),
-        child: ListTile(
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 4,
-          ),
-          leading: Icon(icon, color: Theme.of(context).colorScheme.secondary),
-          title: Text(
-            title,
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-          subtitle: Padding(
-            padding: const EdgeInsets.only(top: 3),
-            child: Text(subtitle),
-          ),
-          trailing: const Icon(Icons.chevron_right_rounded),
-          onTap: onTap,
-        ),
-      ),
-    );
-  }
-}
-
-class _DeliveryProfileItem {
-  const _DeliveryProfileItem({
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    this.route,
-    this.onTap,
-  });
-
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final String? route;
-  final VoidCallback? onTap;
 }
 
 class DeliveryProfileSummaryCard extends StatelessWidget {
