@@ -116,7 +116,11 @@ class ApkUpdateService {
   }) {
     final currentParts = _semanticVersionParts(currentVersion);
     final remoteParts = _semanticVersionParts(remoteVersion);
-    for (var i = 0; i < math.max(currentParts.length, remoteParts.length); i++) {
+    for (
+      var i = 0;
+      i < math.max(currentParts.length, remoteParts.length);
+      i++
+    ) {
       final currentPart = i < currentParts.length ? currentParts[i] : 0;
       final remotePart = i < remoteParts.length ? remoteParts[i] : 0;
       if (remotePart > currentPart) return true;
@@ -134,11 +138,17 @@ class ApkUpdateService {
     final cleaned = _cleanVersion(value);
     final split = _splitBuild(cleaned);
     final versionPart = split.item1;
-    return versionPart.split('.').map((item) => int.tryParse(item) ?? 0).toList();
+    return versionPart
+        .split('.')
+        .map((item) => int.tryParse(item) ?? 0)
+        .toList();
   }
 
   String _cleanVersion(String value) {
-    return value.trim().replaceFirst(RegExp(r'^(apk[-_]?|v)', caseSensitive: false), '');
+    return value.trim().replaceFirst(
+      RegExp(r'^(apk[-_]?|v)', caseSensitive: false),
+      '',
+    );
   }
 
   String _formatCurrentVersion(PackageInfo info) {
@@ -148,9 +158,10 @@ class ApkUpdateService {
   }
 
   _BuildSplit _splitBuild(String value) {
-    final segments = value.split('+');
-    if (segments.length < 2) return _BuildSplit(segments.first, null);
-    return _BuildSplit(segments.first, int.tryParse(segments[1]));
+    final cleaned = value.trim();
+    final match = RegExp(r'^(.+?)[+-](\d+)$').firstMatch(cleaned);
+    if (match == null) return _BuildSplit(cleaned, null);
+    return _BuildSplit(match.group(1)!, int.tryParse(match.group(2)!));
   }
 
   int? _intOrNull(Object? value) {
@@ -161,8 +172,10 @@ class ApkUpdateService {
   }
 
   String _displayVersion(String version, int? versionCode) {
-    if (versionCode == null || version.contains('+')) return version;
-    return '$version+$versionCode';
+    final split = _splitBuild(version);
+    final build = versionCode ?? split.item2;
+    if (build == null) return split.item1;
+    return '${split.item1}+$build';
   }
 
   String? _stringOrNull(Object? value) {
