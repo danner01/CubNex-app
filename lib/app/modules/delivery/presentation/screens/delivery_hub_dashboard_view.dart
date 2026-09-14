@@ -166,6 +166,15 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
               ),
               const SizedBox(height: 4),
               ..._buildQueue(context, state),
+              const SizedBox(height: 18),
+              Text(
+                'Gestion',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 12),
+              const _DeliveryActionsGrid(),
             ],
           );
         },
@@ -409,6 +418,104 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
       ),
     );
   }
+}
+
+class _DeliveryActionsGrid extends StatelessWidget {
+  const _DeliveryActionsGrid();
+
+  static const _actions = [
+    _DeliveryActionData(
+      icon: Icons.receipt_long_outlined,
+      label: 'Solicitudes',
+      route: AppRoutes.deliveryRequests,
+    ),
+    _DeliveryActionData(
+      icon: Icons.map_outlined,
+      label: 'Ruta y mapa',
+      route: AppRoutes.deliveryRoute,
+    ),
+    _DeliveryActionData(
+      icon: Icons.history_rounded,
+      label: 'Historial',
+      route: AppRoutes.deliveryHistory,
+    ),
+    _DeliveryActionData(
+      icon: Icons.badge_outlined,
+      label: 'Perfil delivery',
+      route: AppRoutes.deliveryProfile,
+    ),
+    _DeliveryActionData(
+      icon: Icons.near_me_outlined,
+      label: 'Repartidores cerca',
+      route: AppRoutes.deliveryNearby,
+    ),
+    _DeliveryActionData(
+      icon: Icons.account_balance_wallet_outlined,
+      label: 'Billetera',
+      route: AppRoutes.credits,
+    ),
+  ];
+
+  @override
+  Widget build(BuildContext context) {
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _actions.length,
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: MediaQuery.sizeOf(context).width > 520 ? 4 : 2,
+        crossAxisSpacing: 12,
+        mainAxisSpacing: 12,
+        childAspectRatio: 1.25,
+      ),
+      itemBuilder: (context, index) {
+        final action = _actions[index];
+        return Card(
+          elevation: 0,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: BorderSide(
+              color: Theme.of(
+                context,
+              ).colorScheme.outlineVariant.withValues(alpha: 0.55),
+            ),
+          ),
+          child: InkWell(
+            onTap: () => context.go(action.route),
+            borderRadius: BorderRadius.circular(16),
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  action.icon,
+                  size: 30,
+                  color: Theme.of(context).colorScheme.secondary,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  action.label,
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.titleMedium,
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _DeliveryActionData {
+  const _DeliveryActionData({
+    required this.icon,
+    required this.label,
+    required this.route,
+  });
+
+  final IconData icon;
+  final String label;
+  final String route;
 }
 
 class AvailableDeliveryCard extends StatelessWidget {

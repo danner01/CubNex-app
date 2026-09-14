@@ -82,23 +82,50 @@ class DeliveryHubProfileView extends StatelessWidget {
                   child: Center(child: CircularProgressIndicator()),
                 )
               else if (profile == null) ...[
-                const Text(
-                  'Aun no tienes perfil delivery configurado. Desde el panel '
-                  'de delivery puedes registrarte como repartidor para aceptar '
-                  'entregas.',
+                Card(
+                  elevation: 0,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(20),
+                    side: BorderSide(
+                      color: theme.colorScheme.outlineVariant.withValues(
+                        alpha: 0.55,
+                      ),
+                    ),
+                  ),
+                  child: Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.delivery_dining_outlined, size: 30),
+                        const SizedBox(height: 8),
+                        Text(
+                          'Aun no tienes perfil delivery',
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        const Text(
+                          'Desde el panel de delivery puedes registrarte como '
+                          'repartidor para aceptar entregas.',
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 18),
                 _sectionTitle(context, 'Gestion'),
-                const SizedBox(height: 12),
-                _DeliveryActionsGrid(actions: _actions(context, profile)),
+                const SizedBox(height: 4),
+                ..._buildGestions(context, profile),
               ] else ...[
                 _buildAvailabilityCard(context, state),
                 const SizedBox(height: 12),
                 DeliveryProfileSummaryCard(profile: profile),
                 const SizedBox(height: 18),
                 _sectionTitle(context, 'Gestion'),
-                const SizedBox(height: 12),
-                _DeliveryActionsGrid(actions: _actions(context, profile)),
+                const SizedBox(height: 4),
+                ..._buildGestions(context, profile),
               ],
             ],
           );
@@ -116,43 +143,66 @@ class DeliveryHubProfileView extends StatelessWidget {
     );
   }
 
-  List<_DeliveryAction> _actions(
+  List<Widget> _buildGestions(
     BuildContext context,
     DeliveryProfileModel? profile,
   ) {
-    return [
+    final items = [
       if (profile != null)
-        _DeliveryAction(
-          label: 'Editar perfil',
+        _DeliveryProfileItem(
+          title: 'Editar perfil',
+          subtitle: 'Vehiculo, tarifa, radio y placa.',
           icon: Icons.edit_outlined,
           onTap: () => showDeliveryProfileEditSheet(context, profile),
         ),
-      const _DeliveryAction(
-        label: 'Ruta y mapa',
+      const _DeliveryProfileItem(
+        title: 'Ruta y mapa',
+        subtitle: 'Entregas activas y ubicacion en tiempo real.',
         icon: Icons.map_outlined,
         route: AppRoutes.deliveryRoute,
       ),
-      const _DeliveryAction(
-        label: 'Solicitudes',
-        icon: Icons.receipt_long_outlined,
+      const _DeliveryProfileItem(
+        title: 'Solicitudes',
+        subtitle: 'Ordenes disponibles para aceptar.',
+        icon: Icons.assignment_outlined,
         route: AppRoutes.deliveryRequests,
       ),
-      const _DeliveryAction(
-        label: 'Historial',
+      const _DeliveryProfileItem(
+        title: 'Historial de entregas',
+        subtitle: 'Ordenes completadas, kilometros y pagos.',
         icon: Icons.history_rounded,
         route: AppRoutes.deliveryHistory,
       ),
-      const _DeliveryAction(
-        label: 'Panel',
+      const _DeliveryProfileItem(
+        title: 'Panel delivery',
+        subtitle: 'Solicitudes, entregas y estado operativo.',
         icon: Icons.space_dashboard_outlined,
         route: AppRoutes.deliveryDashboard,
       ),
-      const _DeliveryAction(
-        label: 'Billetera',
+      const _DeliveryProfileItem(
+        title: 'Billetera',
+        subtitle: 'Saldo ConKkao, transferencias y movimientos.',
         icon: Icons.account_balance_wallet_outlined,
         route: AppRoutes.credits,
       ),
     ];
+    return items
+        .map(
+          (item) => _DeliveryProfileTile(
+            icon: item.icon,
+            title: item.title,
+            subtitle: item.subtitle,
+            onTap: () {
+              final route = item.route;
+              if (route != null) {
+                context.go(route);
+              } else {
+                item.onTap?.call();
+              }
+            },
+          ),
+        )
+        .toList();
   }
 
   Widget _buildAvailabilityCard(BuildContext context, DeliveryState state) {
@@ -201,77 +251,66 @@ class DeliveryHubProfileView extends StatelessWidget {
   }
 }
 
-class _DeliveryActionsGrid extends StatelessWidget {
-  const _DeliveryActionsGrid({required this.actions});
+class _DeliveryProfileTile extends StatelessWidget {
+  const _DeliveryProfileTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
 
-  final List<_DeliveryAction> actions;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: actions.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.sizeOf(context).width > 520 ? 4 : 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.25,
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Card(
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(
+            color: Theme.of(
+              context,
+            ).colorScheme.outlineVariant.withValues(alpha: 0.55),
+          ),
+        ),
+        child: ListTile(
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 4,
+          ),
+          leading: Icon(icon, color: Theme.of(context).colorScheme.secondary),
+          title: Text(
+            title,
+            style: const TextStyle(fontWeight: FontWeight.w900),
+          ),
+          subtitle: Padding(
+            padding: const EdgeInsets.only(top: 3),
+            child: Text(subtitle),
+          ),
+          trailing: const Icon(Icons.chevron_right_rounded),
+          onTap: onTap,
+        ),
       ),
-      itemBuilder: (context, index) {
-        final action = actions[index];
-        return Card(
-          elevation: 0,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(
-              color: Theme.of(
-                context,
-              ).colorScheme.outlineVariant.withValues(alpha: 0.55),
-            ),
-          ),
-          child: InkWell(
-            onTap: () {
-              final route = action.route;
-              if (route != null) {
-                context.go(route);
-              } else {
-                action.onTap?.call();
-              }
-            },
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(
-                  action.icon,
-                  size: 30,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  action.label,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
-                ),
-              ],
-            ),
-          ),
-        );
-      },
     );
   }
 }
 
-class _DeliveryAction {
-  const _DeliveryAction({
-    required this.label,
+class _DeliveryProfileItem {
+  const _DeliveryProfileItem({
+    required this.title,
+    required this.subtitle,
     required this.icon,
     this.route,
     this.onTap,
   });
 
-  final String label;
+  final String title;
+  final String subtitle;
   final IconData icon;
   final String? route;
   final VoidCallback? onTap;
