@@ -324,7 +324,9 @@ class DeliveryProfileSummaryCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final trustLevel = profile.trustLevel ?? 'nuevo';
+    final trustLevel = profile.trustLevel?.isNotEmpty == true
+        ? profile.trustLevel!
+        : 'nuevo';
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
