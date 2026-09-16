@@ -5,6 +5,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import 'delivery_common.dart';
 
 Future<void> showDeliveryTrackingSheet(BuildContext context, String ordenId) {
   return showModalBottomSheet<void>(
@@ -36,6 +37,9 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
   MapboxMap? _mapboxMap;
   PointAnnotationManager? _pointManager;
   String? _renderedKey;
+  Color? _markerColor;
+  String? _deliveryAvatarUrl;
+  String? _deliveryTipoVehiculo;
 
   @override
   void initState() {
@@ -100,7 +104,19 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
       },
     );
     if (!mounted || !result.isSuccess) return;
-    setState(() => _ubicacion = result.data ?? const {});
+    setState(() {
+      _ubicacion = result.data ?? const {};
+      final delivery = _ubicacion['delivery'];
+      final deliveryMap = delivery is Map
+          ? Map<String, dynamic>.from(delivery)
+          : const <String, dynamic>{};
+      final hex = deliveryMap['color_marcador'];
+      _markerColor =
+          parseDeliveryMarkerColor(hex) ??
+          parseDeliveryMarkerColor(deliveryDefaultMarkerColor);
+      _deliveryAvatarUrl = deliveryMap['avatar_url']?.toString();
+      _deliveryTipoVehiculo = deliveryMap['tipo_vehiculo']?.toString();
+    });
     await _syncMarker();
   }
 
@@ -117,7 +133,7 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
       PointAnnotationOptions(
         geometry: Point(coordinates: Position(point[0], point[1])),
         iconImage: 'marker',
-        iconColor: Colors.blue.toARGB32(),
+        iconColor: (_markerColor ?? Colors.blue).toARGB32(),
         iconSize: 1.3,
         iconAnchor: IconAnchor.BOTTOM,
       ),
@@ -146,17 +162,48 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(
-              'Seguimiento del repartidor',
-              style: theme.textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              _hasEntrega
-                  ? 'Ubicacion en tiempo real del repartidor asignado.'
-                  : 'Este pedido no tiene un repartidor asignado todavia.',
+            Row(
+              children: [
+                if (_hasEntrega) ...[
+                  CircleAvatar(
+                    radius: 24,
+                    backgroundColor: (_markerColor ?? Colors.blue).withValues(
+                      alpha: 0.85,
+                    ),
+                    backgroundImage: _deliveryAvatarUrl?.isNotEmpty == true
+                        ? NetworkImage(_deliveryAvatarUrl!)
+                        : null,
+                    child: _deliveryAvatarUrl?.isNotEmpty == true
+                        ? null
+                        : Icon(
+                            deliveryVehicleIcon(_deliveryTipoVehiculo),
+                            color: readableDeliveryMarkerIconColor(
+                              _markerColor ?? Colors.blue,
+                            ),
+                          ),
+                  ),
+                  const SizedBox(width: 12),
+                ],
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Seguimiento del repartidor',
+                        style: theme.textTheme.titleLarge?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        _hasEntrega
+                            ? 'Ubicacion en tiempo real del repartidor asignado.'
+                            : 'Este pedido no tiene un repartidor asignado todavia.',
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
             const SizedBox(height: 14),
             if (_entregaLoading)

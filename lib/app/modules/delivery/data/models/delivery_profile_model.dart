@@ -14,6 +14,8 @@ class DeliveryProfileModel {
     this.cancelledDeliveries = 0,
     this.traveledKm = 0,
     this.trustLevel,
+    this.avatarUrl,
+    this.colorMarcador,
   });
 
   final String id;
@@ -30,6 +32,8 @@ class DeliveryProfileModel {
   final int cancelledDeliveries;
   final double traveledKm;
   final String? trustLevel;
+  final String? avatarUrl;
+  final String? colorMarcador;
 
   DeliveryProfileModel copyWith({
     bool? available,
@@ -38,6 +42,8 @@ class DeliveryProfileModel {
     double? baseRate,
     double? perKmRate,
     double? operatingRadiusKm,
+    String? avatarUrl,
+    String? colorMarcador,
   }) {
     return DeliveryProfileModel(
       id: id,
@@ -54,6 +60,8 @@ class DeliveryProfileModel {
       cancelledDeliveries: cancelledDeliveries,
       traveledKm: traveledKm,
       trustLevel: trustLevel,
+      avatarUrl: avatarUrl ?? this.avatarUrl,
+      colorMarcador: colorMarcador ?? this.colorMarcador,
     );
   }
 
@@ -73,6 +81,8 @@ class DeliveryProfileModel {
       cancelledDeliveries: _int(json['entregas_canceladas']),
       traveledKm: _num(json['km_recorridos']),
       trustLevel: json['nivel_confianza']?.toString(),
+      avatarUrl: json['avatar_url']?.toString(),
+      colorMarcador: json['color_marcador']?.toString(),
     );
   }
 

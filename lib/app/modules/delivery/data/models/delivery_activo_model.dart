@@ -12,6 +12,8 @@ class DeliveryActivoModel {
     this.nivelConfianza = 'nuevo',
     this.distanciaKm = 0,
     this.ultimaUbicacion,
+    this.avatarUrl,
+    this.colorMarcador,
   });
 
   factory DeliveryActivoModel.fromJson(Map<String, dynamic> json) {
@@ -32,6 +34,8 @@ class DeliveryActivoModel {
               Map<String, dynamic>.from(json['ultima_ubicacion'] as Map),
             )
           : null,
+      avatarUrl: json['avatar_url']?.toString(),
+      colorMarcador: json['color_marcador']?.toString(),
     );
   }
 
@@ -47,6 +51,8 @@ class DeliveryActivoModel {
   final String nivelConfianza;
   final double distanciaKm;
   final DeliveryActivoUbicacion? ultimaUbicacion;
+  final String? avatarUrl;
+  final String? colorMarcador;
 }
 
 class DeliveryActivoUbicacion {

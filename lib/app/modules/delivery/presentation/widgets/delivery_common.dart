@@ -137,6 +137,36 @@ IconData deliveryVehicleIcon(String? vehiculo) {
   };
 }
 
+const deliveryMarkerPalette = [
+  '#1E88E5',
+  '#43A047',
+  '#FB8C00',
+  '#8E24AA',
+  '#00897B',
+  '#D81B60',
+  '#6D4C41',
+  '#3949AB',
+];
+
+const deliveryDefaultMarkerColor = '#1E88E5';
+
+Color? parseDeliveryMarkerColor(Object? hex) {
+  final raw = hex?.toString().trim();
+  if (raw == null || raw.isEmpty) return null;
+  final normalized = raw.replaceFirst('#', '');
+  final masked = normalized.length == 6
+      ? 'FF$normalized'
+      : normalized.length == 8
+      ? normalized
+      : normalized.padLeft(8, 'F');
+  return Color(int.tryParse(masked, radix: 16) ?? 0xFF1E88E5);
+}
+
+Color readableDeliveryMarkerIconColor(Color background) {
+  final luminance = background.computeLuminance();
+  return luminance > 0.45 ? Colors.black : Colors.white;
+}
+
 class DeliveryActionData {
   const DeliveryActionData({
     required this.icon,

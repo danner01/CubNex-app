@@ -152,6 +152,8 @@ class DeliveryCubit extends Cubit<DeliveryState> {
     required double baseRate,
     required double perKmRate,
     required double operatingRadiusKm,
+    String? avatarUrl,
+    String? colorMarcador,
   }) async {
     final profile = state.profile;
     if (profile == null || state.isUpdatingProfile) return;
@@ -165,6 +167,10 @@ class DeliveryCubit extends Cubit<DeliveryState> {
         'tarifa_base': baseRate,
         'tarifa_por_km': perKmRate,
         'radio_operacion_km': operatingRadiusKm,
+        if (avatarUrl != null && avatarUrl.trim().isNotEmpty)
+          'avatar_url': avatarUrl.trim(),
+        if (colorMarcador != null && colorMarcador.trim().isNotEmpty)
+          'color_marcador': colorMarcador.trim(),
       },
       parser: (_) {},
     );
@@ -191,6 +197,11 @@ class DeliveryCubit extends Cubit<DeliveryState> {
           baseRate: baseRate,
           perKmRate: perKmRate,
           operatingRadiusKm: operatingRadiusKm,
+          avatarUrl:
+              avatarUrl?.trim().isNotEmpty == true ? avatarUrl!.trim() : null,
+          colorMarcador: colorMarcador?.trim().isNotEmpty == true
+              ? colorMarcador!.trim()
+              : null,
         ),
       ),
     );

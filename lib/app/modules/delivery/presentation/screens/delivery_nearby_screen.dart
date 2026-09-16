@@ -7,6 +7,7 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/http/api_client.dart';
 import '../../data/models/delivery_activo_model.dart';
+import '../widgets/delivery_common.dart';
 
 class DeliveryNearbyScreen extends StatefulWidget {
   const DeliveryNearbyScreen({super.key});
@@ -18,6 +19,16 @@ class DeliveryNearbyScreen extends StatefulWidget {
 class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
   static const _pollInterval = Duration(seconds: 15);
   static final _defaultCenter = Position(-82.3666, 23.1136);
+  static const _palette = [
+    Color(0xFF1E88E5),
+    Color(0xFF43A047),
+    Color(0xFFFB8C00),
+    Color(0xFF8E24AA),
+    Color(0xFF00897B),
+    Color(0xFFD81B60),
+    Color(0xFF6D4C41),
+    Color(0xFF3949AB),
+  ];
 
   final ApiClient _apiClient = sl<ApiClient>();
 
@@ -146,7 +157,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
         PointAnnotationOptions(
           geometry: Point(coordinates: Position(lng, lat)),
           iconImage: 'marker',
-          iconColor: _markerColor(i).toARGB32(),
+          iconColor: _markerColor(item, i).toARGB32(),
           iconSize: 1.15,
           iconAnchor: IconAnchor.BOTTOM,
         ),
@@ -168,18 +179,10 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
     );
   }
 
-  Color _markerColor(int index) {
-    const palette = [
-      Color(0xFF1E88E5),
-      Color(0xFF43A047),
-      Color(0xFFFB8C00),
-      Color(0xFF8E24AA),
-      Color(0xFF00897B),
-      Color(0xFFD81B60),
-      Color(0xFF6D4C41),
-      Color(0xFF3949AB),
-    ];
-    return palette[index % palette.length];
+  Color _markerColor(DeliveryActivoModel item, int index) {
+    final custom = parseDeliveryMarkerColor(item.colorMarcador);
+    if (custom != null) return custom;
+    return _palette[index % _palette.length];
   }
 
   @override
@@ -303,11 +306,17 @@ class _DeliveryActivoCard extends StatelessWidget {
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 6),
         leading: CircleAvatar(
+          radius: 26,
           backgroundColor: theme.colorScheme.secondary.withValues(alpha: 0.16),
-          child: Icon(
-            _vehiculoIcon(item.tipoVehiculo),
-            color: theme.colorScheme.secondary,
-          ),
+          backgroundImage: item.avatarUrl?.isNotEmpty == true
+              ? NetworkImage(item.avatarUrl!)
+              : null,
+          child: item.avatarUrl?.isNotEmpty == true
+              ? null
+              : Icon(
+                  _vehiculoIcon(item.tipoVehiculo),
+                  color: theme.colorScheme.secondary,
+                ),
         ),
         title: Row(
           children: [
@@ -365,6 +374,11 @@ class _DeliveryActivoCard extends StatelessWidget {
                   'Disponible',
                   green: true,
                 ),
+                if (parseDeliveryMarkerColor(item.colorMarcador) != null)
+                  _colorChip(
+                    theme,
+                    parseDeliveryMarkerColor(item.colorMarcador)!,
+                  ),
               ],
             ),
           ],
@@ -394,6 +408,39 @@ class _DeliveryActivoCard extends StatelessWidget {
           const SizedBox(width: 5),
           Text(
             label,
+            style: TextStyle(
+              color: color,
+              fontWeight: FontWeight.w800,
+              fontSize: 12,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _colorChip(ThemeData theme, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+          const SizedBox(width: 5),
+          Text(
+            'Marcador',
             style: TextStyle(
               color: color,
               fontWeight: FontWeight.w800,
