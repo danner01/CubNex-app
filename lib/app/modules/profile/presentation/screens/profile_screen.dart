@@ -242,6 +242,12 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
       subtitle: 'Avisos, pedidos, promociones y mensajes del sistema.',
       onTap: () => context.go(AppRoutes.notifications),
     ),
+    _ProfileTile(
+      icon: Icons.support_agent_rounded,
+      title: 'Tickets de soporte',
+      subtitle: 'Reporta un problema con una captura y sigue su estado.',
+      onTap: () => context.go(AppRoutes.supportTickets),
+    ),
   ];
 
   return switch (mode) {

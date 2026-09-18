@@ -43,6 +43,7 @@ import '../../modules/scanner/presentation/screens/scan_history_screen.dart';
 import '../../modules/search/presentation/screens/search_screen.dart';
 import '../../modules/service/data/models/asset_detail_model.dart';
 import '../../modules/service/presentation/screens/asset_detail_screen.dart';
+import '../../modules/support_tickets/presentation/screens/support_tickets_screen.dart';
 import '../../modules/transport/presentation/screens/transport_screen.dart';
 import '../../modules/wizard/presentation/screens/business_wizard_screen.dart';
 import 'app_routes.dart';
@@ -319,6 +320,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.deliveryNearby,
             builder: (_, __) => const DeliveryNearbyScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.supportTickets,
+            builder: (_, __) => const SupportTicketsScreen(),
           ),
         ],
       ),

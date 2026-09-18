@@ -25,7 +25,7 @@ lib/app/
     product/
     service/
     business_directory/
-    advertising/
+    advertising/   # (esqueleto vacío - PLANIFICADO, NO IMPLEMENTADO)
     favorites/
     notifications/
     review_rating/

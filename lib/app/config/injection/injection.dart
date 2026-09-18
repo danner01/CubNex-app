@@ -38,6 +38,7 @@ import '../../modules/delivery/blocs/delivery/delivery_cubit.dart';
 import '../../modules/home/blocs/home/home_cubit.dart';
 import '../../modules/menus/blocs/menus/menus_cubit.dart';
 import '../../modules/notifications/blocs/notifications/notifications_cubit.dart';
+import '../../modules/support_tickets/blocs/support_tickets/support_tickets_cubit.dart';
 import '../../modules/orders/blocs/cart/cart_cubit.dart';
 import '../../modules/orders/blocs/orders/orders_cubit.dart';
 import '../../modules/product/blocs/product_detail/product_detail_cubit.dart';
@@ -115,6 +116,7 @@ Future<void> configureDependencies() async {
     ..registerFactory(
       () => NotificationsCubit(apiClient: sl(), pushNotificationService: sl()),
     )
+    ..registerFactory(() => SupportTicketsCubit(apiClient: sl()))
     ..registerFactory(() => SearchCubit(apiClient: sl()))
     ..registerFactory(() => ProductDetailCubit(apiClient: sl()))
     ..registerFactory(() => PostsCubit(apiClient: sl()))

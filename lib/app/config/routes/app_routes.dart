@@ -50,6 +50,7 @@ class AppRoutes {
   static const deliveryHistory = '/delivery/history';
   static const deliveryProfile = '/delivery/profile';
   static const deliveryNearby = '/delivery/nearby';
+  static const supportTickets = '/soporte/tickets';
 
   static String product(String id) => '/product/$id';
   static String store(String id) => '/store/$id';
