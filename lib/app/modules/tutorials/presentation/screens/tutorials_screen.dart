@@ -35,14 +35,6 @@ class _TutorialsScreenState extends State<TutorialsScreen> {
     setState(() {});
   }
 
-  String _modeLabel(RoleMode mode) {
-    return switch (mode) {
-      RoleMode.client => 'cliente',
-      RoleMode.business => 'negocio',
-      RoleMode.delivery => 'delivery',
-    };
-  }
-
   @override
   Widget build(BuildContext context) {
     final colorScheme = Theme.of(context).colorScheme;
@@ -97,7 +89,7 @@ class _TutorialsScreenState extends State<TutorialsScreen> {
           const SizedBox(height: 18),
           if (roleTutorials.isNotEmpty) ...[
             _SectionHeader(
-              title: 'Tutoriales de tu rol de $_modeLabel(activeMode)',
+              title: 'Tutoriales de tu rol',
               icon: Icons.badge_outlined,
             ),
             const SizedBox(height: 8),
