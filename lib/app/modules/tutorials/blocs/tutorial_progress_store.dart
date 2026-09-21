@@ -51,7 +51,16 @@ class TutorialProgressStore {
   }
 
   void _onRouteChanged() {
-    final location = _router?.state.matchedLocation ?? '';
+    final router = _router;
+    if (router == null) return;
+    String? location;
+    try {
+      location = router.state.matchedLocation;
+    } catch (_) {
+      // El router aun no ha completado su primera navegacion (lista de
+      // matches vacia); al navegar volvera a notificar con estado real.
+      return;
+    }
     if (location.isEmpty) return;
     registerLocation(location);
   }

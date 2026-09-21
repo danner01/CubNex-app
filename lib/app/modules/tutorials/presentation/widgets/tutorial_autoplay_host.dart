@@ -37,7 +37,15 @@ class _TutorialAutoplayHostState extends State<TutorialAutoplayHost> {
 
   void _onOfferChanged() {
     if (!mounted) return;
-    setState(() => _offer = _store.pendingOffer.value);
+    final value = _store.pendingOffer.value;
+    if (identical(_offer, value)) return;
+    // La oferta puede cambiar al navegar mientras se construye una ruta;
+    // diferimos el repaint para evitar setState durante el build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (identical(_offer, value)) return;
+      setState(() => _offer = value);
+    });
   }
 
   void _watchGuide() {
