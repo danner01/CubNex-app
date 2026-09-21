@@ -91,6 +91,34 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     return geo.Geolocator.getCurrentPosition();
   }
 
+  Future<void> _locateCurrentPosition() async {
+    final position = await _currentPosition();
+    if (!mounted || position == null) return;
+    setState(() {
+      _myLat = position.latitude;
+      _myLng = position.longitude;
+    });
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(position.longitude, position.latitude),
+        ),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 600),
+    );
+    await _refresh();
+  }
+
+  void _onFocusLocation(double lat, double lng) {
+    if (!mounted) return;
+    setState(() {
+      _myLat = lat;
+      _myLng = lng;
+    });
+    unawaited(_refresh());
+  }
+
   Future<void> _refresh() async {
     if (_refreshing) return;
     _refreshing = true;
@@ -140,6 +168,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
 
   void _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
+    if (mounted) setState(() {});
     _routeManager = await mapboxMap.annotations
         .createPolylineAnnotationManager();
     _pointManager = await mapboxMap.annotations
@@ -378,13 +407,24 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 borderRadius: BorderRadius.circular(24),
                 child: SizedBox(
                   height: 340,
-                  child: MapWidget(
-                    // ignore: deprecated_member_use
-                    cameraOptions: CameraOptions(
-                      center: mapCenter,
-                      zoom: 12,
-                    ),
-                    onMapCreated: _onMapCreated,
+                  child: Stack(
+                    children: [
+                      MapWidget(
+                        // ignore: deprecated_member_use
+                        cameraOptions: CameraOptions(
+                          center: mapCenter,
+                          zoom: 12,
+                        ),
+                        onMapCreated: _onMapCreated,
+                      ),
+                      if (_mapboxMap != null)
+                        DeliveryMapSearchOverlay(
+                          mapboxMap: _mapboxMap!,
+                          label: 'Buscar direccion en el mapa...',
+                          onFocusLocation: _onFocusLocation,
+                          onUseCurrentLocation: _locateCurrentPosition,
+                        ),
+                    ],
                   ),
                 ),
               ),

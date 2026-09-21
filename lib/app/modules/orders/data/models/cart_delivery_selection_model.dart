@@ -6,6 +6,11 @@ class CartDeliverySelection {
     this.assignmentMode = 'manual',
     this.province,
     this.municipality,
+    this.deliveryPerfilId,
+    this.email,
+    this.telefono,
+    this.tipoVehiculo,
+    this.calificacion,
   });
 
   final String deliveryBusinessId;
@@ -14,6 +19,11 @@ class CartDeliverySelection {
   final String assignmentMode;
   final String? province;
   final String? municipality;
+  final String? deliveryPerfilId;
+  final String? email;
+  final String? telefono;
+  final String? tipoVehiculo;
+  final double? calificacion;
 
   CartDeliverySelection copyWith({
     String? deliveryBusinessId,
@@ -22,6 +32,11 @@ class CartDeliverySelection {
     String? assignmentMode,
     String? province,
     String? municipality,
+    String? deliveryPerfilId,
+    String? email,
+    String? telefono,
+    String? tipoVehiculo,
+    double? calificacion,
   }) {
     return CartDeliverySelection(
       deliveryBusinessId: deliveryBusinessId ?? this.deliveryBusinessId,
@@ -30,6 +45,11 @@ class CartDeliverySelection {
       assignmentMode: assignmentMode ?? this.assignmentMode,
       province: province ?? this.province,
       municipality: municipality ?? this.municipality,
+      deliveryPerfilId: deliveryPerfilId ?? this.deliveryPerfilId,
+      email: email ?? this.email,
+      telefono: telefono ?? this.telefono,
+      tipoVehiculo: tipoVehiculo ?? this.tipoVehiculo,
+      calificacion: calificacion ?? this.calificacion,
     );
   }
 
@@ -41,6 +61,11 @@ class CartDeliverySelection {
       'assignment_mode': assignmentMode,
       'province': province,
       'municipality': municipality,
+      'delivery_perfil_id': deliveryPerfilId,
+      'email': email,
+      'telefono': telefono,
+      'tipo_vehiculo': tipoVehiculo,
+      'calificacion': calificacion,
     };
   }
 
@@ -52,6 +77,11 @@ class CartDeliverySelection {
       assignmentMode: '${json['assignment_mode'] ?? 'manual'}',
       province: json['province']?.toString(),
       municipality: json['municipality']?.toString(),
+      deliveryPerfilId: json['delivery_perfil_id']?.toString(),
+      email: json['email']?.toString(),
+      telefono: json['telefono']?.toString(),
+      tipoVehiculo: json['tipo_vehiculo']?.toString(),
+      calificacion: (json['calificacion'] as num?)?.toDouble(),
     );
   }
 }

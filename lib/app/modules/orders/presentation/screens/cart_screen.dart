@@ -379,6 +379,44 @@ class _CartViewState extends State<_CartView> {
     final api = sl<ApiClient>();
     final byId = <String, CartDeliverySelection>{};
 
+    final repartidoresResult = await api.get<List<Map<String, dynamic>>>(
+      '/repartidores',
+      queryParameters: const {'solo_disponibles': 'true', 'limit': 200},
+      parser: (json) {
+        if (json is! List) return const <Map<String, dynamic>>[];
+        return json
+            .whereType<Map>()
+            .map((item) => Map<String, dynamic>.from(item))
+            .toList();
+      },
+    );
+    if (repartidoresResult.isSuccess) {
+      for (final perfil in repartidoresResult.data ?? const <Map<String, dynamic>>[]) {
+        final perfilId = '${perfil['id'] ?? ''}';
+        if (perfilId.isEmpty) continue;
+        final nombre = '${perfil['nombre'] ?? ''}';
+        final negocioId = '${perfil['negocio_id'] ?? ''}';
+        final tieId = 'repartidor:$perfilId';
+        byId.putIfAbsent(
+          tieId,
+          () => CartDeliverySelection(
+            deliveryBusinessId: negocioId.isNotEmpty && negocioId != 'null' ? negocioId : tieId,
+            deliveryBusinessName: nombre.isEmpty
+                ? 'Repartidor ${_shortId(perfilId)}'
+                : nombre,
+            source: 'repartidor',
+            province: perfil['negocio_provincia']?.toString(),
+            municipality: perfil['negocio_municipio']?.toString(),
+            deliveryPerfilId: perfilId,
+            email: perfil['email']?.toString(),
+            telefono: perfil['telefono']?.toString(),
+            tipoVehiculo: perfil['tipo_vehiculo']?.toString(),
+            calificacion: (perfil['calificacion_promedio'] as num?)?.toDouble(),
+          ),
+        );
+      }
+    }
+
     if (activeBusinessId != null && activeBusinessId.isNotEmpty) {
       final connectedResult = await api.get<List<BusinessConnectionModel>>(
         '/red-negocios',
@@ -410,12 +448,15 @@ class _CartViewState extends State<_CartView> {
               business?.name ??
               connection.notes ??
               'Delivery conectado ${_shortId(connection.connectedBusinessId)}';
-          byId[connection.connectedBusinessId] = CartDeliverySelection(
-            deliveryBusinessId: connection.connectedBusinessId,
-            deliveryBusinessName: name,
-            source: 'conexion',
-            province: business?.province,
-            municipality: business?.municipality,
+          byId.putIfAbsent(
+            connection.connectedBusinessId,
+            () => CartDeliverySelection(
+              deliveryBusinessId: connection.connectedBusinessId,
+              deliveryBusinessName: name,
+              source: 'conexion',
+              province: business?.province,
+              municipality: business?.municipality,
+            ),
           );
         }
       }
@@ -455,7 +496,8 @@ class _CartViewState extends State<_CartView> {
         if (a.source == b.source) {
           return a.deliveryBusinessName.compareTo(b.deliveryBusinessName);
         }
-        return a.source == 'conexion' ? -1 : 1;
+        const priority = {'repartidor': 0, 'conexion': 1, 'sistema': 2};
+        return (priority[a.source] ?? 9).compareTo(priority[b.source] ?? 9);
       });
   }
 
@@ -483,6 +525,7 @@ class _CartViewState extends State<_CartView> {
           targetProvince == candidateProvince) {
         return 1;
       }
+      if (candidate.source == 'repartidor') return 0;
       if (candidate.source == 'conexion') return 2;
       return 3;
     }
@@ -1081,10 +1124,22 @@ class _DeliverySelectionSheetState extends State<_DeliverySelectionSheet> {
                             : Theme.of(context).dividerColor,
                       ),
                     ),
-                    leading: Icon(
-                      candidate.source == 'conexion'
-                          ? Icons.hub_outlined
-                          : Icons.public_rounded,
+                    leading: CircleAvatar(
+                      radius: 20,
+                      backgroundColor: candidate.source == 'repartidor'
+                          ? Theme.of(context).colorScheme.secondaryContainer
+                          : Theme.of(context).colorScheme.surfaceContainerHighest,
+                      child: Icon(
+                        candidate.source == 'repartidor'
+                            ? Icons.delivery_dining_rounded
+                            : (candidate.source == 'conexion'
+                                ? Icons.hub_outlined
+                                : Icons.public_rounded),
+                        size: 22,
+                        color: candidate.source == 'repartidor'
+                            ? Theme.of(context).colorScheme.onSecondaryContainer
+                            : Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
                     ),
                     title: Text(
                       candidate.deliveryBusinessName,
@@ -1092,9 +1147,22 @@ class _DeliverySelectionSheetState extends State<_DeliverySelectionSheet> {
                       overflow: TextOverflow.ellipsis,
                     ),
                     subtitle: Text(
-                      candidate.source == 'conexion'
-                          ? 'Conectado a tu negocio'
-                          : 'Disponible en el sistema',
+                      candidate.source == 'repartidor'
+                          ? [
+                              if (candidate.tipoVehiculo?.trim().isNotEmpty == true)
+                                candidate.tipoVehiculo!.trim(),
+                              if (candidate.calificacion != null &&
+                                  candidate.calificacion! > 0)
+                                '★ ${candidate.calificacion!.toStringAsFixed(1)}',
+                              ...(candidate.email?.trim().isNotEmpty == true
+                                  ? [candidate.email!.trim()]
+                                  : []),
+                            ].join(' · ')
+                          : (candidate.source == 'conexion'
+                              ? 'Conectado a tu negocio'
+                              : 'Disponible en el sistema'),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
                     trailing: selected
                         ? Icon(

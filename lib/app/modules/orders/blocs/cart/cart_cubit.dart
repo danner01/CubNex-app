@@ -341,6 +341,8 @@ class CartCubit extends Cubit<CartState> {
                   'negocio_id': deliverySelection.deliveryBusinessId,
                   'nombre': deliverySelection.deliveryBusinessName,
                   'origen': deliverySelection.source,
+                  if (deliverySelection.deliveryPerfilId != null)
+                    'delivery_id': deliverySelection.deliveryPerfilId,
                 },
             },
         },
@@ -415,6 +417,8 @@ class CartCubit extends Cubit<CartState> {
                 'negocio_id': deliverySelection.deliveryBusinessId,
                 'nombre': deliverySelection.deliveryBusinessName,
                 'origen': deliverySelection.source,
+                if (deliverySelection.deliveryPerfilId != null)
+                  'delivery_id': deliverySelection.deliveryPerfilId,
               },
             if (discountCode?.trim().isNotEmpty == true)
               'codigo_descuento': discountCode!.trim(),

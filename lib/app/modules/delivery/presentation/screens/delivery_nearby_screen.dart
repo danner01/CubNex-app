@@ -81,6 +81,34 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
     return geo.Geolocator.getCurrentPosition();
   }
 
+  Future<void> _locateCurrentPosition() async {
+    final position = await _currentPosition();
+    if (!mounted || position == null) return;
+    setState(() {
+      _myLat = position.latitude;
+      _myLng = position.longitude;
+    });
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(position.longitude, position.latitude),
+        ),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 600),
+    );
+    await _refresh();
+  }
+
+  void _onFocusLocation(double lat, double lng) {
+    if (!mounted) return;
+    setState(() {
+      _myLat = lat;
+      _myLng = lng;
+    });
+    unawaited(_refresh());
+  }
+
   Future<void> _refresh() async {
     if (_refreshing) return;
     _refreshing = true;
@@ -131,6 +159,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
 
   void _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
+    if (mounted) setState(() {});
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
     _pointManager?.setIconAllowOverlap(true);
     await _syncMarkers(initial: true);
@@ -143,6 +172,24 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
 
     var minLat = double.infinity, maxLat = double.negativeInfinity;
     var minLng = double.infinity, maxLng = double.negativeInfinity;
+    final hasMyPosition = _myLat != null && _myLng != null;
+    if (hasMyPosition) {
+      await manager.create(
+        PointAnnotationOptions(
+          geometry: Point(
+            coordinates: Position(_myLng!, _myLat!),
+          ),
+          iconImage: 'marker',
+          iconColor: const Color(0xFF00ACC1).toARGB32(),
+          iconSize: 1.45,
+          iconAnchor: IconAnchor.BOTTOM,
+          textField: 'Tu',
+          textColor: const Color(0xFF006064).toARGB32(),
+          textSize: 12,
+        ),
+      );
+    }
+
     final items = List<DeliveryActivoModel>.from(_items);
     for (var i = 0; i < items.length; i++) {
       final item = items[i];
@@ -166,7 +213,6 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
 
     if (!initial) return;
     _didInitialCamera = true;
-    final hasMyPosition = _myLat != null && _myLng != null;
     if (!hasMyPosition && minLng.isInfinite) return;
     final center = hasMyPosition
         ? Point(coordinates: Position(_myLng!, _myLat!))
@@ -243,15 +289,28 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
                       color: Color(0xFFE8EAED),
                       child: Center(child: CircularProgressIndicator()),
                     )
-                  : MapWidget(
-                      // ignore: deprecated_member_use
-                      cameraOptions: CameraOptions(
-                        center: _myLat != null && _myLng != null
-                            ? Point(coordinates: Position(_myLng!, _myLat!))
-                            : Point(coordinates: _defaultCenter),
-                        zoom: 12,
-                      ),
-                      onMapCreated: _onMapCreated,
+                  : Stack(
+                      children: [
+                        MapWidget(
+                          // ignore: deprecated_member_use
+                          cameraOptions: CameraOptions(
+                            center: _myLat != null && _myLng != null
+                                ? Point(
+                                    coordinates: Position(_myLng!, _myLat!),
+                                  )
+                                : Point(coordinates: _defaultCenter),
+                            zoom: 12,
+                          ),
+                          onMapCreated: _onMapCreated,
+                        ),
+                        if (_mapboxMap != null)
+                          DeliveryMapSearchOverlay(
+                            mapboxMap: _mapboxMap!,
+                            label: 'Buscar direccion en el mapa...',
+                            onFocusLocation: _onFocusLocation,
+                            onUseCurrentLocation: _locateCurrentPosition,
+                          ),
+                      ],
                     ),
             ),
           ),
