@@ -248,6 +248,12 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
       subtitle: 'Reporta un problema con una captura y sigue su estado.',
       onTap: () => context.go(AppRoutes.supportTickets),
     ),
+    _ProfileTile(
+      icon: Icons.school_outlined,
+      title: 'Tutoriales',
+      subtitle: 'Guia paso a paso de las funciones de tu cuenta.',
+      onTap: () => context.go(AppRoutes.tutorials),
+    ),
   ];
 
   return switch (mode) {

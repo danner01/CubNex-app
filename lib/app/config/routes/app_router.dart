@@ -45,6 +45,7 @@ import '../../modules/service/data/models/asset_detail_model.dart';
 import '../../modules/service/presentation/screens/asset_detail_screen.dart';
 import '../../modules/support_tickets/presentation/screens/support_tickets_screen.dart';
 import '../../modules/transport/presentation/screens/transport_screen.dart';
+import '../../modules/tutorials/presentation/screens/tutorials_screen.dart';
 import '../../modules/wizard/presentation/screens/business_wizard_screen.dart';
 import 'app_routes.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
@@ -324,6 +325,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.supportTickets,
             builder: (_, __) => const SupportTicketsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.tutorials,
+            builder: (_, __) => const TutorialsScreen(),
           ),
         ],
       ),

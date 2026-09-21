@@ -16,17 +16,19 @@ import 'config/routes/app_routes.dart';
 import 'config/theme/app_theme.dart';
 import 'modules/credits/blocs/credits_cubit.dart';
 import 'modules/orders/blocs/cart/cart_cubit.dart';
+import 'modules/tutorials/blocs/tutorial_progress_store.dart';
+import 'modules/tutorials/presentation/widgets/tutorial_autoplay_host.dart';
 
 class ConKkaoApp extends StatelessWidget {
   const ConKkaoApp({super.key});
 
   @override
   Widget build(BuildContext context) {
-    final router = createAppRouter(
-      sl<AppSessionCubit>(),
-      sl<RoleModeCubit>(),
-    );
+    final router = createAppRouter(sl<AppSessionCubit>(), sl<RoleModeCubit>());
     DeepLinkService.instance.initialize(router);
+    final tutorialStore = sl<TutorialProgressStore>();
+    tutorialStore.load();
+    tutorialStore.attachRouter(router);
 
     return MultiBlocProvider(
       providers: [
@@ -122,6 +124,8 @@ class ConKkaoApp extends StatelessWidget {
               darkTheme: AppTheme.dark,
               themeMode: themeMode,
               routerConfig: router,
+              builder: (context, child) =>
+                  TutorialAutoplayHost(child: child ?? const SizedBox.shrink()),
             );
           },
         ),

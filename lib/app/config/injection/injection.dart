@@ -52,6 +52,7 @@ import '../../modules/scanner/blocs/scanner/scanner_cubit.dart';
 import '../../modules/search/blocs/search/search_cubit.dart';
 import '../../modules/service/blocs/asset_detail/asset_detail_cubit.dart';
 import '../../modules/transport/blocs/transport/transport_cubit.dart';
+import '../../modules/tutorials/blocs/tutorial_progress_store.dart';
 import '../../modules/wizard/blocs/business_wizard/business_wizard_cubit.dart';
 import '../environment/app_environment.dart';
 import '../http/api_client.dart';
@@ -140,6 +141,9 @@ Future<void> configureDependencies() async {
     ..registerFactory(() => OrdersCubit(apiClient: sl()))
     ..registerLazySingleton(() => DeliveryAcceptedStore())
     ..registerFactory(() => DeliveryCubit(apiClient: sl(), acceptedStore: sl()))
+    ..registerLazySingleton(
+      () => TutorialProgressStore(sharedPreferences: sl()),
+    )
     ..registerFactory(() => ScannerCubit(apiClient: sl()))
     ..registerFactory(() => ScanHistoryCubit(apiClient: sl()))
     ..registerFactory(() => BusinessDashboardCubit(apiClient: sl()))
