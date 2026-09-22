@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../config/injection/injection.dart';
 import '../../services/apk_download_service.dart';
@@ -21,11 +22,21 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
   bool _downloading = false;
   bool _completed = false;
   String? _error;
+  String? _installedVersion;
 
   @override
   void initState() {
     super.initState();
+    _loadInstalledVersion();
     _startDownload();
+  }
+
+  Future<void> _loadInstalledVersion() async {
+    final info = await PackageInfo.fromPlatform();
+    final build = info.buildNumber.trim();
+    final value = build.isEmpty ? info.version : '${info.version}+$build';
+    if (!mounted) return;
+    setState(() => _installedVersion = value);
   }
 
   Future<void> _startDownload() async {
@@ -156,28 +167,34 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
             ],
           ),
           const SizedBox(height: 16),
-          if (widget.update.notes != null && widget.update.notes!.isNotEmpty) ...[
-            Text(
-              'Cambios en esta version:',
-              style: Theme.of(context).textTheme.labelLarge?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: Theme.of(context).colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(8),
             ),
-            const SizedBox(height: 6),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Theme.of(context).colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Text(
-                widget.update.notes!,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Version instalada: ${_installedVersion ?? '...'}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Version destino: ${widget.update.version}',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: Theme.of(context).colorScheme.primary,
+                      ),
+                ),
+              ],
             ),
-            const SizedBox(height: 16),
-          ],
+          ),
+          const SizedBox(height: 16),
           if (_error != null) ...[
             Container(
               width: double.infinity,
