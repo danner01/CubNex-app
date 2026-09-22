@@ -1,4 +1,6 @@
 import 'dart:async';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -172,6 +174,155 @@ Color? parseDeliveryMarkerColor(Object? hex) {
 Color readableDeliveryMarkerIconColor(Color background) {
   final luminance = background.computeLuminance();
   return luminance > 0.45 ? Colors.black : Colors.white;
+}
+
+const int _deliveryMarkerIconSize = 72;
+
+final Map<String, String> _deliveryMarkerIconCache = {};
+
+String _deliveryMarkerIconKey(Color color, String? vehicle) {
+  final vehicleKey = (vehicle ?? 'delivery').trim().toLowerCase();
+  final colorKey = color.toARGB32().toRadixString(16).padLeft(8, '0');
+  return 'del_marker_${vehicleKey}_$colorKey';
+}
+
+/// Genera y registra en el estilo del mapa un icono de repartidor con el
+/// color configurado en su perfil y el glifo del vehiculo. Devuelve el id
+/// del icono para usarlo en `iconImage`, o null si no pudo registrarlo.
+Future<String?> ensureDeliveryMarkerIcon(
+  MapboxMap map,
+  Color color,
+  String? vehicle,
+) async {
+  final key = _deliveryMarkerIconKey(color, vehicle);
+  final cached = _deliveryMarkerIconCache[key];
+  if (cached != null) {
+    await _tryRestoreStyleImage(map, key);
+    return key;
+  }
+
+  final rgba = await _buildDeliveryMarkerPng(color, vehicle);
+  if (rgba == null) return null;
+  _deliveryMarkerIconPngCache[key] = rgba;
+
+  try {
+    await map.style.addStyleImage(
+      key,
+      1.0,
+      MbxImage(
+        width: _deliveryMarkerIconSize,
+        height: _deliveryMarkerIconSize,
+        data: _premultiplyRgba(rgba),
+      ),
+      false,
+      const [],
+      const [],
+      null,
+    );
+  } catch (_) {
+    return null;
+  }
+  _deliveryMarkerIconCache[key] = key;
+  return key;
+}
+
+/// Re-registra el icono por si el estilo del mapa se recargo (por ejemplo al
+/// reconstruirse el mapa) y la imagen quedo fuera de el.
+Future<void> _tryRestoreStyleImage(MapboxMap map, String key) async {
+  if (_deliveryMarkerIconCache.isEmpty) return;
+  try {
+    await map.style.addStyleImage(
+      key,
+      1.0,
+      MbxImage(
+        width: _deliveryMarkerIconSize,
+        height: _deliveryMarkerIconSize,
+        data: _deliveryMarkerIconPngCache[key] ?? _emptyMarkerPng(),
+      ),
+      false,
+      const [],
+      const [],
+      null,
+    );
+  } catch (_) {
+    // La imagen ya existe en el estilo: sin problema.
+  }
+}
+
+final Map<String, Uint8List> _deliveryMarkerIconPngCache = {};
+
+Uint8List _emptyMarkerPng() => Uint8List(
+  _deliveryMarkerIconSize * _deliveryMarkerIconSize * 4,
+);
+
+Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final center = _deliveryMarkerIconSize / 2;
+  final radius = _deliveryMarkerIconSize * 0.42;
+
+  canvas.drawCircle(
+    Offset(center, center),
+    radius + 5,
+    Paint()
+      ..color = color.withValues(alpha: 0.35)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
+  );
+  canvas.drawCircle(Offset(center, center), radius, Paint()..color = color);
+  canvas.drawCircle(
+    Offset(center, center),
+    radius,
+    Paint()
+      ..color = Colors.white
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 4,
+  );
+
+  final icon = deliveryVehicleIcon(vehicle);
+  final textPainter = TextPainter(
+    text: TextSpan(
+      text: String.fromCharCode(icon.codePoint),
+      style: TextStyle(
+        fontFamily: icon.fontFamily ?? 'MaterialIcons',
+        package: icon.fontPackage,
+        fontSize: _deliveryMarkerIconSize * 0.46,
+        color: readableDeliveryMarkerIconColor(color),
+      ),
+    ),
+    textDirection: TextDirection.ltr,
+    textAlign: TextAlign.center,
+  )..layout();
+  textPainter.paint(
+    canvas,
+    Offset(center - textPainter.width / 2, center - textPainter.height / 2),
+  );
+
+  final image = await recorder.endRecording().toImage(
+    _deliveryMarkerIconSize,
+    _deliveryMarkerIconSize,
+  );
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  image.dispose();
+  if (byteData == null) return null;
+  return byteData.buffer.asUint8List();
+}
+
+Uint8List _premultiplyRgba(Uint8List rgba) {
+  final out = Uint8List(rgba.length);
+  for (var i = 0; i + 3 < rgba.length; i += 4) {
+    final alpha = rgba[i + 3];
+    out[i + 3] = alpha;
+    if (alpha == 255) {
+      out[i] = rgba[i];
+      out[i + 1] = rgba[i + 1];
+      out[i + 2] = rgba[i + 2];
+    } else {
+      out[i] = (rgba[i] * alpha) ~/ 255;
+      out[i + 1] = (rgba[i + 1] * alpha) ~/ 255;
+      out[i + 2] = (rgba[i + 2] * alpha) ~/ 255;
+    }
+  }
+  return out;
 }
 
 class DeliveryActionData {

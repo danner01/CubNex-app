@@ -200,11 +200,17 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
       if (lat > maxLat) maxLat = lat;
       if (lng < minLng) minLng = lng;
       if (lng > maxLng) maxLng = lng;
+      final color = _markerColor(item, i);
+      final iconId = await ensureDeliveryMarkerIcon(
+        _mapboxMap!,
+        color,
+        item.tipoVehiculo,
+      );
       await manager.create(
         PointAnnotationOptions(
           geometry: Point(coordinates: Position(lng, lat)),
-          iconImage: 'marker',
-          iconColor: _markerColor(item, i).toARGB32(),
+          iconImage: iconId ?? 'marker',
+          iconColor: iconId == null ? color.toARGB32() : null,
           iconSize: 1.15,
           iconAnchor: IconAnchor.BOTTOM,
         ),

@@ -10,6 +10,7 @@ import '../../../../config/injection/injection.dart';
 import '../../blocs/delivery/delivery_accepted_store.dart';
 import '../../data/models/delivery_activo_model.dart';
 import '../../data/models/delivery_entrega_model.dart';
+import '../../data/stores/delivery_manual_route_store.dart';
 import '../widgets/delivery_common.dart';
 
 class DeliveryRouteScreen extends StatefulWidget {
@@ -50,6 +51,10 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   PointAnnotationManager? _pointManager;
   PolylineAnnotationManager? _routeManager;
 
+  bool _manualMode = false;
+  bool _saving = false;
+  final List<List<double>> _manualWaypoints = [];
+
   @override
   void initState() {
     super.initState();
@@ -64,7 +69,142 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _mapboxMap?.setOnMapTapListener(null);
     super.dispose();
+  }
+
+  void _toggleManualMode(bool active) {
+    setState(() => _manualMode = active);
+    final map = _mapboxMap;
+    if (map == null) return;
+    map.setOnMapTapListener(active ? _onManualTap : null);
+    unawaited(_syncAll(initial: false));
+  }
+
+  void _onManualTap(MapContentGestureContext gestureContext) {
+    if (!_manualMode) return;
+    if (_manualWaypoints.length >= 20) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Maximo 20 paradas por ruta.')),
+      );
+      return;
+    }
+    final coordinates = gestureContext.point.coordinates;
+    final lng = coordinates.lng.toDouble();
+    final lat = coordinates.lat.toDouble();
+    setState(() => _manualWaypoints.add([lng, lat]));
+    unawaited(_syncAll(initial: false));
+  }
+
+  void _undoWaypoint() {
+    if (_manualWaypoints.isEmpty) return;
+    setState(() => _manualWaypoints.removeLast());
+    unawaited(_syncAll(initial: false));
+  }
+
+  void _clearWaypoints() {
+    if (_manualWaypoints.isEmpty) return;
+    setState(() => _manualWaypoints.clear());
+    unawaited(_syncAll(initial: false));
+  }
+
+  Future<String?> _promptRouteName() async {
+    final controller = TextEditingController();
+    final name = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Guardar ruta'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          textCapitalization: TextCapitalization.sentences,
+          decoration: const InputDecoration(
+            labelText: 'Nombre de la ruta',
+            hintText: 'Ej: Entrega zona centro',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () =>
+                Navigator.of(dialogContext).pop(controller.text.trim()),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    return name;
+  }
+
+  Future<void> _saveManualRoute() async {
+    if (_manualWaypoints.length < 2 || _saving) return;
+    final name = await _promptRouteName();
+    if (name == null || name.isEmpty || !mounted) return;
+    setState(() => _saving = true);
+    try {
+      final routes = await DeliveryManualRouteStore.load();
+      routes.add(
+        DeliveryManualRoute(
+          name: name,
+          points: _manualWaypoints
+              .map((point) => List<double>.from(point))
+              .toList(),
+        ),
+      );
+      await DeliveryManualRouteStore.save(routes);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Ruta guardada correctamente.')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
+
+  Future<void> _openSavedRoutes() async {
+    final routes = await DeliveryManualRouteStore.load();
+    if (!mounted) return;
+    if (routes.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Aun no tienes rutas guardadas.')),
+      );
+      return;
+    }
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) => _SavedRoutesSheet(
+        routes: routes,
+        onSelect: (route) {
+          setState(() {
+            _manualWaypoints
+              ..clear()
+              ..addAll(
+                route.points
+                    .map((point) => List<double>.from(point))
+                    .toList(),
+              );
+            _manualMode = true;
+          });
+          _mapboxMap?.setOnMapTapListener(_onManualTap);
+          Navigator.of(sheetContext).pop();
+          unawaited(_syncAll(initial: false));
+        },
+        onDelete: (route) async {
+          final updated = routes.where((item) => item != route).toList();
+          await DeliveryManualRouteStore.save(updated);
+          if (sheetContext.mounted) {
+            Navigator.of(sheetContext).pop();
+            unawaited(_openSavedRoutes());
+          }
+        },
+      ),
+    );
   }
 
   Future<void> _boot() async {
@@ -175,6 +315,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
         .createPointAnnotationManager();
     _pointManager?.setIconAllowOverlap(true);
     _pointManager?.setTextAllowOverlap(true);
+    if (_manualMode) {
+      mapboxMap.setOnMapTapListener(_onManualTap);
+    }
     await _syncAll(initial: true);
   }
 
@@ -219,11 +362,17 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       final lng = item.ultimaUbicacion?.lng;
       if (lat == null || lng == null) continue;
       track(lat, lng);
+      final color = _markerColor(item, i);
+      final iconId = await ensureDeliveryMarkerIcon(
+        _mapboxMap!,
+        color,
+        item.tipoVehiculo,
+      );
       await pointManager.create(
         PointAnnotationOptions(
           geometry: Point(coordinates: Position(lng, lat)),
-          iconImage: 'marker',
-          iconColor: _markerColor(item, i).toARGB32(),
+          iconImage: iconId ?? 'marker',
+          iconColor: iconId == null ? color.toARGB32() : null,
           iconSize: 1.15,
           iconAnchor: IconAnchor.BOTTOM,
         ),
@@ -231,7 +380,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     }
 
     final entrega = sl<DeliveryAcceptedStore>().accepted.value;
-    if (entrega != null) {
+    if (_manualMode && _manualWaypoints.isNotEmpty) {
+      await _drawManualRoute(pointManager);
+    } else if (entrega != null) {
       final route = entrega.rutaCoordenadas;
       if (route != null && route.length >= 2) {
         await _routeManager?.create(
@@ -267,6 +418,20 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
 
     if (!initial || _didInitialCamera) return;
     _didInitialCamera = true;
+
+    if (_manualMode && _manualWaypoints.length >= 2) {
+      final center = _bboxCenter(_manualWaypoints);
+      if (center != null) {
+        await _mapboxMap?.flyTo(
+          CameraOptions(
+            center: Point(coordinates: Position(center[0], center[1])),
+            zoom: _zoomFor(_manualWaypoints),
+          ),
+          MapAnimationOptions(duration: 400),
+        );
+        return;
+      }
+    }
 
     if (entrega != null && entrega.rutaCoordenadas != null) {
       final routeCoords = entrega.rutaCoordenadas!;
@@ -313,6 +478,40 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       CameraOptions(center: Point(coordinates: _defaultCenter), zoom: 12),
       MapAnimationOptions(duration: 400),
     );
+  }
+
+  Future<void> _drawManualRoute(PointAnnotationManager pointManager) async {
+    if (_manualWaypoints.length >= 2) {
+      await _routeManager?.create(
+        PolylineAnnotationOptions(
+          geometry: LineString(
+            coordinates: _manualWaypoints
+                .map((point) => Position(point[0], point[1]))
+                .toList(),
+          ),
+          lineColor: const Color(0xFF6A1B9A).toARGB32(),
+          lineBorderColor: Colors.white.toARGB32(),
+          lineBorderWidth: 1.2,
+          lineWidth: 5,
+          lineOpacity: 0.9,
+        ),
+      );
+    }
+    for (var i = 0; i < _manualWaypoints.length; i++) {
+      final point = _manualWaypoints[i];
+      await pointManager.create(
+        PointAnnotationOptions(
+          geometry: Point(coordinates: Position(point[0], point[1])),
+          iconImage: 'marker',
+          iconColor: _myMarkerColor.toARGB32(),
+          iconSize: 1.25,
+          iconAnchor: IconAnchor.BOTTOM,
+          textField: '${i + 1}',
+          textColor: const Color(0xFF004D4D).toARGB32(),
+          textSize: 12,
+        ),
+      );
+    }
   }
 
   Future<void> _addMarker(List<double> point, Color color) async {
@@ -430,6 +629,17 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
               ),
               const SizedBox(height: 8),
               _MapLegendRow(showRoute: hasRouteOverlay),
+              const SizedBox(height: 8),
+              _ManualRouteControls(
+                active: _manualMode,
+                waypoints: _manualWaypoints.length,
+                saving: _saving,
+                onToggle: _toggleManualMode,
+                onUndo: _manualWaypoints.isEmpty ? null : _undoWaypoint,
+                onClear: _manualWaypoints.isEmpty ? null : _clearWaypoints,
+                onSave: _manualWaypoints.length < 2 ? null : _saveManualRoute,
+                onOpenRoutes: _openSavedRoutes,
+              ),
               const SizedBox(height: 16),
               Row(
                 children: [
@@ -876,4 +1086,223 @@ String _formatDistance(double? km) {
 String _formatMinutes(double minutes) {
   if (minutes < 1) return '${(minutes * 60).toStringAsFixed(0)} min';
   return '${minutes.toStringAsFixed(0)} min';
+}
+
+class _ManualRouteControls extends StatelessWidget {
+  const _ManualRouteControls({
+    required this.active,
+    required this.waypoints,
+    required this.saving,
+    required this.onToggle,
+    required this.onUndo,
+    required this.onClear,
+    required this.onSave,
+    required this.onOpenRoutes,
+  });
+
+  final bool active;
+  final int waypoints;
+  final bool saving;
+  final ValueChanged<bool> onToggle;
+  final VoidCallback? onUndo;
+  final VoidCallback? onClear;
+  final VoidCallback? onSave;
+  final VoidCallback onOpenRoutes;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            FilterChip(
+              selected: active,
+              avatar: Icon(
+                Icons.edit_road_rounded,
+                size: 18,
+                color: active
+                    ? Colors.white
+                    : theme.colorScheme.secondary,
+              ),
+              label: const Text('Ruta manual'),
+              labelStyle: TextStyle(
+                color: active ? Colors.white : null,
+                fontWeight: FontWeight.w800,
+              ),
+              selectedColor: theme.colorScheme.secondary,
+              checkmarkColor: Colors.white,
+              onSelected: onToggle,
+            ),
+            const SizedBox(width: 8),
+            OutlinedButton.icon(
+              onPressed: onOpenRoutes,
+              icon: const Icon(Icons.bookmarks_outlined, size: 18),
+              label: const Text('Mis rutas'),
+            ),
+          ],
+        ),
+        if (active) ...[
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionButton(
+                theme,
+                Icons.undo_rounded,
+                'Deshacer',
+                onUndo,
+                highlight: true,
+              ),
+              _actionButton(
+                theme,
+                Icons.delete_outline_rounded,
+                'Limpiar',
+                onClear,
+              ),
+              _actionButton(
+                theme,
+                Icons.save_outlined,
+                saving ? 'Guardando...' : 'Guardar',
+                onSave,
+                highlight: true,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            waypoints == 0
+                ? 'Toca el mapa para anadir paradas.'
+                : waypoints == 1
+                ? '1 parada. Toca el mapa para anadir otra.'
+                : '$waypoints paradas. La linea morada une las paradas en orden.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _actionButton(
+    ThemeData theme,
+    IconData icon,
+    String label,
+    VoidCallback? onPressed, {
+    bool highlight = false,
+  }) {
+    final color = highlight
+        ? theme.colorScheme.secondary.withValues(alpha: 0.12)
+        : theme.colorScheme.surfaceContainerHighest;
+    return Material(
+      color: color,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                icon,
+                size: 16,
+                color: onPressed == null
+                    ? theme.disabledColor
+                    : theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w800,
+                  color: onPressed == null
+                      ? theme.disabledColor
+                      : theme.colorScheme.secondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _SavedRoutesSheet extends StatelessWidget {
+  const _SavedRoutesSheet({
+    required this.routes,
+    required this.onSelect,
+    required this.onDelete,
+  });
+
+  final List<DeliveryManualRoute> routes;
+  final ValueChanged<DeliveryManualRoute> onSelect;
+  final ValueChanged<DeliveryManualRoute> onDelete;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+              child: Text(
+                'Mis rutas',
+                style: theme.textTheme.titleLarge?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+            ),
+            Flexible(
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: routes.length,
+                separatorBuilder: (_, _) => const Divider(height: 1),
+                itemBuilder: (context, index) {
+                  final route = routes[index];
+                  final stops = route.points.length;
+                  return ListTile(
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundColor: theme.colorScheme.secondary
+                          .withValues(alpha: 0.12),
+                      child: Icon(
+                        Icons.route_rounded,
+                        size: 20,
+                        color: theme.colorScheme.secondary,
+                      ),
+                    ),
+                    title: Text(
+                      route.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(fontWeight: FontWeight.w800),
+                    ),
+                    subtitle: Text(
+                      stops == 1 ? '1 parada' : '$stops paradas',
+                    ),
+                    trailing: IconButton(
+                      tooltip: 'Eliminar',
+                      icon: const Icon(Icons.delete_outline_rounded),
+                      onPressed: () => onDelete(route),
+                    ),
+                    onTap: () => onSelect(route),
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
