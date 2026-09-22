@@ -13,19 +13,23 @@ import '../../blocs/scanner/scanner_cubit.dart';
 import '../../blocs/scanner/scanner_state.dart';
 
 class ScannerScreen extends StatelessWidget {
-  const ScannerScreen({super.key});
+  const ScannerScreen({super.key, this.evento});
+
+  final String? evento;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<ScannerCubit>(),
-      child: const _ScannerView(),
+      child: _ScannerView(evento: evento),
     );
   }
 }
 
 class _ScannerView extends StatefulWidget {
-  const _ScannerView();
+  const _ScannerView({this.evento});
+
+  final String? evento;
 
   @override
   State<_ScannerView> createState() => _ScannerViewState();
@@ -143,6 +147,7 @@ class _ScannerViewState extends State<_ScannerView> {
                                     if (value == null) return;
                                     context.read<ScannerCubit>().processCode(
                                       value,
+                                      evento: widget.evento,
                                     );
                                   },
                           ),

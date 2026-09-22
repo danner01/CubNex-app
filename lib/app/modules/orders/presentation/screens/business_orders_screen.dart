@@ -11,6 +11,7 @@ import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../../../modules/delivery/presentation/widgets/delivery_tracking_sheet.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
@@ -666,6 +667,7 @@ class _BusinessOrderCard extends StatelessWidget {
         : (editableStatuses.isEmpty ? null : editableStatuses.first);
     final imageUrl = order.primaryImageUrl;
     final hasQr = order.canShowQrAction;
+    final canTrackDelivery = _canTrackDelivery(order.status);
 
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
@@ -810,6 +812,17 @@ class _BusinessOrderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 6),
+            if (canTrackDelivery) ...[
+              Align(
+                alignment: Alignment.centerLeft,
+                child: OutlinedButton.icon(
+                  onPressed: () => showDeliveryTrackingSheet(context, order.id),
+                  icon: const Icon(Icons.near_me_rounded, size: 18),
+                  label: const Text('Ver seguimiento del repartidor'),
+                ),
+              ),
+              const SizedBox(height: 6),
+            ],
             Theme(
               data: Theme.of(
                 context,
@@ -953,6 +966,13 @@ class _BusinessOrderCard extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  static bool _canTrackDelivery(String? status) {
+    return switch (status) {
+      'delivery_asignado' || 'recogido_por_delivery' || 'en_ruta' => true,
+      _ => false,
+    };
   }
 
   static const _statusLabels = {

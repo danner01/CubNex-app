@@ -13,6 +13,9 @@ class ScannerState extends Equatable {
     this.walletAlias,
     this.walletQrPayload,
     this.rawCodeFallback,
+    this.orderId,
+    this.previousStatus,
+    this.nextStatus,
   });
 
   final ScannerStatus status;
@@ -24,6 +27,9 @@ class ScannerState extends Equatable {
   final String? walletAlias;
   final String? walletQrPayload;
   final String? rawCodeFallback;
+  final String? orderId;
+  final String? previousStatus;
+  final String? nextStatus;
 
   ScannerState copyWith({
     ScannerStatus? status,
@@ -35,7 +41,11 @@ class ScannerState extends Equatable {
     String? walletAlias,
     String? walletQrPayload,
     String? rawCodeFallback,
+    String? orderId,
+    String? previousStatus,
+    String? nextStatus,
     bool clearRawCodeFallback = false,
+    bool clearOrderResult = false,
   }) {
     return ScannerState(
       status: status ?? this.status,
@@ -48,6 +58,11 @@ class ScannerState extends Equatable {
       walletQrPayload: walletQrPayload ?? this.walletQrPayload,
       rawCodeFallback:
           clearRawCodeFallback ? null : (rawCodeFallback ?? this.rawCodeFallback),
+      orderId: clearOrderResult ? null : (orderId ?? this.orderId),
+      previousStatus: clearOrderResult
+          ? null
+          : (previousStatus ?? this.previousStatus),
+      nextStatus: clearOrderResult ? null : (nextStatus ?? this.nextStatus),
     );
   }
 
@@ -62,5 +77,8 @@ class ScannerState extends Equatable {
     walletAlias,
     walletQrPayload,
     rawCodeFallback,
+    orderId,
+    previousStatus,
+    nextStatus,
   ];
 }

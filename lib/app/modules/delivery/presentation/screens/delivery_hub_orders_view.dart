@@ -4,6 +4,8 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
+import '../../../../common/presentation/widgets/order_qr_dialog.dart';
+import '../../../../config/routes/app_routes.dart';
 import '../../../orders/blocs/orders/orders_cubit.dart';
 import '../../../orders/blocs/orders/orders_state.dart';
 import '../../../orders/data/models/order_model.dart';
@@ -28,6 +30,16 @@ const _deliveryActiveTrackingStatuses = {
   'delivery_asignado',
   'recogido_por_delivery',
   'en_ruta',
+};
+
+const _deliveryPendingPickupStatuses = {
+  'delivery_asignado',
+};
+
+const _deliveryPendingDeliveryStatuses = {
+  'recogido_por_delivery',
+  'en_ruta',
+  'entregado_por_delivery',
 };
 
 const _deliveryStatusFiltersRequests = [
@@ -511,12 +523,46 @@ class DeliveryOrderCard extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 12),
-            if (_deliveryActiveTrackingStatuses.contains(order.status))
-              OutlinedButton.icon(
-                onPressed: () => showDeliveryTrackingSheet(context, order.id),
-                icon: const Icon(Icons.near_me_rounded),
-                label: const Text('Ver ubicacion del repartidor'),
-              ),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                if (_deliveryPendingPickupStatuses.contains(order.status))
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(
+                      '${AppRoutes.scanner}?evento=recogido_por_delivery',
+                    ),
+                    icon: const Icon(Icons.storefront_rounded, size: 18),
+                    label: const Text('Escanear en el negocio'),
+                  ),
+                if (_deliveryPendingDeliveryStatuses.contains(order.status)) ...[
+                  OutlinedButton.icon(
+                    onPressed: () => context.push(
+                      '${AppRoutes.scanner}?evento=entregado_por_delivery',
+                    ),
+                    icon: const Icon(Icons.local_shipping_rounded, size: 18),
+                    label: const Text('Escanear para entregar'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => showOrderQrDialogForOrder(
+                      context,
+                      order,
+                      title: 'QR de entrega',
+                      subtitle:
+                          'El cliente escanea este QR al recibir el pedido para confirmar la entrega.',
+                    ),
+                    icon: const Icon(Icons.qr_code_rounded, size: 18),
+                    label: const Text('Mostrar QR al cliente'),
+                  ),
+                ],
+                if (_deliveryActiveTrackingStatuses.contains(order.status))
+                  OutlinedButton.icon(
+                    onPressed: () => showDeliveryTrackingSheet(context, order.id),
+                    icon: const Icon(Icons.near_me_rounded, size: 18),
+                    label: const Text('Ver ubicacion'),
+                  ),
+              ],
+            ),
           ],
         ),
       ),

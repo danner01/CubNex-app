@@ -13,7 +13,7 @@ class ScannerCubit extends Cubit<ScannerState> {
   final ApiClient _apiClient;
   bool _processing = false;
 
-  Future<void> processCode(String rawValue) async {
+  Future<void> processCode(String rawValue, {String? evento}) async {
     final code = rawValue.trim();
     if (code.isEmpty || _processing) return;
 
@@ -23,6 +23,7 @@ class ScannerCubit extends Cubit<ScannerState> {
         status: ScannerStatus.resolving,
         code: code,
         orderQrValidated: false,
+        clearOrderResult: true,
       ),
     );
     await _saveScan(code);
@@ -53,13 +54,14 @@ class ScannerCubit extends Cubit<ScannerState> {
                   'QR no valido. Escanea un QR de pedido o de billetera ConKkao.',
               orderQrValidated: false,
               walletQrDetected: false,
+              clearOrderResult: true,
             ),
           );
           _processing = false;
           return;
         }
 
-        await _validateOrderQr(orderQrToken, code);
+        await _validateOrderQr(orderQrToken, code, evento);
         _processing = false;
       }
 
@@ -102,10 +104,17 @@ class ScannerCubit extends Cubit<ScannerState> {
         );
       }
 
-  Future<void> _validateOrderQr(String token, String rawCode) async {
+  Future<void> _validateOrderQr(
+    String token,
+    String rawCode,
+    String? evento,
+  ) async {
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/ordenes/validar-qr',
-      data: {'token': token},
+      data: {
+        'token': token,
+        if (evento != null && evento.isNotEmpty) 'evento': evento,
+      },
       parser: (json) {
         if (json is Map) {
           return Map<String, dynamic>.from(json);
@@ -129,6 +138,7 @@ class ScannerCubit extends Cubit<ScannerState> {
           message: message,
           orderQrValidated: false,
           rawCodeFallback: rawCode,
+          clearOrderResult: true,
         ),
       );
       return;
@@ -151,6 +161,9 @@ class ScannerCubit extends Cubit<ScannerState> {
       state.copyWith(
         status: ScannerStatus.success,
         orderQrValidated: true,
+        orderId: orderId,
+        previousStatus: previousStatus,
+        nextStatus: nextStatus,
         message:
             orderId == null || orderId.isEmpty
             ? statusMessage

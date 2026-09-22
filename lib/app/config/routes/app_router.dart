@@ -131,7 +131,8 @@ GoRouter createAppRouter(
           GoRoute(path: AppRoutes.map, builder: (_, __) => const MapScreen()),
           GoRoute(
             path: AppRoutes.scanner,
-            builder: (_, __) => const ScannerScreen(),
+            builder: (context, state) =>
+                ScannerScreen(evento: state.uri.queryParameters['evento']),
           ),
           GoRoute(
             path: AppRoutes.scanHistory,
