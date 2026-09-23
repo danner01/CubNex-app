@@ -10,6 +10,7 @@ import '../../../../config/injection/injection.dart';
 import '../../blocs/delivery/delivery_accepted_store.dart';
 import '../../data/models/delivery_activo_model.dart';
 import '../../data/models/delivery_entrega_model.dart';
+import '../../data/models/delivery_profile_model.dart';
 import '../../data/stores/delivery_manual_route_store.dart';
 import '../widgets/delivery_common.dart';
 
@@ -54,6 +55,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   bool _manualMode = false;
   bool _saving = false;
   final List<List<double>> _manualWaypoints = [];
+  DeliveryProfileModel? _myProfile;
 
   @override
   void initState() {
@@ -101,6 +103,76 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     if (_manualWaypoints.isEmpty) return;
     setState(() => _manualWaypoints.removeLast());
     unawaited(_syncAll(initial: false));
+  }
+
+  Future<void> _setOriginFromCurrentLocation() async {
+    final position = await _currentPosition();
+    if (!mounted) return;
+    if (position == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'No se pudo obtener tu ubicacion. Activa el GPS y vuelve a intentarlo.',
+          ),
+        ),
+      );
+      return;
+    }
+    final point = [position.longitude, position.latitude];
+    setState(() {
+      if (_manualWaypoints.isEmpty) {
+        _manualWaypoints.add(point);
+      } else {
+        _manualWaypoints[0] = point;
+      }
+    });
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(position.longitude, position.latitude)),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 500),
+    );
+    await _syncAll(initial: false);
+  }
+
+  Future<void> _addPlace({
+    required bool asOrigin,
+    required DeliverySuggestionItem place,
+  }) async {
+    final point = [place.longitude, place.latitude];
+    setState(() {
+      if (asOrigin) {
+        if (_manualWaypoints.isEmpty) {
+          _manualWaypoints.add(point);
+        } else {
+          _manualWaypoints[0] = point;
+        }
+      } else {
+        _manualWaypoints.add(point);
+      }
+    });
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(place.longitude, place.latitude),
+        ),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 500),
+    );
+    await _syncAll(initial: false);
+  }
+
+  Future<void> _pickPlaceDialog({required bool asOrigin}) async {
+    final place = await showDialog<DeliverySuggestionItem>(
+      context: context,
+      builder: (_) => _PlaceSearchDialog(
+        title: asOrigin ? 'Buscar origen' : 'Buscar destino',
+      ),
+    );
+    if (place == null || !mounted) return;
+    await _addPlace(asOrigin: asOrigin, place: place);
   }
 
   void _clearWaypoints() {
@@ -214,21 +286,63 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       _myLat = position?.latitude;
       _myLng = position?.longitude;
     });
+    unawaited(_loadMyProfile());
     await _refresh();
   }
 
-  Future<geo.Position?> _currentPosition() async {
-    final enabled = await geo.Geolocator.isLocationServiceEnabled();
-    if (!enabled) return null;
-    var permission = await geo.Geolocator.checkPermission();
-    if (permission == geo.LocationPermission.denied) {
-      permission = await geo.Geolocator.requestPermission();
+  Future<void> _loadMyProfile() async {
+    final result = await _apiClient.get<List<DeliveryProfileModel>>(
+      '/delivery-perfiles',
+      parser: (json) {
+        if (json is! List) return const <DeliveryProfileModel>[];
+        return json
+            .whereType<Map>()
+            .map(
+              (item) => DeliveryProfileModel.fromJson(
+                Map<String, dynamic>.from(item),
+              ),
+            )
+            .toList();
+      },
+    );
+    if (!mounted) return;
+    if (result.isSuccess && (result.data?.isNotEmpty ?? false)) {
+      setState(() => _myProfile = result.data!.first);
     }
-    if (permission == geo.LocationPermission.denied ||
-        permission == geo.LocationPermission.deniedForever) {
+  }
+
+  Color _ownMarkerColor() {
+    final custom = _myProfile?.colorMarcador == null
+        ? null
+        : parseDeliveryMarkerColor(_myProfile!.colorMarcador);
+    return custom ?? _myMarkerColor;
+  }
+
+  Future<geo.Position?> _currentPosition() async {
+    try {
+      final enabled = await geo.Geolocator.isLocationServiceEnabled();
+      if (!enabled) return null;
+      var permission = await geo.Geolocator.checkPermission();
+      if (permission == geo.LocationPermission.denied) {
+        permission = await geo.Geolocator.requestPermission();
+      }
+      if (permission == geo.LocationPermission.denied ||
+          permission == geo.LocationPermission.deniedForever) {
+        return null;
+      }
+      try {
+        return await geo.Geolocator.getCurrentPosition(
+          locationSettings: geo.LocationSettings(
+            accuracy: geo.LocationAccuracy.medium,
+            timeLimit: const Duration(seconds: 8),
+          ),
+        );
+      } catch (_) {
+        return await geo.Geolocator.getLastKnownPosition();
+      }
+    } catch (_) {
       return null;
     }
-    return geo.Geolocator.getCurrentPosition();
   }
 
   Future<void> _locateCurrentPosition() async {
@@ -341,16 +455,24 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
 
     if (_myLat != null && _myLng != null) {
       track(_myLat!, _myLng!);
+      final myColor = _ownMarkerColor();
+      final myIconId = await ensureDeliveryMarkerIcon(
+        _mapboxMap!,
+        myColor,
+        _myProfile?.vehicleType,
+      );
       await pointManager.create(
         PointAnnotationOptions(
           geometry: Point(coordinates: Position(_myLng!, _myLat!)),
-          iconImage: 'marker',
-          iconColor: _myMarkerColor.toARGB32(),
-          iconSize: 1.45,
+          iconImage: myIconId ?? 'marker',
+          iconColor: myIconId == null ? myColor.toARGB32() : null,
+          iconSize: 1.3,
           iconAnchor: IconAnchor.BOTTOM,
           textField: 'Tu',
-          textColor: const Color(0xFF006064).toARGB32(),
+          textColor: readableDeliveryMarkerIconColor(myColor).toARGB32(),
           textSize: 12,
+          textHaloColor: Colors.white.toARGB32(),
+          textHaloWidth: 1.2,
         ),
       );
     }
@@ -510,9 +632,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           textColor: const Color(0xFF004D4D).toARGB32(),
           textSize: 12,
         ),
-      );
-    }
+);
   }
+}
 
   Future<void> _addMarker(List<double> point, Color color) async {
     final manager = _pointManager;
@@ -585,6 +707,11 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           final mapCenter = _myLat != null && _myLng != null
               ? Point(coordinates: Position(_myLng!, _myLat!))
               : Point(coordinates: _defaultCenter);
+          final myColor = _ownMarkerColor();
+          final screenHeight = MediaQuery.sizeOf(context).height;
+          final mapHeight = _manualMode
+              ? (screenHeight * 0.58).clamp(420.0, 760.0).toDouble()
+              : (screenHeight * 0.45).clamp(300.0, 560.0).toDouble();
 
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
@@ -605,7 +732,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
               ClipRRect(
                 borderRadius: BorderRadius.circular(24),
                 child: SizedBox(
-                  height: 340,
+                  height: mapHeight,
                   child: Stack(
                     children: [
                       MapWidget(
@@ -628,7 +755,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 ),
               ),
               const SizedBox(height: 8),
-              _MapLegendRow(showRoute: hasRouteOverlay),
+              _MapLegendRow(showRoute: hasRouteOverlay, myColor: myColor),
               const SizedBox(height: 8),
               _ManualRouteControls(
                 active: _manualMode,
@@ -639,6 +766,11 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 onClear: _manualWaypoints.isEmpty ? null : _clearWaypoints,
                 onSave: _manualWaypoints.length < 2 ? null : _saveManualRoute,
                 onOpenRoutes: _openSavedRoutes,
+                onSetOriginLocation: _setOriginFromCurrentLocation,
+                onSearchOrigin: () =>
+                    unawaited(_pickPlaceDialog(asOrigin: true)),
+                onSearchDestination: () =>
+                    unawaited(_pickPlaceDialog(asOrigin: false)),
               ),
               const SizedBox(height: 16),
               Row(
@@ -713,9 +845,10 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   }
 
 class _MapLegendRow extends StatelessWidget {
-  const _MapLegendRow({required this.showRoute});
+  const _MapLegendRow({required this.showRoute, required this.myColor});
 
   final bool showRoute;
+  final Color myColor;
 
   @override
   Widget build(BuildContext context) {
@@ -723,9 +856,9 @@ class _MapLegendRow extends StatelessWidget {
     final items = <Widget>[
       _legendItem(
         theme,
-        const Color(0xFF00ACC1),
+        myColor,
         'Tu',
-        labelColor: const Color(0xFF006064),
+        labelColor: readableDeliveryMarkerIconColor(myColor),
       ),
       _legendItem(theme, const Color(0xFF3949AB), 'Repartidor'),
       if (showRoute) ...[
@@ -1098,6 +1231,9 @@ class _ManualRouteControls extends StatelessWidget {
     required this.onClear,
     required this.onSave,
     required this.onOpenRoutes,
+    required this.onSetOriginLocation,
+    required this.onSearchOrigin,
+    required this.onSearchDestination,
   });
 
   final bool active;
@@ -1108,6 +1244,9 @@ class _ManualRouteControls extends StatelessWidget {
   final VoidCallback? onClear;
   final VoidCallback? onSave;
   final VoidCallback onOpenRoutes;
+  final VoidCallback onSetOriginLocation;
+  final VoidCallback onSearchOrigin;
+  final VoidCallback onSearchDestination;
 
   @override
   Widget build(BuildContext context) {
@@ -1151,6 +1290,32 @@ class _ManualRouteControls extends StatelessWidget {
             children: [
               _actionButton(
                 theme,
+                Icons.my_location_rounded,
+                'Origen: mi ubicacion',
+                onSetOriginLocation,
+                highlight: true,
+              ),
+              _actionButton(
+                theme,
+                Icons.place_outlined,
+                'Origen por direccion',
+                onSearchOrigin,
+              ),
+              _actionButton(
+                theme,
+                Icons.flag_outlined,
+                'Destino por direccion',
+                onSearchDestination,
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _actionButton(
+                theme,
                 Icons.undo_rounded,
                 'Deshacer',
                 onUndo,
@@ -1174,10 +1339,10 @@ class _ManualRouteControls extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             waypoints == 0
-                ? 'Toca el mapa para anadir paradas.'
+                ? 'Toca el mapa o usa los botones para fijar el origen y el destino.'
                 : waypoints == 1
-                ? '1 parada. Toca el mapa para anadir otra.'
-                : '$waypoints paradas. La linea morada une las paradas en orden.',
+                ? '1 punto fijado (origen). Toca el mapa o busca para marcar el destino.'
+                : '$waypoints puntos. El primero es el origen y el ultimo el destino.',
             style: theme.textTheme.bodySmall,
           ),
         ],
@@ -1303,6 +1468,199 @@ class _SavedRoutesSheet extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _PlaceSearchDialog extends StatefulWidget {
+  const _PlaceSearchDialog({required this.title});
+
+  final String title;
+
+  @override
+  State<_PlaceSearchDialog> createState() => _PlaceSearchDialogState();
+}
+
+class _PlaceSearchDialogState extends State<_PlaceSearchDialog> {
+  final ApiClient _apiClient = sl<ApiClient>();
+  final TextEditingController _controller = TextEditingController();
+  Timer? _debounce;
+  bool _searching = false;
+  List<DeliverySuggestionItem> _suggestions = const [];
+
+  @override
+  void dispose() {
+    _debounce?.cancel();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String text) {
+    _debounce?.cancel();
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) {
+      setState(() {
+        _suggestions = const [];
+        _searching = false;
+      });
+      return;
+    }
+    setState(() => _searching = true);
+    _debounce = Timer(const Duration(milliseconds: 450), () {
+      _search(trimmed);
+    });
+  }
+
+  Future<void> _search(String query) async {
+    final result = await _apiClient.get<Map<String, dynamic>>(
+      '/mapbox/geocodificar',
+      queryParameters: {'direccion': '$query, Cuba'},
+      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+    );
+    if (!mounted) return;
+    setState(() {
+      _searching = false;
+      if (result.isSuccess) {
+        _suggestions = _parseSuggestions(result.data);
+      } else {
+        _suggestions = const [];
+      }
+    });
+  }
+
+  List<DeliverySuggestionItem> _parseSuggestions(Map<String, dynamic>? data) {
+    final raw = data?['features'] ?? data?['resultados'] ?? data?['lugares'];
+    if (raw is! List) return const [];
+    final items = <DeliverySuggestionItem>[];
+    for (final entry in raw.whereType<Map>()) {
+      final map = Map<String, dynamic>.from(entry);
+      final label =
+          map['place_name'] ??
+          map['placeName'] ??
+          map['direccion'] ??
+          map['nombre'] ??
+          map['text'];
+      if (label is! String || label.trim().isEmpty) continue;
+
+      double? lat;
+      double? lng;
+      final center = map['center'];
+      if (center is List && center.length >= 2) {
+        lng = _toDouble(center[0]);
+        lat = _toDouble(center[1]);
+      }
+      final geometry = map['geometry'];
+      if (geometry is Map && geometry['coordinates'] is List) {
+        final coordinates = geometry['coordinates'] as List;
+        if (coordinates.length >= 2) {
+          lng = _toDouble(coordinates[0]);
+          lat = _toDouble(coordinates[1]);
+        }
+      }
+      if (lat == null || lng == null) continue;
+      items.add(
+        DeliverySuggestionItem(
+          label: label.trim(),
+          latitude: lat,
+          longitude: lng,
+        ),
+      );
+      if (items.length >= 5) break;
+    }
+    return items;
+  }
+
+  double? _toDouble(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse(value?.toString() ?? '');
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final results = _suggestions;
+    return AlertDialog(
+      title: Text(widget.title),
+      content: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 420, maxHeight: 380),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            TextField(
+              controller: _controller,
+              autofocus: true,
+              onChanged: _onChanged,
+              textInputAction: TextInputAction.search,
+              decoration: InputDecoration(
+                hintText: 'Direccion o lugar...',
+                prefixIcon: _searching
+                    ? const Padding(
+                        padding: EdgeInsets.all(12),
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      )
+                    : const Icon(Icons.search_rounded),
+                suffixIcon: _controller.text.isEmpty
+                    ? null
+                    : IconButton(
+                        onPressed: () {
+                          _controller.clear();
+                          _onChanged('');
+                        },
+                        icon: const Icon(Icons.close_rounded, size: 18),
+                      ),
+                border: const OutlineInputBorder(),
+              ),
+              onSubmitted: (_) {
+                if (results.isNotEmpty) {
+                  Navigator.of(context).pop(results.first);
+                }
+              },
+            ),
+            const SizedBox(height: 8),
+            if (results.isEmpty && !_searching)
+              const SizedBox(height: 8)
+            else
+              Flexible(
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: results.length,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, index) {
+                    final suggestion = results[index];
+                    return ListTile(
+                      dense: true,
+                      leading: const Icon(Icons.place_outlined, size: 20),
+                      title: Text(
+                        suggestion.label,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontSize: 13),
+                      ),
+                      onTap: () => Navigator.of(context).pop(suggestion),
+                    );
+                  },
+                ),
+              ),
+            if (results.isEmpty && !_searching)
+              Text(
+                _controller.text.trim().isEmpty
+                    ? 'Escribe una direccion para buscar.'
+                    : 'Sin resultados. Escribe mas detalle.',
+                style: theme.textTheme.bodySmall,
+              ),
+          ],
+        ),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+      ],
     );
   }
 }
