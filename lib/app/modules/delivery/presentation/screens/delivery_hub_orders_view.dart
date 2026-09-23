@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
+import '../../../../common/presentation/widgets/order_expiry_countdown.dart';
 import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../orders/blocs/orders/orders_cubit.dart';
@@ -522,6 +523,11 @@ class DeliveryOrderCard extends StatelessWidget {
                   ),
               ],
             ),
+            if (order.supportsReservationExpiry &&
+                order.reservationExpiresAt != null) ...[
+              const SizedBox(height: 8),
+              OrderExpiryCountdown(expiresAt: order.reservationExpiresAt!),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 6,
