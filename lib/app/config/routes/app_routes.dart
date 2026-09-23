@@ -50,6 +50,7 @@ class AppRoutes {
   static const deliveryHistory = '/delivery/history';
   static const deliveryProfile = '/delivery/profile';
   static const deliveryNearby = '/delivery/nearby';
+  static const deliveryQueueMap = '/delivery/queue-map';
   static const supportTickets = '/soporte/tickets';
   static const tutorials = '/tutoriales';
 

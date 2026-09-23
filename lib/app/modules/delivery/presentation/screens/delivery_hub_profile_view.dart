@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/presentation/widgets/apk_version_card.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -162,6 +163,9 @@ class DeliveryHubProfileView extends StatelessWidget {
           subtitle: 'Avisos, solicitudes y mensajes del sistema.',
           onTap: () => context.go(AppRoutes.notifications),
         ),
+        const SizedBox(height: 10),
+        const _SectionLabel('Aplicacion'),
+        const ApkVersionCard(),
         const SizedBox(height: 10),
         _SectionLabel('Sesion'),
         OutlinedButton.icon(

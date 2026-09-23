@@ -162,6 +162,11 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
                       icon: const Icon(Icons.refresh_rounded),
                       tooltip: 'Actualizar',
                     ),
+                  TextButton.icon(
+                    onPressed: () => context.go(AppRoutes.deliveryQueueMap),
+                    icon: const Icon(Icons.map_rounded, size: 18),
+                    label: const Text('Ver en el mapa'),
+                  ),
                 ],
               ),
               const SizedBox(height: 4),
@@ -469,6 +474,7 @@ class AvailableDeliveryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currency = entrega.moneda ?? 'CUP';
+    final isPaquete = entrega.tipo == 'paquete';
     return Card(
       margin: const EdgeInsets.only(bottom: 10),
       elevation: 0,
@@ -487,14 +493,25 @@ class AvailableDeliveryCard extends StatelessWidget {
               children: [
                 CircleAvatar(
                   radius: 18,
-                  backgroundColor: theme.colorScheme.secondary,
-                  foregroundColor: theme.colorScheme.onSecondary,
-                  child: const Icon(Icons.storefront_rounded, size: 18),
+                  backgroundColor: isPaquete
+                      ? theme.colorScheme.tertiary
+                      : theme.colorScheme.secondary,
+                  foregroundColor: isPaquete
+                      ? theme.colorScheme.onTertiary
+                      : theme.colorScheme.onSecondary,
+                  child: Icon(
+                    isPaquete
+                        ? Icons.inventory_2_outlined
+                        : Icons.storefront_rounded,
+                    size: 18,
+                  ),
                 ),
                 const SizedBox(width: 10),
                 Expanded(
                   child: Text(
-                    entrega.negocioNombre ?? 'Entrega',
+                    isPaquete
+                        ? (entrega.remitenteNombre ?? 'Paquete a enviar')
+                        : (entrega.negocioNombre ?? 'Entrega'),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: theme.textTheme.titleMedium?.copyWith(
@@ -510,14 +527,29 @@ class AvailableDeliveryCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
             _routeLine(
-              Icons.arrow_downward_rounded,
-              entrega.negocioDireccion ?? 'Sin direccion del negocio',
+              isPaquete ? Icons.outbox_rounded : Icons.arrow_downward_rounded,
+              isPaquete
+                  ? 'Recogida: ${entrega.remitenteNombre ?? '-'}'
+                  : (entrega.negocioDireccion ?? 'Sin direccion del negocio'),
             ),
             _routeLine(
               Icons.location_on_outlined,
-              entrega.clienteDireccionEntrega ??
-                  (entrega.clienteNombre ?? 'Sin direccion de entrega'),
+              isPaquete
+                  ? 'Entrega: ${entrega.destinatarioNombre ?? entrega.clienteNombre ?? '-'}'
+                  : (entrega.clienteDireccionEntrega ??
+                      (entrega.clienteNombre ?? 'Sin direccion de entrega')),
             ),
+            if (isPaquete && entrega.paqueteDescripcion != null) ...[
+              const SizedBox(height: 4),
+              Text(
+                entrega.paqueteDescripcion!,
+                maxLines: 3,
+                overflow: TextOverflow.ellipsis,
+                style: theme.textTheme.bodySmall?.copyWith(
+                  fontStyle: FontStyle.italic,
+                ),
+              ),
+            ],
             const SizedBox(height: 10),
             Wrap(
               spacing: 6,
@@ -525,7 +557,10 @@ class AvailableDeliveryCard extends StatelessWidget {
               children: [
                 DeliveryMetaChip(
                   icon: Icons.payments_outlined,
-                  label: formatDeliveryMoney(entrega.tarifaEstimada, currency),
+                  label: formatDeliveryMoney(
+                    entrega.paqueteTarifa ?? entrega.tarifaEstimada,
+                    currency,
+                  ),
                 ),
                 DeliveryMetaChip(
                   icon: Icons.straighten_rounded,
@@ -537,25 +572,43 @@ class AvailableDeliveryCard extends StatelessWidget {
                       'A ${formatDeliveryDistance(entrega.distanciaAlOrigenKm)}',
                 ),
                 DeliveryMetaChip(
-                  icon: Icons.person_outline_rounded,
-                  label: entrega.clienteNombre ?? 'Sin cliente',
+                  icon: isPaquete
+                      ? Icons.person_outline_rounded
+                      : Icons.payments_outlined,
+                  label: isPaquete
+                      ? (entrega.destinatarioNombre ??
+                          entrega.clienteNombre ??
+                          'S/Destinatario')
+                      : (entrega.clienteNombre ?? 'Sin cliente'),
                 ),
               ],
             ),
             const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: FilledButton.icon(
-                onPressed: accepting ? null : onAccept,
-                icon: accepting
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.handshake_outlined),
-                label: Text(accepting ? 'Aceptando...' : 'Aceptar entrega'),
-              ),
+            Row(
+              children: [
+                OutlinedButton.icon(
+                  onPressed: () =>
+                      context.go(AppRoutes.deliveryQueueMap),
+                  icon: const Icon(Icons.map_rounded, size: 18),
+                  label: const Text('Ver en mapa'),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: FilledButton.icon(
+                    onPressed: accepting ? null : onAccept,
+                    icon: accepting
+                        ? const SizedBox(
+                            width: 18,
+                            height: 18,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : const Icon(Icons.handshake_outlined),
+                    label: Text(
+                      accepting ? 'Aceptando...' : 'Aceptar entrega',
+                    ),
+                  ),
+                ),
+              ],
             ),
           ],
         ),

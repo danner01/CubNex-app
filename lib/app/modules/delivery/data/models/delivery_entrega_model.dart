@@ -6,6 +6,7 @@ class DeliveryEntregaModel {
     this.negocioId,
     this.clienteId,
     this.estado,
+    this.tipo,
     this.negocioNombre,
     this.negocioDireccion,
     this.negocioLatitude,
@@ -13,6 +14,14 @@ class DeliveryEntregaModel {
     this.clienteNombre,
     this.clienteTelefono,
     this.clienteDireccionEntrega,
+    this.destinoLatitude,
+    this.destinoLongitude,
+    this.paqueteDescripcion,
+    this.remitenteNombre,
+    this.remitenteTelefono,
+    this.destinatarioNombre,
+    this.destinatarioTelefono,
+    this.paqueteTarifa,
     this.moneda,
     this.totalEstimado,
     this.montoACobrar,
@@ -32,6 +41,7 @@ class DeliveryEntregaModel {
   final String? negocioId;
   final String? clienteId;
   final String? estado;
+  final String? tipo;
   final String? negocioNombre;
   final String? negocioDireccion;
   final double? negocioLatitude;
@@ -39,6 +49,14 @@ class DeliveryEntregaModel {
   final String? clienteNombre;
   final String? clienteTelefono;
   final String? clienteDireccionEntrega;
+  final double? destinoLatitude;
+  final double? destinoLongitude;
+  final String? paqueteDescripcion;
+  final String? remitenteNombre;
+  final String? remitenteTelefono;
+  final String? destinatarioNombre;
+  final String? destinatarioTelefono;
+  final double? paqueteTarifa;
   final String? moneda;
   final double? totalEstimado;
   final double? montoACobrar;
@@ -74,6 +92,9 @@ class DeliveryEntregaModel {
     final cliente = json['cliente'] is Map
         ? Map<String, dynamic>.from(json['cliente'] as Map)
         : const <String, dynamic>{};
+    final paquete = json['paquete'] is Map
+        ? Map<String, dynamic>.from(json['paquete'] as Map)
+        : const <String, dynamic>{};
     final rutaRaw = json['ruta'];
     final ruta = rutaRaw is Map ? Map<String, dynamic>.from(rutaRaw) : null;
 
@@ -84,6 +105,7 @@ class DeliveryEntregaModel {
       negocioId: json['negocio_id']?.toString(),
       clienteId: json['cliente_id']?.toString(),
       estado: json['estado']?.toString(),
+      tipo: json['tipo']?.toString(),
       negocioNombre:
           negocio['nombre']?.toString() ?? (json['negocio_nombre']?.toString()),
       negocioDireccion:
@@ -97,15 +119,27 @@ class DeliveryEntregaModel {
         negocio.isEmpty ? json['origen'] : negocio['coordenadas'],
         lat: false,
       ),
-      clienteNombre:
-          cliente['nombre_contacto']?.toString() ??
-          (json['cliente_nombre']?.toString()),
-      clienteTelefono:
-          cliente['telefono']?.toString() ??
-          (json['cliente_telefono']?.toString()),
-      clienteDireccionEntrega:
-          cliente['direccion_entrega']?.toString() ??
-          (json['cliente_direccion_entrega']?.toString()),
+      clienteNombre: paquete.isEmpty
+          ? (cliente['nombre_contacto']?.toString() ??
+              (json['cliente_nombre']?.toString()))
+          : (paquete['nombre_destinatario']?.toString() ?? cliente['nombre_contacto']?.toString()),
+      clienteTelefono: paquete.isEmpty
+          ? (cliente['telefono']?.toString() ??
+              (json['cliente_telefono']?.toString()))
+          : (paquete['telefono_destinatario']?.toString() ?? cliente['telefono']?.toString()),
+      clienteDireccionEntrega: paquete.isEmpty
+          ? (cliente['direccion_entrega']?.toString() ??
+              (json['cliente_direccion_entrega']?.toString()))
+          : (paquete['direccion_entrega']?.toString() ??
+              cliente['direccion_entrega']?.toString()),
+      destinoLatitude: _coord(json['destino'], lat: true),
+      destinoLongitude: _coord(json['destino'], lat: false),
+      paqueteDescripcion: paquete['descripcion']?.toString(),
+      remitenteNombre: paquete['nombre_remitente']?.toString(),
+      remitenteTelefono: paquete['telefono_remitente']?.toString(),
+      destinatarioNombre: paquete['nombre_destinatario']?.toString(),
+      destinatarioTelefono: paquete['telefono_destinatario']?.toString(),
+      paqueteTarifa: _num(paquete['tarifa_total']),
       moneda: json['moneda']?.toString() ?? 'CUP',
       totalEstimado: _num(json['total_estimado']),
       montoACobrar: _num(json['monto_a_cobrar']),
