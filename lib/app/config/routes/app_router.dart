@@ -31,6 +31,7 @@ import '../../modules/orders/presentation/screens/cart_screen.dart';
 import '../../modules/orders/presentation/screens/business_orders_screen.dart';
 import '../../modules/orders/presentation/screens/orders_screen.dart';
 import '../../modules/product/presentation/screens/product_detail_screen.dart';
+import '../../modules/product/presentation/screens/product_price_analytics_screen.dart';
 import '../../modules/posts/presentation/screens/posts_feed_screen.dart';
 import '../../modules/posts/presentation/screens/business_posts_screen.dart';
 import '../../modules/business/presentation/screens/business_plans_screen.dart';
@@ -222,6 +223,12 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.productDetail,
             builder: (_, state) => ProductDetailScreen(
+              productId: state.pathParameters['id'] ?? '',
+            ),
+          ),
+          GoRoute(
+            path: AppRoutes.productPriceAnalytics,
+            builder: (_, state) => ProductPriceAnalyticsScreen(
               productId: state.pathParameters['id'] ?? '',
             ),
           ),

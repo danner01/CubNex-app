@@ -11,8 +11,24 @@ class TasasService {
       '/tasas/referencia',
       parser: _parseMercado,
     );
+    if (result.isSuccess) {
+      _cache = result.data;
+    }
     return result.isSuccess ? result.data : null;
   }
+
+  TasasMercado? get cached => _cache;
+
+  Future<TasasMercado?> referenciaCached() async {
+    if (_cache != null) return _cache;
+    return obtenerReferencia();
+  }
+
+  void invalidarCache() {
+    _cache = null;
+  }
+
+  TasasMercado? _cache;
 
   Future<List<TasaHistorialPunto>> obtenerHistorial({
     String moneda = 'USD',

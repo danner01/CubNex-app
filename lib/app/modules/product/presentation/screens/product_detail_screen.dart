@@ -7,6 +7,7 @@ import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../common/presentation/widgets/cup_equivalente.dart';
 import '../../../../common/services/share_service.dart';
 import '../../../favorites/blocs/engagement/engagement_cubit.dart';
 import '../../../favorites/blocs/engagement/engagement_state.dart';
@@ -94,13 +95,45 @@ class _ProductDetailView extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: Text(
-                          price,
-                          style: Theme.of(context).textTheme.headlineSmall
-                              ?.copyWith(
-                                color: Theme.of(context).colorScheme.secondary,
-                                fontWeight: FontWeight.w900,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              price,
+                              style: Theme.of(
+                                context,
+                              ).textTheme.headlineSmall?.copyWith(
+                                    color: Theme.of(
+                                      context,
+                                    ).colorScheme.secondary,
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                            ),
+                            CupEquivalente(
+                              precio: product.currentPrice,
+                              moneda: product.currency,
+                              prefix: '≈',
+                            ),
+                            if (product.id.isNotEmpty) ...[
+                              const SizedBox(height: 6),
+                              TextButton.icon(
+                                onPressed: () => context.push(
+                                  AppRoutes.productPriceAnalytics.replaceAll(
+                                    ':id',
+                                    product.id,
+                                  ),
+                                ),
+                                style: TextButton.styleFrom(
+                                  padding: EdgeInsets.zero,
+                                ),
+                                icon: const Icon(Icons.show_chart_rounded,
+                                    size: 18),
+                                label: Text(
+                                  'Evolucion de precio y similares',
+                                ),
                               ),
+                            ],
+                          ],
                         ),
                       ),
                       BlocBuilder<EngagementCubit, EngagementState>(

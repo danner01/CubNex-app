@@ -1,7 +1,7 @@
 name: cubnex_app
 description: "ConKkao mobile marketplace for clients, guests, and business owners."
 publish_to: "none"
-version: 0.1.18+27
+version: 0.1.18+28
 
 environment:
   sdk: ^3.9.2
@@ -52,6 +52,7 @@ dependencies:
   share_plus: ^10.1.4
   qr_flutter: ^4.1.0
   app_links: ^6.4.1
+  fl_chart: ^1.2.0
 
 dev_dependencies:
   flutter_test:

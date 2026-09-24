@@ -2,6 +2,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
 import '../../../config/theme/app_colors.dart';
+import 'cup_equivalente.dart';
 
 class SectionHeader extends StatelessWidget {
   const SectionHeader({
@@ -563,16 +564,27 @@ class ProductPreviewCard extends StatelessWidget {
                 Row(
                   children: [
                     Expanded(
-                      child: Text(
-                        price == null
-                            ? 'Consultar'
-                            : '${price!.toStringAsFixed(0)} ${currency ?? 'CUP'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          color: Theme.of(context).colorScheme.secondary,
-                          fontWeight: FontWeight.w900,
-                        ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            price == null
+                                ? 'Consultar'
+                                : '${price!.toStringAsFixed(0)} ${currency ?? 'CUP'}',
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(
+                                  color: Theme.of(context).colorScheme.secondary,
+                                  fontWeight: FontWeight.w900,
+                                ),
+                          ),
+                          CupEquivalente(
+                            precio: price,
+                            moneda: currency,
+                            prefix: '≈',
+                          ),
+                        ],
                       ),
                     ),
                     if (hasRating) ...[
