@@ -197,7 +197,8 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
             coordinates: Position(provincia.lng, provincia.lat),
           ),
           image: imagenes,
-          iconSize: (1 + (provincia.cantidadProductos / 60).clamp(0, 1.4)),
+          iconAnchor: IconAnchor.BOTTOM,
+          iconSize: 0.95 + (provincia.cantidadProductos / 120).clamp(0, 0.45),
         ),
       );
     }
@@ -219,19 +220,19 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
   Future<Uint8List> _markerBytes(_ProvinciaVentas provincia) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    const size = ui.Size(96, 112);
+    const size = ui.Size(72, 84);
     final fill = Paint()..color = AppColors.gold;
     final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 6;
+      ..strokeWidth = 5;
 
     final path = Path()
-      ..addOval(const Rect.fromLTWH(10, 6, 76, 76))
-      ..moveTo(48, 108)
-      ..quadraticBezierTo(22, 72, 28, 52)
-      ..quadraticBezierTo(48, 78, 68, 52)
-      ..quadraticBezierTo(74, 72, 48, 108)
+      ..addOval(const Rect.fromLTWH(8, 5, 56, 56))
+      ..moveTo(36, 80)
+      ..quadraticBezierTo(17, 54, 22, 39)
+      ..quadraticBezierTo(36, 59, 50, 39)
+      ..quadraticBezierTo(55, 54, 36, 80)
       ..close();
     canvas.drawPath(path, Paint()..color = Colors.black.withValues(alpha: 0.2));
     canvas.drawPath(path.shift(const Offset(0, -3)), fill);
@@ -241,7 +242,7 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
       ..text = TextSpan(
         text: '${provincia.cantidadProductos}',
         style: const TextStyle(
-          fontSize: 26,
+          fontSize: 20,
           fontWeight: FontWeight.w900,
           color: Colors.white,
         ),
@@ -249,7 +250,7 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
       ..layout();
     textPainter.paint(
       canvas,
-      Offset((size.width - textPainter.width) / 2, 31),
+      Offset((size.width - textPainter.width) / 2, 22),
     );
 
     final image = await recorder.endRecording().toImage(

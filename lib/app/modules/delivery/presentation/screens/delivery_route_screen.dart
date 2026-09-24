@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -58,6 +59,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   bool _saving = false;
   bool _drawingRoute = false;
   bool _locating = false;
+  bool _followingDelivery = false;
+  List<double>? _lastFollowedPoint;
   final List<List<double>> _manualWaypoints = [];
   List<List<double>>? _manualRouteCoords;
   _ManualRouteSummary? _manualRouteSummary;
@@ -70,7 +73,10 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     if (_tokenReady) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
-    _pollTimer = Timer.periodic(_pollInterval, (_) => unawaited(_refresh()));
+    _pollTimer = Timer.periodic(_pollInterval, (_) {
+      unawaited(_refresh());
+      if (_followingDelivery) unawaited(_pollPosition());
+    });
     unawaited(_boot());
   }
 
@@ -307,6 +313,92 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     });
     unawaited(_loadMyProfile());
     await _refresh();
+  }
+
+  Future<void> _toggleFollowing() async {
+    setState(() => _followingDelivery = !_followingDelivery);
+    if (_followingDelivery) {
+      _lastFollowedPoint = null;
+      await _centerOnDelivery();
+      await _pollPosition();
+      _showMessage('Seguimiento en ruta activado. Se centrara en tu posicion.');
+    } else {
+      _showMessage('Seguimiento detenido.');
+    }
+  }
+
+  Future<void> _centerOnDelivery() async {
+    final entrega = sl<DeliveryAcceptedStore>().accepted.value;
+    List<double>? target;
+    if (entrega?.rutaCoordenadas != null &&
+        entrega!.rutaCoordenadas!.isNotEmpty) {
+      target = entrega.rutaCoordenadas!.last;
+    } else if (entrega?.destinoLatitude != null &&
+        entrega?.destinoLongitude != null) {
+      target = [entrega!.destinoLongitude!, entrega.destinoLatitude!];
+    } else if (_myLat != null && _myLng != null) {
+      target = [_myLng!, _myLat!];
+    }
+    if (target == null || !mounted) return;
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(target[0], target[1])),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 600),
+    );
+  }
+
+  Future<void> _pollPosition() async {
+    if (!_followingDelivery) return;
+    try {
+      final enabled = await geo.Geolocator.isLocationServiceEnabled();
+      if (!enabled) return;
+      var permission = await geo.Geolocator.checkPermission();
+      if (permission == geo.LocationPermission.denied) {
+        permission = await geo.Geolocator.requestPermission();
+      }
+      if (permission != geo.LocationPermission.whileInUse &&
+          permission != geo.LocationPermission.always) {
+        return;
+      }
+      final position = await geo.Geolocator.getCurrentPosition();
+      if (!mounted) return;
+      setState(() {
+        _myLat = position.latitude;
+        _myLng = position.longitude;
+      });
+      await _followPosition();
+    } catch (_) {}
+  }
+
+  Future<void> _followPosition() async {
+    final map = _mapboxMap;
+    if (map == null || _myLat == null || _myLng == null) return;
+    final point = [_myLng!, _myLat!];
+    final last = _lastFollowedPoint;
+    if (last != null && _distanceMeters(last, point) < 25) return;
+    _lastFollowedPoint = point;
+    await map.flyTo(
+      CameraOptions(
+        center: Point(coordinates: Position(_myLng!, _myLat!)),
+        zoom: 15,
+      ),
+      MapAnimationOptions(duration: 900),
+    );
+  }
+
+  double _distanceMeters(List<double> a, List<double> b) {
+    const radius = 6371000.0;
+    final toRad = math.pi / 180;
+    final dLat = (b[1] - a[1]) * toRad;
+    final dLng = (b[0] - a[0]) * toRad;
+    final lat1 = a[1] * toRad;
+    final lat2 = b[1] * toRad;
+    final h =
+        math.pow(math.sin(dLat / 2), 2) +
+        math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(dLng / 2), 2);
+    return 2 * radius * math.asin(math.sqrt(h.toDouble()));
   }
 
   Future<void> _loadMyProfile() async {
@@ -981,6 +1073,34 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                   ),
                 ),
               ),
+              if (entrega != null)
+                Positioned(
+                  top: 0,
+                  right: 12,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 76),
+                      child: FloatingActionButton.small(
+                        heroTag: 'delivery_route_enruta',
+                        tooltip: _followingDelivery
+                            ? 'Detener seguimiento'
+                            : 'En ruta',
+                        backgroundColor: _followingDelivery
+                            ? theme.colorScheme.primary
+                            : null,
+                        foregroundColor: _followingDelivery
+                            ? theme.colorScheme.onPrimary
+                            : null,
+                        onPressed: () => unawaited(_toggleFollowing()),
+                        child: Icon(
+                          _followingDelivery
+                              ? Icons.location_disabled_rounded
+                              : Icons.route_rounded,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
               if (_manualMode)
                 Positioned(
                   top: 0,

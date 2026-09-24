@@ -11,6 +11,10 @@ import '../../entities/employee_permissions.dart';
 import 'auth_required_dialog.dart';
 import 'market_app_bar.dart';
 
+const _clientAllowlistBusinessRoutes = <String>{
+  AppRoutes.businessWizard,
+};
+
 class HomeShell extends StatelessWidget {
   const HomeShell({required this.child, super.key});
 
@@ -82,10 +86,12 @@ class HomeShell extends StatelessWidget {
     };
   }
 
-  bool _isModeHomeMismatch(String location, RoleMode mode) {
+bool _isModeHomeMismatch(String location, RoleMode mode) {
     return switch (mode) {
       RoleMode.client =>
-        location.startsWith('/business') || location.startsWith('/delivery'),
+        (location.startsWith('/business') &&
+            !_clientAllowlistBusinessRoutes.contains(location)) ||
+            location.startsWith('/delivery'),
       RoleMode.business =>
         location == AppRoutes.home ||
             location == AppRoutes.cart ||

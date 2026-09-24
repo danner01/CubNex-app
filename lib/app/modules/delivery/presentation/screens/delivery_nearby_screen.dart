@@ -174,18 +174,21 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
     var minLng = double.infinity, maxLng = double.negativeInfinity;
     final hasMyPosition = _myLat != null && _myLng != null;
     if (hasMyPosition) {
+      const selfColor = Color(0xFF00ACC1);
+      final selfIconId = await ensureDeliveryMarkerIcon(
+        _mapboxMap!,
+        selfColor,
+        null,
+      );
       await manager.create(
         PointAnnotationOptions(
           geometry: Point(
             coordinates: Position(_myLng!, _myLat!),
           ),
-          iconImage: 'marker',
-          iconColor: const Color(0xFF00ACC1).toARGB32(),
-          iconSize: 1.45,
+          iconImage: selfIconId ?? 'marker',
+          iconColor: selfIconId == null ? selfColor.toARGB32() : null,
+          iconSize: 1.15,
           iconAnchor: IconAnchor.BOTTOM,
-          textField: 'Tu',
-          textColor: const Color(0xFF006064).toARGB32(),
-          textSize: 12,
         ),
       );
     }

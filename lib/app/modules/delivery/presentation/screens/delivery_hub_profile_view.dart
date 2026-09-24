@@ -165,6 +165,12 @@ class DeliveryHubProfileView extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         const _SectionLabel('Aplicacion'),
+        _ProfileTile(
+          icon: Icons.admin_panel_settings_outlined,
+          title: 'Privacidad y permisos',
+          subtitle: 'Notificaciones, camara, ubicacion y ajustes de la app.',
+          onTap: () => context.go(AppRoutes.preferences),
+        ),
         const ApkVersionCard(),
         const SizedBox(height: 10),
         _SectionLabel('Sesion'),

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../config/environment/app_environment.dart';
@@ -19,6 +20,7 @@ class DeliveryQueueMapScreen extends StatefulWidget {
 
 class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   static final _defaultCenter = Position(-82.3666, 23.1136);
+  static const _pollInterval = Duration(seconds: 15);
   static const _originColor = Color(0xFF2E7D32);
   static const _destinationColor = Color(0xFFD32F2F);
   static const _routeColor = Color(0xFF1E88E5);
@@ -27,6 +29,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   PointAnnotationManager? _pointManager;
   PolylineAnnotationManager? _polylineManager;
   bool _didInitialCamera = false;
+  Timer? _pollTimer;
 
   @override
   void initState() {
@@ -34,14 +37,51 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     if (AppEnvironment.mapboxAccessToken.isNotEmpty) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
-    unawaited(context.read<DeliveryCubit>().loadDisponibles());
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => unawaited(_refreshQueue()),
+    );
+    unawaited(_refreshQueue(initial: true));
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     unawaited(_pointManager?.deleteAll());
     unawaited(_polylineManager?.deleteAll());
     super.dispose();
+  }
+
+  Future<geo.Position?> _currentPosition() async {
+    final enabled = await geo.Geolocator.isLocationServiceEnabled();
+    if (!enabled) return null;
+    var permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied) {
+      permission = await geo.Geolocator.requestPermission();
+    }
+    if (permission == geo.LocationPermission.denied ||
+        permission == geo.LocationPermission.deniedForever) {
+      return null;
+    }
+    return geo.Geolocator.getCurrentPosition();
+  }
+
+  Future<void> _refreshQueue({bool initial = false}) async {
+    final cubit = context.read<DeliveryCubit>();
+    if (!initial) {
+      try {
+        final position = await _currentPosition();
+        if (position != null) {
+          await cubit.reportLocation(
+            latitude: position.latitude,
+            longitude: position.longitude,
+          );
+        }
+      } catch (_) {
+        // Continua cargando la cola aunque falle el reporte de posicion.
+      }
+    }
+    await cubit.loadDisponibles(silent: !initial);
   }
 
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
@@ -167,17 +207,22 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         title: const Text('Cola de entregas en el mapa'),
         actions: [
           IconButton(
-            onPressed: () => unawaited(
-              context.read<DeliveryCubit>().loadDisponibles(),
-            ),
+            onPressed: () => unawaited(_refreshQueue()),
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar cola',
           ),
         ],
       ),
-      body: BlocBuilder<DeliveryCubit, DeliveryState>(
-        builder: (context, state) {
-          return Stack(
+      body: BlocListener<DeliveryCubit, DeliveryState>(
+        listener: (context, state) {
+          if (_mapboxMap == null || _pointManager == null) return;
+          if (!_didInitialCamera || state.availableEntregas.isNotEmpty) {
+            unawaited(_syncMarkers(initial: !_didInitialCamera));
+          }
+        },
+        child: BlocBuilder<DeliveryCubit, DeliveryState>(
+          builder: (context, state) {
+            return Stack(
             children: [
               MapWidget(
                 // ignore: deprecated_member_use
@@ -213,7 +258,8 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
               ),
             ],
           );
-        },
+          },
+        ),
       ),
     );
   }
@@ -227,6 +273,30 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       );
     }
     if (items.isEmpty) {
+      final error = state.queueError;
+      if (error != null && error.isNotEmpty) {
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+          child: Card(
+            margin: EdgeInsets.zero,
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(error, textAlign: TextAlign.center),
+                  const SizedBox(height: 10),
+                  FilledButton.tonalIcon(
+                    onPressed: () => unawaited(_refreshQueue()),
+                    icon: const Icon(Icons.refresh_rounded),
+                    label: const Text('Reintentar'),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      }
       return const DeliveryMessageCard(
         message: 'No hay entregas disponibles por ahora.',
       );

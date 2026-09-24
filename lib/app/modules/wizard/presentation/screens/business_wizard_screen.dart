@@ -9,6 +9,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
@@ -347,11 +348,13 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<BusinessWizardCubit, BusinessWizardState>(
-      listener: (context, state) {
+      listener: (context, state) async {
         if (state.message != null) {
           showSnackOrAuthDialog(context, state.message);
         }
         if (state.status == BusinessWizardStatus.success) {
+          await context.read<RoleModeCubit>().setMode(RoleMode.business);
+          if (!context.mounted) return;
           context.go(AppRoutes.businessInventory);
         }
       },
