@@ -59,6 +59,42 @@ class _SplashScreenState extends State<SplashScreen> {
 
   Future<void> _showUpdateDialog(ApkUpdateInfo update) async {
     if (!mounted) return;
+    final proceed = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('Nueva version disponible'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Hay una nueva version de ConKkao: v${update.version}.',
+                style: const TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'Puedes actualizar automaticamente ahora o hacerlo luego '
+                'desde tu perfil.',
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(false),
+              child: const Text('Ahora no'),
+            ),
+            FilledButton.icon(
+              onPressed: () => Navigator.of(dialogContext).pop(true),
+              icon: const Icon(Icons.system_update_alt_rounded, size: 18),
+              label: const Text('Actualizar ahora'),
+            ),
+          ],
+        );
+      },
+    );
+    if (proceed != true || !mounted) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,

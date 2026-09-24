@@ -130,7 +130,9 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
 
-    return Padding(
+    return PopScope(
+      canPop: !_downloading,
+      child: Padding(
       padding: EdgeInsets.fromLTRB(24, 24, 24, bottom + 24),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -194,7 +196,39 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
               ],
             ),
           ),
-          const SizedBox(height: 16),
+          if (_downloading) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.orange.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Icon(
+                    Icons.priority_high_rounded,
+                    color: Color(0xFFB26A00),
+                    size: 20,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'No salgas de esta pantalla mientras se descarga. '
+                      'Si cierras la vista, la actualizacion se cancela y '
+                      'tendras que descargarla de nuevo.',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: const Color(0xFF7A4D00),
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           if (_error != null) ...[
             Container(
               width: double.infinity,
@@ -250,9 +284,10 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
                   child: const Text('Cerrar'),
                 ),
             ],
+              ),
+            ],
           ),
-        ],
-      ),
-    );
+        ),
+      );
   }
 }
