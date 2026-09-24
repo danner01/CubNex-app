@@ -39,6 +39,7 @@ class AppRoutes {
   static const productDetail = '/product/:id';
   static const productPriceAnalytics = '/product/:id/precio';
   static const businessDetail = '/store/:id';
+  static const salesMap = '/mapa/ventas';
   static const businessDashboard = '/business/dashboard';
   static const businessStore = '/business/store';
   static const businessInventory = '/business/inventory';

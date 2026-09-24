@@ -142,7 +142,7 @@ class HomeCubit extends Cubit<HomeState> {
     int offset = 0,
   }) async {
     final result = await _apiClient.get<List<ProductModel>>(
-      '/productos/destacados',
+      '/productos/recomendados',
       queryParameters: {'limit': _pageSize, 'offset': offset},
       parser: (json) =>
           _asList(json).map((item) => ProductModel.fromJson(item)).toList(),

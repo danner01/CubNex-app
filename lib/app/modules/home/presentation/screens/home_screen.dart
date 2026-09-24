@@ -112,6 +112,50 @@ class _HomeViewState extends State<_HomeView> {
                   ),
                 ),
                 const SizedBox(height: 24),
+                GestureDetector(
+                  onTap: () => context.go(AppRoutes.salesMap),
+                  child: Card(
+                    margin: EdgeInsets.zero,
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.gold.withValues(alpha: 0.16),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(
+                              Icons.map_rounded,
+                              color: AppColors.goldDark,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Mapa de ventas de Cuba',
+                                  style: Theme.of(context).textTheme.titleMedium
+                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Negocios y productos en venta por provincia, en un solo mapa.',
+                                  style: Theme.of(context).textTheme.bodySmall,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right_rounded),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
                 SectionHeader(
                   title: 'Categorias populares',
                   onAction: () => context.go(AppRoutes.search),
