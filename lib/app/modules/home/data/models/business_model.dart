@@ -12,6 +12,9 @@ class BusinessModel {
     this.municipality,
     this.phone,
     this.whatsapp,
+    this.telegram,
+    this.facebook,
+    this.instagram,
     this.openingTime,
     this.closingTime,
     this.acceptsTransfer = false,
@@ -50,6 +53,9 @@ class BusinessModel {
   final String? municipality;
   final String? phone;
   final String? whatsapp;
+  final String? telegram;
+  final String? facebook;
+  final String? instagram;
   final String? openingTime;
   final String? closingTime;
   final bool acceptsTransfer;
@@ -107,6 +113,9 @@ class BusinessModel {
     String? municipality,
     String? phone,
     String? whatsapp,
+    String? telegram,
+    String? facebook,
+    String? instagram,
     String? openingTime,
     String? closingTime,
     bool? acceptsTransfer,
@@ -145,6 +154,9 @@ class BusinessModel {
       municipality: municipality ?? this.municipality,
       phone: phone ?? this.phone,
       whatsapp: whatsapp ?? this.whatsapp,
+      telegram: telegram ?? this.telegram,
+      facebook: facebook ?? this.facebook,
+      instagram: instagram ?? this.instagram,
       openingTime: openingTime ?? this.openingTime,
       closingTime: closingTime ?? this.closingTime,
       acceptsTransfer: acceptsTransfer ?? this.acceptsTransfer,

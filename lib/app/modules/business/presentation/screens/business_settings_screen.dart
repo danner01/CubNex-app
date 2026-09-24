@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../common/presentation/widgets/cambio_hoy_card.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/store_brand_theme.dart';
@@ -92,7 +93,12 @@ class _BusinessSettingsView extends StatelessWidget {
                 const SizedBox(height: 12),
                 _BrandAssetsSection(business: state.business, saving: saving),
                 const SizedBox(height: 12),
+                _SocialSection(business: state.business, saving: saving),
+                const SizedBox(height: 12),
                 _OperationsSection(business: state.business, saving: saving),
+                const SizedBox(height: 12),
+                const CambioHoyCard(),
+                const SizedBox(height: 12),
                 if (state.business?.isFuelBusiness == true ||
                     state.business?.isCurrencyExchangeBusiness == true) ...[
                   const SizedBox(height: 12),
@@ -257,6 +263,79 @@ class _SpecialCatalogSection extends StatelessWidget {
                     : Icons.currency_exchange,
               ),
               label: Text(isFuel ? 'Gestionar combustibles' : 'Gestionar tasas'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SocialSection extends StatelessWidget {
+  const _SocialSection({required this.business, required this.saving});
+
+  final BusinessModel? business;
+  final bool saving;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = !saving && business != null;
+    final item = business;
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Redes y contacto directo',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 8),
+            const Text(
+              'Pega tus enlaces publicos (canales, paginas o grupos) para que los clientes te contacten por otra via.',
+            ),
+            const SizedBox(height: 14),
+            TextFormField(
+              initialValue: item?.telegram ?? '',
+              enabled: enabled,
+              decoration: const InputDecoration(
+                labelText: 'Telegram',
+                hintText: 'https://t.me/tucanal',
+                prefixIcon: Icon(Icons.send_outlined),
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateBusinessSocial(telegram: value.trim()),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: item?.facebook ?? '',
+              enabled: enabled,
+              decoration: const InputDecoration(
+                labelText: 'Facebook',
+                hintText: 'https://facebook.com/tucuenta',
+                prefixIcon: Icon(Icons.groups_outlined),
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateBusinessSocial(facebook: value.trim()),
+            ),
+            const SizedBox(height: 8),
+            TextFormField(
+              initialValue: item?.instagram ?? '',
+              enabled: enabled,
+              decoration: const InputDecoration(
+                labelText: 'Instagram',
+                hintText: 'https://instagram.com/tucuenta',
+                prefixIcon: Icon(Icons.camera_alt_outlined),
+              ),
+              onChanged: (value) => context
+                  .read<BusinessSettingsCubit>()
+                  .updateBusinessSocial(instagram: value.trim()),
             ),
           ],
         ),

@@ -7,6 +7,7 @@ import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/entities/user_role.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../common/presentation/widgets/cambio_hoy_card.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../common/services/credit_service.dart';
@@ -279,9 +280,14 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                     _ContactCard(
                       phone: business.phone,
                       whatsapp: business.whatsapp,
+                      telegram: business.telegram,
+                      facebook: business.facebook,
+                      instagram: business.instagram,
                     ),
                     const SizedBox(height: 12),
                     _OperationalInfoCard(business: business),
+                    const SizedBox(height: 12),
+                    const CambioHoyCard(),
                     if (business.isFuelBusiness ||
                         business.isCurrencyExchangeBusiness) ...[
                       const SizedBox(height: 12),
@@ -1174,10 +1180,19 @@ class _BusinessHero extends StatelessWidget {
 }
 
 class _ContactCard extends StatelessWidget {
-  const _ContactCard({this.phone, this.whatsapp});
+  const _ContactCard({
+    this.phone,
+    this.whatsapp,
+    this.telegram,
+    this.facebook,
+    this.instagram,
+  });
 
   final String? phone;
   final String? whatsapp;
+  final String? telegram;
+  final String? facebook;
+  final String? instagram;
 
   @override
   Widget build(BuildContext context) {
@@ -1215,8 +1230,81 @@ class _ContactCard extends StatelessWidget {
               ? const Icon(Icons.open_in_new_rounded)
               : null,
         ),
+        ListTile(
+          onTap: telegram?.isNotEmpty == true
+              ? () => _openSocial(context, telegram, 'telegram')
+              : null,
+          leading: Icon(
+            Icons.send_outlined,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          title: const Text('Telegram'),
+          subtitle: Text(
+            telegram?.isNotEmpty == true ? telegram! : 'No configurado',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: telegram?.isNotEmpty == true
+              ? const Icon(Icons.open_in_new_rounded)
+              : null,
+        ),
+        ListTile(
+          onTap: facebook?.isNotEmpty == true
+              ? () => _openSocial(context, facebook, 'facebook')
+              : null,
+          leading: Icon(
+            Icons.groups_outlined,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          title: const Text('Facebook'),
+          subtitle: Text(
+            facebook?.isNotEmpty == true ? facebook! : 'No configurado',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: facebook?.isNotEmpty == true
+              ? const Icon(Icons.open_in_new_rounded)
+              : null,
+        ),
+        ListTile(
+          onTap: instagram?.isNotEmpty == true
+              ? () => _openSocial(context, instagram, 'instagram')
+              : null,
+          leading: Icon(
+            Icons.camera_alt_outlined,
+            color: Theme.of(context).colorScheme.secondary,
+          ),
+          title: const Text('Instagram'),
+          subtitle: Text(
+            instagram?.isNotEmpty == true ? instagram! : 'No configurado',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: instagram?.isNotEmpty == true
+              ? const Icon(Icons.open_in_new_rounded)
+              : null,
+        ),
       ],
     );
+  }
+
+  Future<void> _openSocial(
+    BuildContext context,
+    String? value,
+    String method,
+  ) async {
+    final businessId = context.read<BusinessDetailCubit>().state.business?.id;
+    final message = switch (method) {
+      'telegram' => await sl<ContactService>().openTelegram(value),
+      'facebook' => await sl<ContactService>().openFacebook(value),
+      _ => await sl<ContactService>().openInstagram(value),
+    };
+    if (message == null && businessId != null) {
+      await sl<CreditService>().recordBusinessContact(businessId, method);
+    }
+    if (message != null && context.mounted) {
+      showSnackOrAuthDialog(context, message);
+    }
   }
 
   Future<void> _openPhone(BuildContext context, String? value) async {

@@ -137,6 +137,26 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
     );
   }
 
+  void updateBusinessSocial({
+    String? telegram,
+    String? facebook,
+    String? instagram,
+  }) {
+    final business = state.business;
+    if (business == null) return;
+
+    emit(
+      state.copyWith(
+        status: BusinessSettingsStatus.ready,
+        business: business.copyWith(
+          telegram: telegram,
+          facebook: facebook,
+          instagram: instagram,
+        ),
+      ),
+    );
+  }
+
   void updateReservationDefaultMinutes(int? minutes) {
     final business = state.business;
     if (business == null) return;
@@ -191,6 +211,9 @@ class BusinessSettingsCubit extends Cubit<BusinessSettingsState> {
           'horario_apertura': _blankToNull(business.openingTime),
           'horario_cierre': _blankToNull(business.closingTime),
           'acepta_transferencia': business.acceptsTransfer,
+          'telegram': _blankToNull(business.telegram),
+          'facebook': _blankToNull(business.facebook),
+          'instagram': _blankToNull(business.instagram),
           'disponible_ahora': business.availableNow,
           'tiene_local_fisico': business.hasPhysicalLocation,
           'requiere_electricidad': business.requiresElectricity,

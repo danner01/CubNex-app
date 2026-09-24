@@ -12,6 +12,7 @@ import '../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/credit_service.dart';
+import '../../common/services/tasas/tasas_service.dart';
 import '../../common/services/apk_update_service.dart';
 import '../../common/services/apk_download_service.dart';
 import '../../common/services/push_notification_service.dart';
@@ -74,6 +75,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(ContactService.new)
     ..registerLazySingleton(() => ShareService(apiClient: sl()))
     ..registerLazySingleton(() => CreditService(apiClient: sl()))
+    ..registerLazySingleton(() => TasasService(apiClient: sl()))
     ..registerLazySingleton(() => FirebaseAuth.instance)
     ..registerLazySingleton(() => FirebaseMessaging.instance)
     ..registerLazySingleton(
