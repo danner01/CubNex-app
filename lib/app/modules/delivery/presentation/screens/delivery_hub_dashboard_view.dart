@@ -101,7 +101,20 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
       if (!silent) _showMessage('Permiso de ubicacion denegado.');
       return null;
     }
-    return geo.Geolocator.getCurrentPosition();
+    try {
+      return await geo.Geolocator.getCurrentPosition(
+        locationSettings: geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+          timeLimit: const Duration(seconds: 15),
+        ),
+      );
+    } catch (_) {
+      try {
+        return await geo.Geolocator.getLastKnownPosition();
+      } catch (_) {
+        return null;
+      }
+    }
   }
 
   void _showMessage(String message) {

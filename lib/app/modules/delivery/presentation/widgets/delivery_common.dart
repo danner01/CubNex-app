@@ -180,6 +180,8 @@ const int _deliveryMarkerIconSize = 72;
 
 final Map<String, String> _deliveryMarkerIconCache = {};
 
+final Map<String, String> _deliveryPinIconCache = {};
+
 String _deliveryMarkerIconKey(Color color, String? vehicle) {
   final vehicleKey = (vehicle ?? 'delivery').trim().toLowerCase();
   final colorKey = color.toARGB32().toRadixString(16).padLeft(8, '0');
@@ -201,9 +203,9 @@ Future<String?> ensureDeliveryMarkerIcon(
     return key;
   }
 
-  final rgba = await _buildDeliveryMarkerPng(color, vehicle);
-  if (rgba == null) return null;
-  _deliveryMarkerIconPngCache[key] = rgba;
+  final png = await _buildDeliveryMarkerPng(color, vehicle);
+  if (png == null) return null;
+  _deliveryMarkerIconPngCache[key] = png;
 
   try {
     await map.style.addStyleImage(
@@ -212,7 +214,7 @@ Future<String?> ensureDeliveryMarkerIcon(
       MbxImage(
         width: _deliveryMarkerIconSize,
         height: _deliveryMarkerIconSize,
-        data: _premultiplyRgba(rgba),
+        data: png,
       ),
       false,
       const [],
@@ -226,10 +228,50 @@ Future<String?> ensureDeliveryMarkerIcon(
   return key;
 }
 
+/// Registra en el estilo del mapa un pin (gota) del color indicado y con un
+/// texto opcional en su centro (origen/destino/numero de parada). Devuelve el
+/// id del icono para usarlo en `iconImage`, o null si no pudo registrarlo.
+Future<String?> ensureDeliveryPinIcon(
+  MapboxMap map,
+  Color color, {
+  String? label,
+  String keyPrefix = 'del_pin',
+}) async {
+  final safeLabel = label?.trim().replaceAll(RegExp(r'\s+'), '_');
+  final key =
+      '${keyPrefix}_${color.toARGB32().toRadixString(16).padLeft(8, '0')}_${safeLabel?.toLowerCase() ?? 'n'}';
+  final cached = _deliveryPinIconCache[key];
+  if (cached != null) {
+    await _tryRestorePinStyleImage(map, key);
+    return key;
+  }
+
+  final png = await _buildDeliveryPinPng(color, safeLabel);
+  if (png == null) return null;
+  _deliveryPinIconPngCache[key] = png;
+
+  try {
+    await map.style.addStyleImage(
+      key,
+      1.0,
+      MbxImage(data: png, width: 64, height: 64),
+      false,
+      const [],
+      const [],
+      null,
+    );
+  } catch (_) {
+    return null;
+  }
+  _deliveryPinIconCache[key] = key;
+  return key;
+}
+
 /// Re-registra el icono por si el estilo del mapa se recargo (por ejemplo al
 /// reconstruirse el mapa) y la imagen quedo fuera de el.
 Future<void> _tryRestoreStyleImage(MapboxMap map, String key) async {
-  if (_deliveryMarkerIconCache.isEmpty) return;
+  final png = _deliveryMarkerIconPngCache[key];
+  if (png == null) return;
   try {
     await map.style.addStyleImage(
       key,
@@ -237,7 +279,7 @@ Future<void> _tryRestoreStyleImage(MapboxMap map, String key) async {
       MbxImage(
         width: _deliveryMarkerIconSize,
         height: _deliveryMarkerIconSize,
-        data: _deliveryMarkerIconPngCache[key] ?? _emptyMarkerPng(),
+        data: png,
       ),
       false,
       const [],
@@ -249,11 +291,26 @@ Future<void> _tryRestoreStyleImage(MapboxMap map, String key) async {
   }
 }
 
-final Map<String, Uint8List> _deliveryMarkerIconPngCache = {};
+Future<void> _tryRestorePinStyleImage(MapboxMap map, String key) async {
+  final png = _deliveryPinIconPngCache[key];
+  if (png == null) return;
+  try {
+    await map.style.addStyleImage(
+      key,
+      1.0,
+      MbxImage(data: png, width: 64, height: 64),
+      false,
+      const [],
+      const [],
+      null,
+    );
+  } catch (_) {
+    // La imagen ya existe en el estilo: sin problema.
+  }
+}
 
-Uint8List _emptyMarkerPng() => Uint8List(
-  _deliveryMarkerIconSize * _deliveryMarkerIconSize * 4,
-);
+final Map<String, Uint8List> _deliveryMarkerIconPngCache = {};
+final Map<String, Uint8List> _deliveryPinIconPngCache = {};
 
 Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
   final recorder = ui.PictureRecorder();
@@ -301,28 +358,71 @@ Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
     _deliveryMarkerIconSize,
     _deliveryMarkerIconSize,
   );
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  // IMPORTANTE: Android espera bytes PNG/JPEG (BitmapFactory.decodeByteArray),
+  // no RGBA crudo. Si se envia RGBA, el icono no se registra en el estilo.
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   if (byteData == null) return null;
   return byteData.buffer.asUint8List();
 }
 
-Uint8List _premultiplyRgba(Uint8List rgba) {
-  final out = Uint8List(rgba.length);
-  for (var i = 0; i + 3 < rgba.length; i += 4) {
-    final alpha = rgba[i + 3];
-    out[i + 3] = alpha;
-    if (alpha == 255) {
-      out[i] = rgba[i];
-      out[i + 1] = rgba[i + 1];
-      out[i + 2] = rgba[i + 2];
-    } else {
-      out[i] = (rgba[i] * alpha) ~/ 255;
-      out[i + 1] = (rgba[i + 1] * alpha) ~/ 255;
-      out[i + 2] = (rgba[i + 2] * alpha) ~/ 255;
-    }
+const int _deliveryPinSize = 64;
+
+Future<Uint8List?> _buildDeliveryPinPng(Color color, String? label) async {
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  final size = _deliveryPinSize.toDouble();
+
+  final path = Path()
+    ..moveTo(size / 2, size * 0.06)
+    ..quadraticBezierTo(size * 0.16, size * 0.06, size * 0.16, size * 0.36)
+    ..quadraticBezierTo(size * 0.16, size * 0.62, size / 2, size * 0.94)
+    ..quadraticBezierTo(size * 0.84, size * 0.62, size * 0.84, size * 0.36)
+    ..quadraticBezierTo(size * 0.84, size * 0.06, size / 2, size * 0.06)
+    ..close();
+
+  canvas.drawPath(
+    path,
+    Paint()
+      ..color = color.withValues(alpha: 0.3)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6),
+  );
+  canvas.drawPath(path, Paint()..color = color);
+  canvas.drawCircle(
+    Offset(size / 2, size * 0.33),
+    size * 0.19,
+    Paint()..color = Colors.white,
+  );
+
+  final safeLabel = label;
+  if (safeLabel != null && safeLabel.isNotEmpty) {
+    final textPainter = TextPainter(
+      text: TextSpan(
+        text: safeLabel,
+        style: TextStyle(
+          fontFamily: 'Roboto',
+          fontSize: safeLabel.length > 2 ? size * 0.16 : size * 0.22,
+          fontWeight: FontWeight.w900,
+          color: const Color(0xFF212121),
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+      textAlign: TextAlign.center,
+    )..layout();
+    textPainter.paint(
+      canvas,
+      Offset(
+        size / 2 - textPainter.width / 2,
+        size * 0.33 - textPainter.height / 2,
+      ),
+    );
   }
-  return out;
+
+  final image = await recorder.endRecording().toImage(_deliveryPinSize, _deliveryPinSize);
+  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+  image.dispose();
+  if (byteData == null) return null;
+  return byteData.buffer.asUint8List();
 }
 
 class DeliveryActionData {
@@ -415,6 +515,7 @@ class DeliveryMapSearchOverlay extends StatefulWidget {
     this.onFocusLocation,
     this.label = 'Buscar direccion...',
     this.onUseCurrentLocation,
+    this.showLocateFab = true,
     super.key,
   });
 
@@ -422,6 +523,7 @@ class DeliveryMapSearchOverlay extends StatefulWidget {
   final void Function(double lat, double lng)? onFocusLocation;
   final String label;
   final Future<void> Function()? onUseCurrentLocation;
+  final bool showLocateFab;
 
   @override
   State<DeliveryMapSearchOverlay> createState() =>
@@ -703,22 +805,24 @@ class _DeliveryMapSearchOverlayState extends State<DeliveryMapSearchOverlay> {
             ],
           ),
         ),
-        Positioned(
-          right: 12,
-          bottom: 12,
-          child: FloatingActionButton.small(
-            heroTag: 'delivery_map_locate',
-            onPressed: _locating ? null : () => unawaited(_useCurrentLocation()),
-            tooltip: 'Mi ubicacion',
-            child: _locating
-                ? const SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  )
-                : const Icon(Icons.my_location_rounded),
+        if (widget.showLocateFab)
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: FloatingActionButton.small(
+              heroTag: 'delivery_map_locate',
+              onPressed:
+                  _locating ? null : () => unawaited(_useCurrentLocation()),
+              tooltip: 'Mi ubicacion',
+              child: _locating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.my_location_rounded),
+            ),
           ),
-        ),
       ],
     );
   }
