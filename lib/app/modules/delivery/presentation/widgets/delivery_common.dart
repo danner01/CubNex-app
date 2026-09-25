@@ -177,6 +177,7 @@ Color readableDeliveryMarkerIconColor(Color background) {
 }
 
 const int _deliveryMarkerIconSize = 72;
+const double _deliveryMarkerIconScale = 2;
 
 final Map<String, String> _deliveryMarkerIconCache = {};
 
@@ -313,10 +314,14 @@ final Map<String, Uint8List> _deliveryMarkerIconPngCache = {};
 final Map<String, Uint8List> _deliveryPinIconPngCache = {};
 
 Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
+  final scale = _deliveryMarkerIconScale;
+  final size = _deliveryMarkerIconSize.toDouble();
+  final hiSize = (_deliveryMarkerIconSize * scale).round();
+
   final recorder = ui.PictureRecorder();
-  final canvas = Canvas(recorder);
-  final center = _deliveryMarkerIconSize / 2;
-  final radius = _deliveryMarkerIconSize * 0.42;
+  final canvas = Canvas(recorder)..scale(scale);
+  final center = size / 2;
+  final radius = size * 0.42;
 
   canvas.drawCircle(
     Offset(center, center),
@@ -342,7 +347,7 @@ Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
       style: TextStyle(
         fontFamily: icon.fontFamily ?? 'MaterialIcons',
         package: icon.fontPackage,
-        fontSize: _deliveryMarkerIconSize * 0.46,
+        fontSize: size * 0.46,
         color: readableDeliveryMarkerIconColor(color),
       ),
     ),
@@ -354,14 +359,23 @@ Future<Uint8List?> _buildDeliveryMarkerPng(Color color, String? vehicle) async {
     Offset(center - textPainter.width / 2, center - textPainter.height / 2),
   );
 
-  final image = await recorder.endRecording().toImage(
+  final big = await recorder.endRecording().toImage(hiSize, hiSize);
+  final downRecorder = ui.PictureRecorder();
+  final downCanvas = Canvas(downRecorder)..scale(1 / scale);
+  downCanvas.drawImage(
+    big,
+    Offset.zero,
+    Paint()..filterQuality = FilterQuality.high,
+  );
+  final small = await downRecorder.endRecording().toImage(
     _deliveryMarkerIconSize,
     _deliveryMarkerIconSize,
   );
+  big.dispose();
   // IMPORTANTE: Android espera bytes PNG/JPEG (BitmapFactory.decodeByteArray),
   // no RGBA crudo. Si se envia RGBA, el icono no se registra en el estilo.
-  final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
-  image.dispose();
+  final byteData = await small.toByteData(format: ui.ImageByteFormat.png);
+  small.dispose();
   if (byteData == null) return null;
   return byteData.buffer.asUint8List();
 }

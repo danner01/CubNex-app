@@ -26,7 +26,7 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
 
   MapboxMap? _mapboxMap;
   PointAnnotationManager? _pointManager;
-  List<_ProvinciaVentas> _provincias = const [];
+  List<_NegocioVentas> _negocios = const [];
   List<String> _renderedKeys = const [];
 
   @override
@@ -75,7 +75,7 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
               ),
             );
           }
-          _provincias = data.resumenPorProvincia;
+          _negocios = data.negocios;
           return Column(
             children: [
               Padding(
@@ -167,21 +167,21 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
     _pointManager?.setIconAllowOverlap(true);
     _pointManager?.tapEvents(
       onTap: (annotation) {
-        final provincia = _annotationMap[annotation.id];
-        if (provincia != null && mounted) {
-          unawaited(_flyTo(provincia));
+        final negocio = _annotationMap[annotation.id];
+        if (negocio != null && mounted) {
+          unawaited(_openNegocio(negocio));
         }
       },
     );
     await _syncAnnotations();
   }
 
-  final Map<String, _ProvinciaVentas> _annotationMap = {};
+  final Map<String, _NegocioVentas> _annotationMap = {};
 
   Future<void> _syncAnnotations() async {
     final pointManager = _pointManager;
     if (pointManager == null) return;
-    final keys = _provincias.map(_annotationKey).toList();
+    final keys = _negocios.map(_annotationKey).toList();
     final same = keys.length == _renderedKeys.length &&
         keys.join('|') == _renderedKeys.join('|');
     if (same) return;
@@ -189,68 +189,91 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
     _annotationMap.clear();
     await pointManager.deleteAll();
     final annotations = <PointAnnotationOptions>[];
-    for (final provincia in _provincias) {
-      final imagenes = await _markerBytes(provincia);
+    for (final negocio in _negocios) {
+      final lat = negocio.lat;
+      final lng = negocio.lng;
+      if (lat == null || lng == null) continue;
       annotations.add(
         PointAnnotationOptions(
-          geometry: Point(
-            coordinates: Position(provincia.lng, provincia.lat),
-          ),
-          image: imagenes,
+          geometry: Point(coordinates: Position(lng, lat)),
+          image: await _markerBytes(negocio),
           iconAnchor: IconAnchor.BOTTOM,
-          iconSize: 0.95 + (provincia.cantidadProductos / 120).clamp(0, 0.45),
+          iconSize: 1,
         ),
       );
     }
     if (annotations.isNotEmpty) {
       final created = await pointManager.createMulti(annotations);
-      for (var i = 0; i < created.length && i < _provincias.length; i += 1) {
+      for (var i = 0; i < created.length; i += 1) {
         final annotation = created[i];
-        if (annotation != null) {
-          _annotationMap[annotation.id] = _provincias[i];
+        if (annotation != null && i < annotations.length) {
+          final match = _negocios
+              .where((negocio) => negocio.lat != null && negocio.lng != null)
+              .toList();
+          if (i < match.length) {
+            _annotationMap[annotation.id] = match[i];
+          }
         }
       }
     }
   }
 
-  String _annotationKey(_ProvinciaVentas provincia) {
-    return 'pv_${provincia.provincia}_${provincia.lat}_${provincia.lng}';
+  String _annotationKey(_NegocioVentas negocio) {
+    return 'nv_${negocio.id}_${negocio.lat}_${negocio.lng}';
   }
 
-  Future<Uint8List> _markerBytes(_ProvinciaVentas provincia) async {
+  Future<void> _openNegocio(_NegocioVentas negocio) async {
+    if (!mounted) return;
+    await _mapboxMap?.flyTo(
+      CameraOptions(
+        center: Point(
+          coordinates: Position(negocio.lng ?? -79.4, negocio.lat ?? 21.6),
+        ),
+        zoom: 11,
+      ),
+      MapAnimationOptions(duration: 750),
+    );
+    if (mounted) context.go(AppRoutes.store(negocio.id));
+  }
+
+  Future<Uint8List> _markerBytes(_NegocioVentas negocio) async {
     final recorder = ui.PictureRecorder();
     final canvas = Canvas(recorder);
-    const size = ui.Size(72, 84);
-    final fill = Paint()..color = AppColors.gold;
+    const size = ui.Size(48, 56);
+    final color =
+        _colorFromHex(negocio.themeColor) ?? AppColors.goldDark;
+    final fill = Paint()..color = color;
     final border = Paint()
       ..color = Colors.white
       ..style = PaintingStyle.stroke
-      ..strokeWidth = 5;
+      ..strokeWidth = 4;
 
     final path = Path()
-      ..addOval(const Rect.fromLTWH(8, 5, 56, 56))
-      ..moveTo(36, 80)
-      ..quadraticBezierTo(17, 54, 22, 39)
-      ..quadraticBezierTo(36, 59, 50, 39)
-      ..quadraticBezierTo(55, 54, 36, 80)
+      ..addOval(const Rect.fromLTWH(6, 4, 36, 36))
+      ..moveTo(24, 52)
+      ..quadraticBezierTo(12, 36, 15, 26)
+      ..quadraticBezierTo(24, 39, 33, 26)
+      ..quadraticBezierTo(36, 36, 24, 52)
       ..close();
     canvas.drawPath(path, Paint()..color = Colors.black.withValues(alpha: 0.2));
-    canvas.drawPath(path.shift(const Offset(0, -3)), fill);
-    canvas.drawPath(path.shift(const Offset(0, -3)), border);
+    canvas.drawPath(path.shift(const Offset(0, -2)), fill);
+    canvas.drawPath(path.shift(const Offset(0, -2)), border);
 
+    final icon = _iconFor(negocio.tipoIcon);
     final textPainter = TextPainter(textDirection: TextDirection.ltr)
       ..text = TextSpan(
-        text: '${provincia.cantidadProductos}',
-        style: const TextStyle(
+        text: String.fromCharCode(icon.codePoint),
+        style: TextStyle(
           fontSize: 20,
-          fontWeight: FontWeight.w900,
+          fontFamily: icon.fontFamily,
+          package: icon.fontPackage,
           color: Colors.white,
         ),
       )
       ..layout();
     textPainter.paint(
       canvas,
-      Offset((size.width - textPainter.width) / 2, 22),
+      Offset((size.width - textPainter.width) / 2, 12),
     );
 
     final image = await recorder.endRecording().toImage(
@@ -258,17 +281,34 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
       size.height.toInt(),
     );
     final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    image.dispose();
     return byteData!.buffer.asUint8List();
   }
 
-  Future<void> _flyTo(_ProvinciaVentas provincia) async {
-    await _mapboxMap?.flyTo(
-      CameraOptions(
-        center: Point(coordinates: Position(provincia.lng, provincia.lat)),
-        zoom: 8.2,
-      ),
-      MapAnimationOptions(duration: 750),
+  Color? _colorFromHex(String? value) {
+    if (value == null || value.isEmpty) return null;
+    final cleaned = value.replaceAll('#', '');
+    final parsed = int.tryParse(
+      cleaned.length == 6 ? 'FF$cleaned' : cleaned,
+      radix: 16,
     );
+    return parsed == null ? null : Color(parsed);
+  }
+
+  IconData _iconFor(String? icon) {
+    return switch (icon?.trim().toLowerCase()) {
+      'truck' => Icons.local_shipping_outlined,
+      'car' || 'car-front' => Icons.directions_car_outlined,
+      'home' || 'building' => Icons.home_work_outlined,
+      'utensils' || 'coffee' => Icons.restaurant_outlined,
+      'scissors' => Icons.content_cut,
+      'wrench' => Icons.handyman_outlined,
+      'shirt' => Icons.checkroom_outlined,
+      'smartphone' || 'monitor' => Icons.devices_outlined,
+      'gas' || 'fuel' => Icons.local_gas_station_outlined,
+      'book' || 'education' => Icons.menu_book_outlined,
+      _ => Icons.storefront_outlined,
+    };
   }
 
   Widget _buildList(_MapaVentas data) {
@@ -481,6 +521,10 @@ class _NegocioVentas {
     this.logoUrl,
     this.calificacionPromedio,
     required this.cantidadProductos,
+    this.lat,
+    this.lng,
+    this.themeColor,
+    this.tipoIcon,
   });
 
   final String id;
@@ -490,8 +534,28 @@ class _NegocioVentas {
   final String? logoUrl;
   final double? calificacionPromedio;
   final int cantidadProductos;
+  final double? lat;
+  final double? lng;
+  final String? themeColor;
+  final String? tipoIcon;
 
   factory _NegocioVentas.fromJson(Map<String, dynamic> json) {
+    final coloresRaw = json['colores'];
+    String? themeColor;
+    if (coloresRaw is Map) {
+      themeColor = (coloresRaw['primario'] ??
+              coloresRaw['primary'] ??
+              coloresRaw['acento'])
+          ?.toString();
+    }
+    final tipoRaw = json['tipo_negocio'];
+    String? tipoIcon;
+    if (tipoRaw is Map) {
+      tipoIcon = tipoRaw['icono']?.toString();
+    } else if (tipoRaw is String) {
+      tipoIcon = tipoRaw;
+    }
+
     return _NegocioVentas(
       id: json['id']?.toString() ?? '',
       nombre: json['nombre']?.toString() ?? '',
@@ -500,6 +564,10 @@ class _NegocioVentas {
       logoUrl: json['logo_url']?.toString(),
       calificacionPromedio: _doubleValue(json['calificacion_promedio']),
       cantidadProductos: _intValue(json['cantidad_productos']),
+      lat: _doubleValue(json['lat']),
+      lng: _doubleValue(json['lng']),
+      themeColor: themeColor,
+      tipoIcon: tipoIcon,
     );
   }
 }

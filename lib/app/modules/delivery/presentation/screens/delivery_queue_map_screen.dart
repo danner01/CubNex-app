@@ -119,7 +119,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           geometry: Point(coordinates: Position(originLng, originLat)),
           iconImage: 'marker',
           iconColor: _originColor.toARGB32(),
-          iconSize: 1.3,
+          iconSize: 1.0,
           iconAnchor: IconAnchor.BOTTOM,
         ),
       );
@@ -130,7 +130,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
             geometry: Point(coordinates: Position(destLng, destLat)),
             iconImage: 'marker',
             iconColor: _destinationColor.toARGB32(),
-            iconSize: 1.3,
+            iconSize: 1.0,
             iconAnchor: IconAnchor.BOTTOM,
           ),
         );

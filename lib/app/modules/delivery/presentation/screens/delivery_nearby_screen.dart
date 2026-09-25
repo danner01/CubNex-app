@@ -187,7 +187,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
           ),
           iconImage: selfIconId ?? 'marker',
           iconColor: selfIconId == null ? selfColor.toARGB32() : null,
-          iconSize: 1.15,
+          iconSize: 0.85,
           iconAnchor: IconAnchor.BOTTOM,
         ),
       );
@@ -214,7 +214,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
           geometry: Point(coordinates: Position(lng, lat)),
           iconImage: iconId ?? 'marker',
           iconColor: iconId == null ? color.toARGB32() : null,
-          iconSize: 1.15,
+          iconSize: 0.7,
           iconAnchor: IconAnchor.BOTTOM,
         ),
       );

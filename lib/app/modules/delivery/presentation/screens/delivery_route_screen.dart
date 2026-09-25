@@ -719,7 +719,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           iconColor: fallbackIconId == null && myIconId == null
               ? myColor.toARGB32()
               : null,
-          iconSize: 1.4,
+          iconSize: 0.85,
           iconAnchor: IconAnchor.BOTTOM,
         ),
       );
@@ -743,7 +743,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           geometry: Point(coordinates: Position(lng, lat)),
           iconImage: iconId ?? 'marker',
           iconColor: iconId == null ? color.toARGB32() : null,
-          iconSize: 1.15,
+          iconSize: 0.7,
           iconAnchor: IconAnchor.BOTTOM,
         ),
       );
