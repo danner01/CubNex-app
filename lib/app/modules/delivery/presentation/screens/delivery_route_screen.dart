@@ -305,14 +305,29 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   }
 
   Future<void> _boot() async {
-    final position = await _readPosition();
+    final position = await _readPosition(showErrors: true);
     if (!mounted) return;
     setState(() {
       _myLat = position?.latitude;
       _myLng = position?.longitude;
     });
+    final entrega = sl<DeliveryAcceptedStore>().accepted.value;
+    if (position != null && entrega == null) {
+      await _mapboxMap?.flyTo(
+        CameraOptions(
+          center: Point(
+            coordinates: Position(position.longitude, position.latitude),
+          ),
+          zoom: 13,
+        ),
+        MapAnimationOptions(duration: 400),
+      );
+    }
     unawaited(_loadMyProfile());
     await _refresh();
+    if (entrega != null && !_followingDelivery) {
+      unawaited(_toggleFollowing());
+    }
   }
 
   Future<void> _toggleFollowing() async {
@@ -1001,6 +1016,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     final theme = Theme.of(context);
 
     return Scaffold(
+      appBar: AppBar(title: const Text('Ruta y mapa')),
       body: ValueListenableBuilder<DeliveryEntregaModel?>(
         valueListenable: sl<DeliveryAcceptedStore>().accepted,
         builder: (context, entrega, _) {

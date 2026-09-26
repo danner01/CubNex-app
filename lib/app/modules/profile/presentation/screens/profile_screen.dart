@@ -184,7 +184,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                       .hasDeliveryMembership) &&
               activeMode == RoleMode.delivery)
             FilledButton.icon(
-              onPressed: () => context.go(AppRoutes.deliveryDashboard),
+              onPressed: () => context.push(AppRoutes.deliveryDashboard),
               icon: const Icon(Icons.delivery_dining_rounded),
               label: const Text('Panel delivery'),
             )
@@ -358,31 +358,31 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
         icon: Icons.delivery_dining_outlined,
         title: 'Panel delivery',
         subtitle: 'Solicitudes, entregas activas, ingresos y reputacion.',
-        onTap: () => context.go(AppRoutes.deliveryDashboard),
+        onTap: () => context.push(AppRoutes.deliveryDashboard),
       ),
       _ProfileTile(
         icon: Icons.assignment_outlined,
         title: 'Solicitudes',
         subtitle: 'Ordenes disponibles para aceptar.',
-        onTap: () => context.go(AppRoutes.deliveryRequests),
+        onTap: () => context.push(AppRoutes.deliveryRequests),
       ),
       _ProfileTile(
         icon: Icons.map_outlined,
         title: 'Ruta y mapa',
         subtitle: 'Entregas activas y ubicacion en tiempo real.',
-        onTap: () => context.go(AppRoutes.deliveryRoute),
+        onTap: () => context.push(AppRoutes.deliveryRoute),
       ),
       _ProfileTile(
         icon: Icons.history_rounded,
         title: 'Historial de entregas',
         subtitle: 'Ordenes completadas, kilometros y pagos.',
-        onTap: () => context.go(AppRoutes.deliveryHistory),
+        onTap: () => context.push(AppRoutes.deliveryHistory),
       ),
       _ProfileTile(
         icon: Icons.badge_outlined,
         title: 'Perfil delivery',
         subtitle: 'Vehiculo, tarifa, disponibilidad y zona.',
-        onTap: () => context.go(AppRoutes.deliveryProfile),
+        onTap: () => context.push(AppRoutes.deliveryProfile),
       ),
       ...common,
     ],

@@ -164,11 +164,12 @@ class _SearchResults extends StatelessWidget {
     }
 
     if (state.status == SearchStatus.failure) {
+      final isDark = Theme.of(context).brightness == Brightness.dark;
       return _MessageCard(
         icon: Icons.error_outline_rounded,
         title: 'No se pudo buscar',
         message: state.errorMessage ?? 'Intenta de nuevo.',
-        color: AppColors.danger,
+        color: isDark ? AppColors.dangerDark : AppColors.danger,
       );
     }
 

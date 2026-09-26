@@ -3,9 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
+import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
+import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
+import '../../../../config/injection/injection.dart';
+import '../../../../config/routes/app_routes.dart';
+import '../../blocs/delivery/delivery_accepted_store.dart';
 import '../../blocs/delivery/delivery_cubit.dart';
 import '../../blocs/delivery/delivery_state.dart';
 import '../../data/models/delivery_entrega_model.dart';
@@ -29,12 +34,15 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   PointAnnotationManager? _pointManager;
   PolylineAnnotationManager? _polylineManager;
   bool _didInitialCamera = false;
+  Position? _lastUserPos;
   Timer? _pollTimer;
+
+  bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
 
   @override
   void initState() {
     super.initState();
-    if (AppEnvironment.mapboxAccessToken.isNotEmpty) {
+    if (_hasToken) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
     _pollTimer = Timer.periodic(
@@ -68,18 +76,17 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
   Future<void> _refreshQueue({bool initial = false}) async {
     final cubit = context.read<DeliveryCubit>();
-    if (!initial) {
-      try {
-        final position = await _currentPosition();
-        if (position != null) {
-          await cubit.reportLocation(
-            latitude: position.latitude,
-            longitude: position.longitude,
-          );
-        }
-      } catch (_) {
-        // Continua cargando la cola aunque falle el reporte de posicion.
+    try {
+      final position = await _currentPosition();
+      if (position != null) {
+        _lastUserPos = Position(position.longitude, position.latitude);
+        await cubit.reportLocation(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
       }
+    } catch (_) {
+      // Continua cargando la cola aunque falle el reporte de posicion.
     }
     await cubit.loadDisponibles(silent: !initial);
   }
@@ -102,65 +109,83 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       context.read<DeliveryCubit>().state.availableEntregas,
     );
 
-    await polylineManager.deleteAll();
-    await pointManager.deleteAll();
-
     final coords = <List<double>>[];
 
-    for (final entrega in items) {
-      final originLat = entrega.negocioLatitude;
-      final originLng = entrega.negocioLongitude;
-      final destLat = entrega.destinoLatitude ?? entrega.negocioLatitude;
-      final destLng = entrega.destinoLongitude ?? entrega.negocioLongitude;
-      if (originLat == null || originLng == null) continue;
-      coords.add([originLng, originLat]);
-      await pointManager.create(
-        PointAnnotationOptions(
-          geometry: Point(coordinates: Position(originLng, originLat)),
-          iconImage: 'marker',
-          iconColor: _originColor.toARGB32(),
-          iconSize: 1.0,
-          iconAnchor: IconAnchor.BOTTOM,
-        ),
-      );
-      if (destLat != null && destLng != null) {
-        coords.add([destLng, destLat]);
+    try {
+      await polylineManager.deleteAll();
+      await pointManager.deleteAll();
+
+      for (final entrega in items) {
+        final originLat = entrega.negocioLatitude;
+        final originLng = entrega.negocioLongitude;
+        final destLat = entrega.destinoLatitude ?? entrega.negocioLatitude;
+        final destLng = entrega.destinoLongitude ?? entrega.negocioLongitude;
+        if (originLat == null || originLng == null) continue;
+        coords.add([originLng, originLat]);
         await pointManager.create(
           PointAnnotationOptions(
-            geometry: Point(coordinates: Position(destLng, destLat)),
+            geometry: Point(coordinates: Position(originLng, originLat)),
             iconImage: 'marker',
-            iconColor: _destinationColor.toARGB32(),
+            iconColor: _originColor.toARGB32(),
             iconSize: 1.0,
             iconAnchor: IconAnchor.BOTTOM,
           ),
         );
-        await polylineManager.create(
-          PolylineAnnotationOptions(
-            geometry: LineString(
-              coordinates: [
-                Position(originLng, originLat),
-                Position(destLng, destLat),
-              ],
+        if (destLat != null && destLng != null) {
+          coords.add([destLng, destLat]);
+          await pointManager.create(
+            PointAnnotationOptions(
+              geometry: Point(coordinates: Position(destLng, destLat)),
+              iconImage: 'marker',
+              iconColor: _destinationColor.toARGB32(),
+              iconSize: 1.0,
+              iconAnchor: IconAnchor.BOTTOM,
             ),
-            lineColor: _routeColor.toARGB32(),
-            lineWidth: 3.4,
-            lineOpacity: 0.7,
-          ),
-        );
+          );
+          await polylineManager.create(
+            PolylineAnnotationOptions(
+              geometry: LineString(
+                coordinates: [
+                  Position(originLng, originLat),
+                  Position(destLng, destLat),
+                ],
+              ),
+              lineColor: _routeColor.toARGB32(),
+              lineWidth: 3.4,
+              lineOpacity: 0.7,
+            ),
+          );
+        }
       }
+    } catch (_) {
+      // Si falla la sincronizacion de anotaciones, se conserva el estado previo.
     }
 
-    if (initial && !_didInitialCamera && coords.isNotEmpty) {
-      _didInitialCamera = true;
-      final center = _bboxCenter(coords);
-      if (center != null) {
-        await map.flyTo(
-          CameraOptions(
-            center: Point(coordinates: Position(center[0], center[1])),
-            zoom: _zoomFor(coords),
-          ),
-          MapAnimationOptions(duration: 400),
-        );
+    if (initial && !_didInitialCamera) {
+      if (coords.isNotEmpty) {
+        final center = _bboxCenter(coords);
+        if (center != null) {
+          _didInitialCamera = true;
+          await map.flyTo(
+            CameraOptions(
+              center: Point(coordinates: Position(center[0], center[1])),
+              zoom: _zoomFor(coords),
+            ),
+            MapAnimationOptions(duration: 400),
+          );
+        }
+      } else if (_lastUserPos != null) {
+        final lastUserPos = _lastUserPos;
+        if (lastUserPos != null) {
+          _didInitialCamera = true;
+          await map.flyTo(
+            CameraOptions(
+              center: Point(coordinates: lastUserPos),
+              zoom: 13,
+            ),
+            MapAnimationOptions(duration: 400),
+          );
+        }
       }
     }
   }
@@ -224,14 +249,17 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           builder: (context, state) {
             return Stack(
             children: [
-              MapWidget(
-                // ignore: deprecated_member_use
-                cameraOptions: CameraOptions(
-                  center: Point(coordinates: _defaultCenter),
-                  zoom: 11,
-                ),
-                onMapCreated: _onMapCreated,
-              ),
+              if (_hasToken)
+                MapWidget(
+                  // ignore: deprecated_member_use
+                  cameraOptions: CameraOptions(
+                    center: Point(coordinates: _defaultCenter),
+                    zoom: 11,
+                  ),
+                  onMapCreated: _onMapCreated,
+                )
+              else
+                const _MapTokenErrorPanel(),
               Positioned(
                 left: 12,
                 right: 12,
@@ -262,6 +290,36 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         ),
       ),
     );
+  }
+
+  Future<void> _confirmAccept(
+    DeliveryEntregaModel entrega, {
+    required bool startRoute,
+  }) async {
+    if (!startRoute) {
+      await context.read<DeliveryCubit>().aceptar(entrega.id);
+      return;
+    }
+    final position = await _currentPosition();
+    if (!mounted) return;
+    if (position == null) {
+      showSnackOrAuthDialog(
+        context,
+        'No se pudo confirmar tu ubicacion para iniciar la ruta.',
+      );
+      return;
+    }
+    await context
+        .read<DeliveryCubit>()
+        .reportLocation(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        )
+        .catchError((_) {});
+    if (!mounted) return;
+    await context.read<DeliveryCubit>().aceptar(entrega.id);
+    sl<DeliveryAcceptedStore>().accept(entrega);
+    if (mounted) context.go(AppRoutes.deliveryRoute);
   }
 
   Widget _buildBottomPanel(BuildContext context, DeliveryState state) {
@@ -324,6 +382,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   onAccept: () => unawaited(
                     context.read<DeliveryCubit>().aceptar(items[i].id),
                   ),
+                  onStartRoute: () => unawaited(
+                    _confirmAccept(items[i], startRoute: true),
+                  ),
                 ),
                 if (i != items.length - 1) const SizedBox(height: 8),
               ],
@@ -331,6 +392,55 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           ),
         );
       },
+    );
+  }
+}
+
+class _MapTokenErrorPanel extends StatelessWidget {
+  const _MapTokenErrorPanel();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return ColoredBox(
+      color: theme.colorScheme.surfaceContainerLowest,
+      child: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.map_outlined,
+                size: 56,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'No se pudo cargar el mapa',
+                textAlign: TextAlign.center,
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Text(
+                'Configuracion invalida de Mapbox. Vuelve a intentarlo mas '
+                'tarde.',
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.tonalIcon(
+                onPressed: () => unawaited(
+                  context.read<DeliveryCubit>().loadDisponibles(),
+                ),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Reintentar'),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
@@ -360,12 +470,14 @@ class _QueueMapItemCard extends StatelessWidget {
     required this.index,
     required this.accepting,
     required this.onAccept,
+    required this.onStartRoute,
   });
 
   final DeliveryEntregaModel entrega;
   final int index;
   final bool accepting;
   final VoidCallback onAccept;
+  final VoidCallback onStartRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -443,6 +555,15 @@ class _QueueMapItemCard extends StatelessWidget {
                       )
                     : const Icon(Icons.handshake_outlined),
                 label: Text(accepting ? 'Aceptando...' : 'Aceptar entrega'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: accepting ? null : onStartRoute,
+                icon: const Icon(Icons.route_rounded, size: 18),
+                label: const Text('Iniciar ruta'),
               ),
             ),
           ],

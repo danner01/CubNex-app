@@ -19,10 +19,10 @@ class SplashScreen extends StatefulWidget {
 }
 
 class _SplashScreenState extends State<SplashScreen> {
-  static const _splashSeconds = 1;
-  static const _totalDuration = Duration(
-    seconds: _splashSeconds,
-  );
+  static const _logoSplashSeconds = 1;
+  static const _flyerSeconds = 1;
+
+  bool _showFlyer = false;
 
   @override
   void initState() {
@@ -34,7 +34,10 @@ class _SplashScreenState extends State<SplashScreen> {
     final updateFuture = _checkForUpdate()
         .timeout(const Duration(seconds: 4), onTimeout: () => null)
         .catchError((_) => null);
-    await Future<void>.delayed(_totalDuration);
+    await Future<void>.delayed(const Duration(seconds: _logoSplashSeconds));
+    if (!mounted) return;
+    setState(() => _showFlyer = true);
+    await Future<void>.delayed(const Duration(seconds: _flyerSeconds));
     if (!mounted) return;
     final update = await updateFuture;
     if (mounted && update != null) {
@@ -117,42 +120,65 @@ class _SplashScreenState extends State<SplashScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       body: SafeArea(
-        child: Stack(
-          alignment: Alignment.center,
-          children: [
-            Center(
-              child: TweenAnimationBuilder<double>(
-                tween: Tween<double>(begin: 0.9, end: 1.05),
-                duration: const Duration(milliseconds: 800),
-                curve: Curves.easeInOut,
-                builder: (_, scale, __) {
-                  return Transform.scale(
-                    scale: scale,
-                    child: const ConKkaoLogo(size: 142, showGlow: true),
-                  );
-                },
-              ),
-            ),
-            Positioned(
-              bottom: 40,
-              child: FutureBuilder<PackageInfo>(
-                future: PackageInfo.fromPlatform(),
-                builder: (_, snap) {
-                  final version = snap.data?.version ?? '';
-                  final build = snap.data?.buildNumber ?? '';
-                  final text = build.isEmpty ? 'v$version' : 'v$version+$build';
-                  return Text(
-                    text,
-                    style: const TextStyle(
-                      color: Colors.white24,
-                      fontSize: 12,
-                      letterSpacing: 1.2,
-                    ),
-                  );
-                },
-              ),
-            ),
-          ],
+        child: _showFlyer ? _buildFlyer() : _buildLogo(),
+      ),
+    );
+  }
+
+  Widget _buildLogo() {
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween<double>(begin: 0.9, end: 1.05),
+            duration: const Duration(milliseconds: 800),
+            curve: Curves.easeInOut,
+            builder: (_, scale, __) {
+              return Transform.scale(
+                scale: scale,
+                child: const ConKkaoLogo(size: 142, showGlow: true),
+              );
+            },
+          ),
+        ),
+        Positioned(
+          bottom: 40,
+          child: FutureBuilder<PackageInfo>(
+            future: PackageInfo.fromPlatform(),
+            builder: (_, snap) {
+              final version = snap.data?.version ?? '';
+              final build = snap.data?.buildNumber ?? '';
+              final text = build.isEmpty ? 'v$version' : 'v$version+$build';
+              return Text(
+                text,
+                style: const TextStyle(
+                  color: Colors.white24,
+                  fontSize: 12,
+                  letterSpacing: 1.2,
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFlyer() {
+    return Center(
+      child: TweenAnimationBuilder<double>(
+        tween: Tween<double>(begin: 0, end: 1),
+        duration: const Duration(milliseconds: 350),
+        curve: Curves.easeIn,
+        builder: (_, value, child) {
+          return Opacity(opacity: value, child: child);
+        },
+        child: Image.asset(
+          'assets/rendija.jpg',
+          fit: BoxFit.contain,
+          width: double.infinity,
+          height: double.infinity,
         ),
       ),
     );

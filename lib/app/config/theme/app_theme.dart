@@ -44,8 +44,8 @@ class AppTheme {
       onPrimary: AppColors.ink,
       secondary: AppColors.greenLight,
       onSecondary: AppColors.ink,
-      error: AppColors.danger,
-      onError: Colors.white,
+      error: AppColors.dangerDark,
+      onError: AppColors.onDangerDark,
       surface: AppColors.darkSurface,
       onSurface: Colors.white,
     );

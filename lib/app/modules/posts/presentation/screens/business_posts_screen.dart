@@ -321,6 +321,7 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
   late final TextEditingController _tags;
   late final TextEditingController _link;
   late final TextEditingController _cta;
+  late final TextEditingController _price;
   late List<String> _mediaUrls;
   String _type = 'post';
   bool _uploading = false;
@@ -336,6 +337,9 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags = TextEditingController(text: post?.tags.join(', '));
     _link = TextEditingController(text: post?.linkUrl);
     _cta = TextEditingController(text: post?.ctaText);
+    _price = TextEditingController(
+      text: post?.precio == null ? null : post!.precio!.toStringAsFixed(2),
+    );
     _mediaUrls = [...?post?.mediaUrls];
     _type = post?.type ?? 'post';
     _scheduledAt = post?.scheduledAt;
@@ -348,6 +352,7 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags.dispose();
     _link.dispose();
     _cta.dispose();
+    _price.dispose();
     super.dispose();
   }
 
@@ -396,6 +401,31 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
                   ? null
                   : (value) => setState(() => _type = value ?? 'post'),
             ),
+            if (_type == 'promocion') ...[
+              const SizedBox(height: 12),
+              TextFormField(
+                controller: _price,
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
+                decoration: const InputDecoration(
+                  labelText: 'Precio del producto o servicio',
+                  hintText: 'Ej: 1500',
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Indica el precio de la promocion.';
+                  }
+                  final parsed = double.tryParse(
+                    value.trim().replaceAll(',', '.'),
+                  );
+                  if (parsed == null || parsed < 0) {
+                    return 'Precio invalido.';
+                  }
+                  return null;
+                },
+              ),
+            ],
             const SizedBox(height: 12),
             _MediaPicker(
               urls: _mediaUrls,
@@ -557,6 +587,9 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
       mediaUrls: _mediaUrls,
       mediaType: _type == 'reel' ? 'video' : 'imagen',
       tags: tags,
+      precio: _type == 'promocion'
+          ? double.tryParse(_price.text.trim().replaceAll(',', '.'))
+          : null,
       linkUrl: _link.text,
       ctaText: _cta.text,
       scheduledAt: _scheduledAt,

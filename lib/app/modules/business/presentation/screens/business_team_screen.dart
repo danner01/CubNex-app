@@ -266,7 +266,9 @@ class _EmployeeCard extends StatelessWidget {
     final statusColor = switch (employee.status) {
       'activo' => AppColors.success,
       'pendiente' => AppColors.warning,
-      'rechazado' => AppColors.danger,
+      'rechazado' => Theme.of(context).brightness == Brightness.dark
+          ? AppColors.dangerDark
+          : AppColors.danger,
       _ => Theme.of(context).colorScheme.outline,
     };
 

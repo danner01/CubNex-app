@@ -1,7 +1,7 @@
 name: cubnex_app
 description: "ConKkao mobile marketplace for clients, guests, and business owners."
 publish_to: "none"
-version: 0.1.22+32
+version: 0.1.24+34
 
 environment:
   sdk: ^3.9.2
@@ -66,3 +66,4 @@ flutter:
   assets:
     - assets/icons/
     - assets/icons/conkkao_icon.png
+    - assets/rendija.jpg

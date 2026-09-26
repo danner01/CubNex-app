@@ -27,6 +27,7 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
   Timer? _gpsTimer;
   bool _reportingLocation = false;
   String? _lastShownError;
+  bool _autoOpenRouteAfterAccept = false;
 
   @override
   void initState() {
@@ -135,7 +136,12 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
           final accepted = state.acceptedEntrega;
           if (accepted != null) {
             context.read<DeliveryCubit>().clearAcceptedEntrega();
-            unawaited(_showAcceptedDialog(accepted));
+            if (_autoOpenRouteAfterAccept) {
+              _autoOpenRouteAfterAccept = false;
+              if (mounted) context.go(AppRoutes.deliveryRoute);
+            } else {
+              unawaited(_showAcceptedDialog(accepted));
+            }
           }
         },
         builder: (context, state) {
@@ -364,12 +370,17 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
             entrega: entrega,
             accepting: state.acceptingEntregaId == entrega.id,
             onAccept: () => unawaited(_confirmAccept(entrega)),
+            onStartRoute: () =>
+                unawaited(_confirmAccept(entrega, startRoute: true)),
           ),
         )
         .toList();
   }
 
-  Future<void> _confirmAccept(DeliveryEntregaModel entrega) async {
+  Future<void> _confirmAccept(
+    DeliveryEntregaModel entrega, {
+    bool startRoute = false,
+  }) async {
     final currency = entrega.moneda ?? 'CUP';
     final confirmed = await showDialog<bool>(
       context: context,
@@ -427,6 +438,18 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
       ),
     );
     if (confirmed == true && mounted) {
+      if (startRoute) _autoOpenRouteAfterAccept = true;
+      final position = await _currentPosition(silent: true);
+      if (position != null && mounted) {
+        await context
+            .read<DeliveryCubit>()
+            .reportLocation(
+              latitude: position.latitude,
+              longitude: position.longitude,
+            )
+            .catchError((_) {});
+      }
+      if (!mounted) return;
       context.read<DeliveryCubit>().aceptar(entrega.id);
     }
   }
@@ -476,12 +499,14 @@ class AvailableDeliveryCard extends StatelessWidget {
     required this.entrega,
     required this.accepting,
     required this.onAccept,
+    required this.onStartRoute,
     super.key,
   });
 
   final DeliveryEntregaModel entrega;
   final bool accepting;
   final VoidCallback onAccept;
+  final VoidCallback onStartRoute;
 
   @override
   Widget build(BuildContext context) {
@@ -622,6 +647,15 @@ class AvailableDeliveryCard extends StatelessWidget {
                   ),
                 ),
               ],
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: accepting ? null : onStartRoute,
+                icon: const Icon(Icons.route_rounded, size: 18),
+                label: const Text('Iniciar ruta'),
+              ),
             ),
           ],
         ),

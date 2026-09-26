@@ -189,6 +189,47 @@ class _PostCard extends StatelessWidget {
                   ),
                 if (post.title?.isNotEmpty == true) const SizedBox(height: 4),
                 Text(post.content),
+                if (post.precio != null) ...[
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 10,
+                    ),
+                    decoration: BoxDecoration(
+                      color: AppColors.gold.withValues(alpha: 0.14),
+                      borderRadius: BorderRadius.circular(14),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.sell_outlined,
+                          size: 18,
+                          color: AppColors.goldDark,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            post.type == 'promocion'
+                                ? 'Promocion de ${post.business?.name ?? 'negocio'}'
+                                : 'Precio del producto',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w800,
+                            ),
+                          ),
+                        ),
+                        Text(
+                          _formatPrice(post.precio!),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.w900,
+                            color: AppColors.goldDark,
+                            fontSize: 16,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
                 if (post.tags.isNotEmpty) ...[
                   const SizedBox(height: 10),
                   Wrap(
@@ -226,6 +267,13 @@ class _PostCard extends StatelessWidget {
       ),
     );
   }
+}
+
+String _formatPrice(double value) {
+  final rounded = value % 1 == 0
+      ? value.toStringAsFixed(0)
+      : value.toStringAsFixed(2);
+  return '$rounded CUP';
 }
 
 class _PostAction extends StatelessWidget {

@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -76,45 +75,7 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
             );
           }
           _negocios = data.negocios;
-          return Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Row(
-                  children: [
-                    _SummaryChip(
-                      icon: Icons.storefront_rounded,
-                      label: 'Negocios',
-                      value: '${data.totalNegocios}',
-                    ),
-                    const SizedBox(width: 10),
-                    _SummaryChip(
-                      icon: Icons.inventory_2_rounded,
-                      label: 'Productos',
-                      value: '${data.totalProductos}',
-                    ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        '${data.resumenPorProvincia.length} provincias',
-                        style: Theme.of(context).textTheme.bodySmall,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 12),
-              Expanded(
-                flex: 3,
-                child: _buildMap(),
-              ),
-              Expanded(
-                flex: 2,
-                child: _buildList(data),
-              ),
-            ],
-          );
+          return _buildMap();
         },
       ),
     );
@@ -310,128 +271,6 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
       _ => Icons.storefront_outlined,
     };
   }
-
-  Widget _buildList(_MapaVentas data) {
-    final negocios = data.negocios;
-    return ListView.separated(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 24),
-      itemCount: negocios.length + 1,
-      separatorBuilder: (_, __) => const SizedBox(height: 8),
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Text(
-            'Con mas productos en venta',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-          );
-        }
-        final negocio = negocios[index - 1];
-        return Card(
-          margin: EdgeInsets.zero,
-          child: ListTile(
-            onTap: () => context.go(AppRoutes.store(negocio.id)),
-            leading: _AvatarNegocio(negocio: negocio),
-            title: Text(
-              negocio.nombre,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w800),
-            ),
-            subtitle: Text(
-              [
-                negocio.provincia,
-                negocio.municipio,
-                if (negocio.calificacionPromedio != null)
-                  '${_fmtNumero(negocio.calificacionPromedio!, 1)} estrellas',
-              ]
-                  .where((part) => part != null && part.toString().isNotEmpty)
-                  .join(' · '),
-            ),
-            trailing: Text(
-              '${negocio.cantidadProductos} prods.',
-              style: TextStyle(
-                fontWeight: FontWeight.w900,
-                color: Theme.of(context).colorScheme.secondary,
-              ),
-            ),
-          ),
-        );
-      },
-    );
-  }
-}
-
-class _SummaryChip extends StatelessWidget {
-  const _SummaryChip({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
-
-  final IconData icon;
-  final String label;
-  final String value;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(12),
-        color: Theme.of(
-          context,
-        ).colorScheme.surfaceContainerHighest.withValues(alpha: 0.6),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(icon, size: 18, color: AppColors.goldDark),
-          const SizedBox(width: 6),
-          Text(
-            '$value $label',
-            style: const TextStyle(fontWeight: FontWeight.w900),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AvatarNegocio extends StatelessWidget {
-  const _AvatarNegocio({required this.negocio});
-
-  final _NegocioVentas negocio;
-
-  @override
-  Widget build(BuildContext context) {
-    final url = negocio.logoUrl;
-    if (url == null || url.isEmpty) {
-      return CircleAvatar(
-        backgroundColor: AppColors.gold.withValues(alpha: 0.2),
-        child: const Icon(Icons.storefront_rounded, color: AppColors.goldDark),
-      );
-    }
-    final avatarBytes = _decodedLogo(url);
-    return CircleAvatar(
-      backgroundColor: AppColors.gold.withValues(alpha: 0.2),
-      foregroundImage: avatarBytes != null
-          ? MemoryImage(avatarBytes)
-          : NetworkImage(url),
-      child: const Icon(Icons.storefront_rounded, color: AppColors.goldDark),
-    );
-  }
-
-  Uint8List? _decodedLogo(String url) {
-    if (!url.startsWith('data:image')) return null;
-    final comma = url.indexOf(',');
-    if (comma < 0) return null;
-    try {
-      return base64Decode(url.substring(comma + 1));
-    } catch (_) {
-      return null;
-    }
-  }
 }
 
 class _MapaVentas {
@@ -581,8 +420,4 @@ double? _doubleValue(Object? value) {
   if (value == null) return null;
   if (value is num) return value.toDouble();
   return double.tryParse('$value'.replaceAll(',', '.'));
-}
-
-String _fmtNumero(double value, int decimals) {
-  return value.toStringAsFixed(decimals).replaceAll('.', ',');
 }

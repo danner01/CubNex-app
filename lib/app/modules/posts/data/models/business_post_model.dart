@@ -22,6 +22,7 @@ class BusinessPostModel {
     this.publishedAt,
     this.linkUrl,
     this.ctaText,
+    this.precio,
     this.createdAt,
     this.business,
   });
@@ -46,6 +47,7 @@ class BusinessPostModel {
   final DateTime? publishedAt;
   final String? linkUrl;
   final String? ctaText;
+  final double? precio;
   final DateTime? createdAt;
   final BusinessModel? business;
 
@@ -71,6 +73,7 @@ class BusinessPostModel {
       publishedAt: DateTime.tryParse('${json['publicado_at'] ?? ''}'),
       linkUrl: json['enlace_url']?.toString(),
       ctaText: json['cta_texto']?.toString(),
+      precio: _num(json['precio']),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
       business: json['negocios'] is Map
           ? BusinessModel.fromJson(
@@ -106,6 +109,7 @@ class BusinessPostModel {
       publishedAt: publishedAt,
       linkUrl: linkUrl,
       ctaText: ctaText,
+      precio: precio,
       createdAt: createdAt,
       business: business,
     );
@@ -119,6 +123,12 @@ class BusinessPostModel {
           .toList();
     }
     return const [];
+  }
+
+  static double? _num(Object? value) {
+    if (value == null) return null;
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value');
   }
 }
 
