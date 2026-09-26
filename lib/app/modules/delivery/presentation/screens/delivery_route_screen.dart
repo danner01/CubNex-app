@@ -64,6 +64,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   final List<List<double>> _manualWaypoints = [];
   List<List<double>>? _manualRouteCoords;
   _ManualRouteSummary? _manualRouteSummary;
+  List<List<double>>? _entregaRouteCoords;
+  _ManualRouteSummary? _entregaRouteSummary;
   DeliveryProfileModel? _myProfile;
 
   @override
@@ -258,6 +260,10 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       );
       await DeliveryManualRouteStore.save(routes);
       if (mounted) _showMessage('Ruta guardada correctamente.');
+    } catch (_) {
+      if (mounted) {
+        _showMessage('No se pudo guardar la ruta. Intenta de nuevo.');
+      }
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -325,8 +331,13 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     }
     unawaited(_loadMyProfile());
     await _refresh();
-    if (entrega != null && !_followingDelivery) {
-      unawaited(_toggleFollowing());
+    if (entrega != null) {
+      if (entrega.rutaCoordenadas == null && _entregaRouteCoords == null) {
+        unawaited(_fetchEntregaStreetRoute(entrega));
+      }
+      if (!_followingDelivery) {
+        unawaited(_toggleFollowing());
+      }
     }
   }
 
@@ -334,6 +345,12 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     setState(() => _followingDelivery = !_followingDelivery);
     if (_followingDelivery) {
       _lastFollowedPoint = null;
+      final entrega = sl<DeliveryAcceptedStore>().accepted.value;
+      if (entrega != null &&
+          entrega.rutaCoordenadas == null &&
+          _entregaRouteCoords == null) {
+        unawaited(_fetchEntregaStreetRoute(entrega));
+      }
       await _centerOnDelivery();
       await _pollPosition();
       _showMessage('Seguimiento en ruta activado. Se centrara en tu posicion.');
@@ -345,9 +362,12 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   Future<void> _centerOnDelivery() async {
     final entrega = sl<DeliveryAcceptedStore>().accepted.value;
     List<double>? target;
-    if (entrega?.rutaCoordenadas != null &&
-        entrega!.rutaCoordenadas!.isNotEmpty) {
-      target = entrega.rutaCoordenadas!.last;
+    final routeCoords = _entregaRouteCoords ??
+        (entrega?.rutaCoordenadas?.isNotEmpty ?? false
+            ? entrega!.rutaCoordenadas
+            : null);
+    if (routeCoords != null && routeCoords.isNotEmpty) {
+      target = routeCoords.last;
     } else if (entrega?.destinoLatitude != null &&
         entrega?.destinoLongitude != null) {
       target = [entrega!.destinoLongitude!, entrega.destinoLatitude!];
@@ -615,6 +635,63 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     }
   }
 
+  Future<void> _fetchEntregaStreetRoute(DeliveryEntregaModel entrega) async {
+    final originLat = entrega.negocioLatitude;
+    final originLng = entrega.negocioLongitude;
+    final destLat = entrega.destinoLatitude;
+    final destLng = entrega.destinoLongitude;
+    if (originLat == null ||
+        originLng == null ||
+        destLat == null ||
+        destLng == null) {
+      return;
+    }
+    setState(() => _drawingRoute = true);
+    final result = await _apiClient.post<Map<String, dynamic>>(
+      '/mapbox/ruta',
+      data: {
+        'origen': {'lat': originLat, 'lng': originLng},
+        'destino': {'lat': destLat, 'lng': destLng},
+      },
+      parser: (json) =>
+          json is Map ? Map<String, dynamic>.from(json) : const {},
+    );
+    if (!mounted) return;
+    if (result.isSuccess &&
+        _entregaRouteCoords == null &&
+        sl<DeliveryAcceptedStore>().accepted.value == entrega) {
+      final routes = result.data?['routes'];
+      if (routes is List && routes.isNotEmpty) {
+        final firstRoute = routes[0];
+        if (firstRoute is Map) {
+          final geometry = firstRoute['geometry'];
+          final coords = geometry is Map ? geometry['coordinates'] : null;
+          if (coords is List && coords.length >= 2) {
+            final parsed = <List<double>>[];
+            for (final entry in coords) {
+              if (entry is List && entry.length >= 2) {
+                parsed.add([_toNum(entry[0]), _toNum(entry[1])]);
+              }
+            }
+            if (parsed.length >= 2 && mounted) {
+              setState(() {
+                _drawingRoute = false;
+                _entregaRouteCoords = parsed;
+                _entregaRouteSummary = _ManualRouteSummary(
+                  distanceMeters: _toNum(firstRoute['distance']),
+                  durationSeconds: _toNum(firstRoute['duration']),
+                );
+              });
+              await _syncAll(initial: false);
+              return;
+            }
+          }
+        }
+      }
+    }
+    if (mounted) setState(() => _drawingRoute = false);
+  }
+
   Future<void> _fetchStreetRoute() async {
     if (!_manualMode || _manualWaypoints.length < 2) return;
     final waypoints = _manualWaypoints;
@@ -768,7 +845,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     if (_manualMode && _manualWaypoints.isNotEmpty) {
       await _drawManualRoute(pointManager);
     } else if (entrega != null) {
-      final route = entrega.rutaCoordenadas;
+      final route = _entregaRouteCoords ?? entrega.rutaCoordenadas;
       if (route != null && route.length >= 2) {
         await _routeManager?.create(
           PolylineAnnotationOptions(
@@ -1023,6 +1100,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           final hasRouteOverlay = entrega != null;
           final routeInfoAvailable = hasRouteOverlay &&
               ((entrega.rutaCoordenadas?.isNotEmpty ?? false) ||
+                  (_entregaRouteCoords != null &&
+                      _entregaRouteCoords!.isNotEmpty) ||
                   (entrega.negocioLongitude != null &&
                       entrega.negocioLatitude != null));
           final mapCenter = _myLat != null && _myLng != null
@@ -1249,7 +1328,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                         ],
                         const SizedBox(height: 12),
                         if (routeInfoAvailable) ...[
-                          _RouteSummaryCard(entrega: entrega),
+                          _RouteSummaryCard(entrega: entrega, generatedSummary: _entregaRouteSummary),
                           const SizedBox(height: 14),
                         ],
                         if (_loading && _items.isEmpty)
@@ -1699,16 +1778,18 @@ class _ActiveDot extends StatelessWidget {
 }
 
 class _RouteSummaryCard extends StatelessWidget {
-  const _RouteSummaryCard({required this.entrega});
+  const _RouteSummaryCard({required this.entrega, this.generatedSummary});
 
   final DeliveryEntregaModel entrega;
+  final _ManualRouteSummary? generatedSummary;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final currency = entrega.moneda ?? 'CUP';
-    final distance = entrega.ruta?['distance'];
-    final duration = entrega.ruta?['duration'];
+    final generated = generatedSummary;
+    final distance = generated?.distanceMeters ?? entrega.ruta?['distance'];
+    final duration = generated?.durationSeconds ?? entrega.ruta?['duration'];
     final rutaDistance = distance is num
         ? distance.toDouble()
         : double.tryParse('$distance');

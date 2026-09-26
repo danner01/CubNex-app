@@ -182,7 +182,7 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
                       tooltip: 'Actualizar',
                     ),
                   TextButton.icon(
-                    onPressed: () => context.go(AppRoutes.deliveryQueueMap),
+                    onPressed: () => context.push(AppRoutes.deliveryQueueMap),
                     icon: const Icon(Icons.map_rounded, size: 18),
                     label: const Text('Ver en el mapa'),
                   ),
@@ -203,32 +203,32 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
                   DeliveryActionData(
                     icon: Icons.receipt_long_outlined,
                     label: 'Solicitudes',
-                    onTap: () => context.go(AppRoutes.deliveryRequests),
+                    onTap: () => context.push(AppRoutes.deliveryRequests),
                   ),
                   DeliveryActionData(
                     icon: Icons.map_outlined,
                     label: 'Ruta y mapa',
-                    onTap: () => context.go(AppRoutes.deliveryRoute),
+                    onTap: () => context.push(AppRoutes.deliveryRoute),
                   ),
                   DeliveryActionData(
                     icon: Icons.history_rounded,
                     label: 'Historial',
-                    onTap: () => context.go(AppRoutes.deliveryHistory),
+                    onTap: () => context.push(AppRoutes.deliveryHistory),
                   ),
                   DeliveryActionData(
                     icon: Icons.badge_outlined,
                     label: 'Perfil delivery',
-                    onTap: () => context.go(AppRoutes.deliveryProfile),
+                    onTap: () => context.push(AppRoutes.deliveryProfile),
                   ),
                   DeliveryActionData(
                     icon: Icons.near_me_outlined,
                     label: 'Repartidores cerca',
-                    onTap: () => context.go(AppRoutes.deliveryNearby),
+                    onTap: () => context.push(AppRoutes.deliveryNearby),
                   ),
                   DeliveryActionData(
                     icon: Icons.account_balance_wallet_outlined,
                     label: 'Billetera',
-                    onTap: () => context.go(AppRoutes.credits),
+                    onTap: () => context.push(AppRoutes.credits),
                   ),
                 ],
               ),
@@ -484,7 +484,7 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
           FilledButton(
             onPressed: () {
               Navigator.of(dialogContext).pop();
-              if (context.mounted) context.go(AppRoutes.deliveryRoute);
+              if (context.mounted) context.push(AppRoutes.deliveryRoute);
             },
             child: const Text('Ver ruta'),
           ),
@@ -626,7 +626,7 @@ class AvailableDeliveryCard extends StatelessWidget {
               children: [
                 OutlinedButton.icon(
                   onPressed: () =>
-                      context.go(AppRoutes.deliveryQueueMap),
+                      context.push(AppRoutes.deliveryQueueMap),
                   icon: const Icon(Icons.map_rounded, size: 18),
                   label: const Text('Ver en mapa'),
                 ),

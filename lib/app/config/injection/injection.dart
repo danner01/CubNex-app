@@ -142,7 +142,7 @@ Future<void> configureDependencies() async {
     )
     ..registerFactory(() => OrdersCubit(apiClient: sl()))
     ..registerLazySingleton(() => DeliveryAcceptedStore())
-    ..registerFactory(() => DeliveryCubit(apiClient: sl(), acceptedStore: sl()))
+    ..registerLazySingleton(() => DeliveryCubit(apiClient: sl(), acceptedStore: sl()))
     ..registerLazySingleton(
       () => TutorialProgressStore(sharedPreferences: sl()),
     )

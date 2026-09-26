@@ -10,7 +10,6 @@ import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
-import '../../blocs/delivery/delivery_accepted_store.dart';
 import '../../blocs/delivery/delivery_cubit.dart';
 import '../../blocs/delivery/delivery_state.dart';
 import '../../data/models/delivery_entrega_model.dart';
@@ -161,6 +160,24 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       // Si falla la sincronizacion de anotaciones, se conserva el estado previo.
     }
 
+    final lastUserPos = _lastUserPos;
+    if (lastUserPos != null) {
+      final iconId = await ensureDeliveryMarkerIcon(
+        map,
+        const Color(0xFF00ACC1),
+        null,
+      );
+      await pointManager.create(
+        PointAnnotationOptions(
+          geometry: Point(coordinates: lastUserPos),
+          iconImage: iconId ?? 'marker',
+          iconColor: iconId == null ? const Color(0xFF00ACC1).toARGB32() : null,
+          iconSize: 0.9,
+          iconAnchor: IconAnchor.BOTTOM,
+        ),
+      );
+    }
+
     if (initial && !_didInitialCamera) {
       if (coords.isNotEmpty) {
         final center = _bboxCenter(coords);
@@ -174,18 +191,15 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
             MapAnimationOptions(duration: 400),
           );
         }
-      } else if (_lastUserPos != null) {
-        final lastUserPos = _lastUserPos;
-        if (lastUserPos != null) {
-          _didInitialCamera = true;
-          await map.flyTo(
-            CameraOptions(
-              center: Point(coordinates: lastUserPos),
-              zoom: 13,
-            ),
-            MapAnimationOptions(duration: 400),
-          );
-        }
+      } else if (lastUserPos != null) {
+        _didInitialCamera = true;
+        await map.flyTo(
+          CameraOptions(
+            center: Point(coordinates: lastUserPos),
+            zoom: 13,
+          ),
+          MapAnimationOptions(duration: 400),
+        );
       }
     }
   }
@@ -227,7 +241,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return BlocProvider<DeliveryCubit>(
+      create: (_) => sl<DeliveryCubit>()..load(),
+      child: Scaffold(
       appBar: AppBar(
         title: const Text('Cola de entregas en el mapa'),
         actions: [
@@ -289,6 +305,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           },
         ),
       ),
+      ),
     );
   }
 
@@ -318,8 +335,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         .catchError((_) {});
     if (!mounted) return;
     await context.read<DeliveryCubit>().aceptar(entrega.id);
-    sl<DeliveryAcceptedStore>().accept(entrega);
-    if (mounted) context.go(AppRoutes.deliveryRoute);
+    if (mounted) context.push(AppRoutes.deliveryRoute);
   }
 
   Widget _buildBottomPanel(BuildContext context, DeliveryState state) {
@@ -328,6 +344,41 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       return const Padding(
         padding: EdgeInsets.all(24),
         child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final profile = state.profile;
+    if (profile == null) {
+      return const DeliveryMessageCard(
+        message:
+            'Registra tu perfil delivery para ver la cola de entregas en el '
+            'mapa.',
+      );
+    }
+    if (!profile.available) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text(
+                  'Activa tu disponibilidad para ver la cola de entregas en '
+                  'el mapa.',
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: () => context.push(AppRoutes.deliveryProfile),
+                  icon: const Icon(Icons.radar_rounded),
+                  label: const Text('Panel delivery'),
+                ),
+              ],
+            ),
+          ),
+        ),
       );
     }
     if (items.isEmpty) {
