@@ -90,12 +90,48 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     await cubit.loadDisponibles(silent: !initial);
   }
 
+  void _retry() {
+    final cubit = context.read<DeliveryCubit>();
+    if (cubit.state.status == DeliveryStatus.failure ||
+        cubit.state.profile == null) {
+      unawaited(cubit.load());
+    } else {
+      unawaited(_refreshQueue());
+    }
+  }
+
+  Future<void> _locateCurrentPos() async {
+    final position = await _currentPosition();
+    if (!mounted) return;
+    if (position == null) {
+      showSnackOrAuthDialog(
+        context,
+        'No se pudo obtener tu ubicacion. Activa el permiso de ubicacion e '
+        'intenta de nuevo.',
+      );
+      return;
+    }
+    setState(() => _lastUserPos = Position(position.longitude, position.latitude));
+    _didInitialCamera = false;
+    await _syncMarkers(initial: true);
+  }
+
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
     _polylineManager =
         await mapboxMap.annotations.createPolylineAnnotationManager();
     await _syncMarkers(initial: true);
+    if (_lastUserPos == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (!mounted) return;
+        showSnackOrAuthDialog(
+          context,
+          'Activa el permiso de ubicacion para centrar el mapa en tu '
+          'posicion.',
+        );
+      });
+    }
   }
 
   Future<void> _syncMarkers({required bool initial}) async {
@@ -248,7 +284,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         title: const Text('Cola de entregas en el mapa'),
         actions: [
           IconButton(
-            onPressed: () => unawaited(_refreshQueue()),
+            onPressed: () => _retry(),
             icon: const Icon(Icons.refresh_rounded),
             tooltip: 'Actualizar cola',
           ),
@@ -292,6 +328,18 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                     const SizedBox(width: 10),
                     _LegendDot(_destinationColor, 'Entrega'),
                   ],
+                ),
+              ),
+              Positioned(
+                right: 12,
+                top: 56,
+                child: FloatingActionButton.small(
+                  heroTag: 'queue_map_locate',
+                  tooltip: 'Centrar en mi ubicacion',
+                  backgroundColor: Colors.white,
+                  foregroundColor: const Color(0xFF00ACC1),
+                  onPressed: () => unawaited(_locateCurrentPos()),
+                  child: const Icon(Icons.my_location_rounded),
                 ),
               ),
               Positioned(
@@ -346,6 +394,33 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         child: Center(child: CircularProgressIndicator()),
       );
     }
+    if (state.status == DeliveryStatus.failure && items.isEmpty) {
+      final error =
+          state.errorMessage ??
+          state.queueError ??
+          'No se pudo cargar la cola de entregas.';
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
+        child: Card(
+          margin: EdgeInsets.zero,
+          child: Padding(
+            padding: const EdgeInsets.all(16),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(error, textAlign: TextAlign.center),
+                const SizedBox(height: 10),
+                FilledButton.tonalIcon(
+                  onPressed: () => _retry(),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Reintentar'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     final profile = state.profile;
     if (profile == null) {
       return const DeliveryMessageCard(
@@ -396,7 +471,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   Text(error, textAlign: TextAlign.center),
                   const SizedBox(height: 10),
                   FilledButton.tonalIcon(
-                    onPressed: () => unawaited(_refreshQueue()),
+                    onPressed: () => _retry(),
                     icon: const Icon(Icons.refresh_rounded),
                     label: const Text('Reintentar'),
                   ),
@@ -482,9 +557,15 @@ class _MapTokenErrorPanel extends StatelessWidget {
               ),
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
-                onPressed: () => unawaited(
-                  context.read<DeliveryCubit>().loadDisponibles(),
-                ),
+                onPressed: () {
+                  final cubit = context.read<DeliveryCubit>();
+                  if (cubit.state.profile == null ||
+                      cubit.state.status == DeliveryStatus.failure) {
+                    unawaited(cubit.load());
+                  } else {
+                    unawaited(cubit.loadDisponibles());
+                  }
+                },
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Reintentar'),
               ),
