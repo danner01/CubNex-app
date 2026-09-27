@@ -264,8 +264,10 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  _items.isEmpty
+                  _loading && _items.isEmpty
                       ? 'Buscando repartidores activos...'
+                      : _items.isEmpty
+                      ? 'Sin repartidores cercanos'
                       : '${_items.length} repartidores disponibles cercanos',
                   style: theme.textTheme.titleMedium?.copyWith(
                     fontWeight: FontWeight.w900,
@@ -275,7 +277,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
                 Text(
                   _myLat == null
                       ? 'Sin ubicacion del dispositivo. Para los negocios se usan las coordenadas de tu tienda.'
-                      : 'Los repartidores actualizan su posicion cada pocos segundos.',
+                      : 'Solo aparecen repartidores que actualizaron su posicion en los ultimos 2 minutos y estan dentro de tu radio.',
                   style: theme.textTheme.bodySmall,
                 ),
                 if (_errorMessage != null && _items.isEmpty) ...[
@@ -331,7 +333,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
                 ? _MessageCard(
                     message:
                         _errorMessage ??
-                        'No hay repartidores disponibles en estos momentos.',
+                        'No hay repartidores disponibles en estos momentos. Solo se muestran los que tienen la disponibilidad activa y acaban de reportar su posicion.',
                     onRetry: () => unawaited(_refresh()),
                   )
                 : RefreshIndicator(

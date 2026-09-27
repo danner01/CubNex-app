@@ -361,7 +361,10 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
     }
     if (items.isEmpty) {
       return const [
-        DeliveryMessageCard(message: 'No hay entregas disponibles por ahora.'),
+        DeliveryMessageCard(
+          message:
+              'No hay entregas disponibles por ahora.\n\nSolo aparecen los pedidos que el cliente pidio con reparto, dentro de tu radio de operacion y con tu disponibilidad activa.',
+        ),
       ];
     }
     return items
