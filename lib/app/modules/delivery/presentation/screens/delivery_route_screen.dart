@@ -243,24 +243,46 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     return name;
   }
 
+  List<List<double>> _validManualPoints() {
+    final result = <List<double>>[];
+    for (final point in _manualWaypoints) {
+      if (point.length < 2) continue;
+      final lng = point[0];
+      final lat = point[1];
+      if (lng.isFinite &&
+          lat.isFinite &&
+          lng >= -180 &&
+          lng <= 180 &&
+          lat >= -90 &&
+          lat <= 90) {
+        result.add([lng, lat]);
+      }
+    }
+    return result;
+  }
+
   Future<void> _saveManualRoute() async {
     if (_manualWaypoints.length < 2 || _saving) return;
     final name = await _promptRouteName();
     if (name == null || name.isEmpty || !mounted) return;
+    final validPoints = _validManualPoints();
+    if (validPoints.length < 2) {
+      _showMessage('Agrega al menos 2 paradas con coordenadas validas.');
+      return;
+    }
     setState(() => _saving = true);
     try {
       final routes = await DeliveryManualRouteStore.load();
-      routes.add(
-        DeliveryManualRoute(
-          name: name,
-          points: _manualWaypoints
-              .map((point) => List<double>.from(point))
-              .toList(),
-        ),
-      );
-      await DeliveryManualRouteStore.save(routes);
-      if (mounted) _showMessage('Ruta guardada correctamente.');
-    } catch (_) {
+      routes.add(DeliveryManualRoute(name: name, points: validPoints));
+      final ok = await DeliveryManualRouteStore.save(routes);
+      if (!mounted) return;
+      if (ok) {
+        _showMessage('Ruta guardada correctamente.');
+      } else {
+        _showMessage('No se pudo guardar la ruta. Intenta de nuevo.');
+      }
+    } catch (error, stackTrace) {
+      debugPrint('DeliveryRouteScreen: error guardando ruta: $error\n$stackTrace');
       if (mounted) {
         _showMessage('No se pudo guardar la ruta. Intenta de nuevo.');
       }

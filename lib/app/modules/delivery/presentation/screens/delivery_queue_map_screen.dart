@@ -44,6 +44,14 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     if (_hasToken) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final cubit = sl<DeliveryCubit>();
+      final status = cubit.state.status;
+      if (status == DeliveryStatus.initial ||
+          status == DeliveryStatus.failure) {
+        unawaited(cubit.load());
+      }
+    });
     _pollTimer = Timer.periodic(
       _pollInterval,
       (_) => unawaited(_refreshQueue()),
@@ -83,6 +91,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           latitude: position.latitude,
           longitude: position.longitude,
         );
+        if (_mapboxMap != null && !_didInitialCamera) {
+          await _syncMarkers(initial: true);
+        }
       }
     } catch (_) {
       // Continua cargando la cola aunque falle el reporte de posicion.
@@ -277,8 +288,8 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<DeliveryCubit>(
-      create: (_) => sl<DeliveryCubit>()..load(),
+    return BlocProvider.value(
+      value: sl<DeliveryCubit>(),
       child: Scaffold(
       appBar: AppBar(
         title: const Text('Cola de entregas en el mapa'),

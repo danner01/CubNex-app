@@ -5,6 +5,7 @@ import '../../../../config/injection/injection.dart';
 import '../../../orders/blocs/orders/orders_cubit.dart';
 import '../../blocs/delivery/delivery_cubit.dart';
 import '../delivery_hub_section.dart';
+import '../widgets/delivery_common.dart';
 import 'delivery_hub_dashboard_view.dart';
 import 'delivery_hub_orders_view.dart';
 import 'delivery_hub_profile_view.dart';
@@ -20,9 +21,11 @@ class DeliveryHubScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (section == DeliveryHubSection.dashboard) {
-      return BlocProvider(
-        create: (_) => sl<DeliveryCubit>()..load(),
-        child: const DeliveryHubDashboardView(),
+      return BlocProvider.value(
+        value: sl<DeliveryCubit>(),
+        child: const DeliveryCubitBootstrap(
+          child: DeliveryHubDashboardView(),
+        ),
       );
     }
     if (section == DeliveryHubSection.requests ||
@@ -35,9 +38,11 @@ class DeliveryHubScreen extends StatelessWidget {
     if (section == DeliveryHubSection.route) {
       return const DeliveryRouteScreen();
     }
-    return BlocProvider(
-      create: (_) => sl<DeliveryCubit>()..load(),
-      child: const DeliveryHubProfileView(),
+    return BlocProvider.value(
+      value: sl<DeliveryCubit>(),
+      child: const DeliveryCubitBootstrap(
+        child: DeliveryHubProfileView(),
+      ),
     );
   }
 }

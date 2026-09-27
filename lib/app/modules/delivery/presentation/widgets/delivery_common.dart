@@ -3,11 +3,14 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../blocs/delivery/delivery_cubit.dart';
+import '../../blocs/delivery/delivery_state.dart';
 
 class DeliveryMetaChip extends StatelessWidget {
   const DeliveryMetaChip({required this.icon, required this.label, super.key});
@@ -437,6 +440,37 @@ Future<Uint8List?> _buildDeliveryPinPng(Color color, String? label) async {
   image.dispose();
   if (byteData == null) return null;
   return byteData.buffer.asUint8List();
+}
+
+/// Garantiza que el [DeliveryCubit] singleton cargue su estado al entrar a
+/// una pantalla que lo consume. Debe usarse como hijo de un
+/// [BlocProvider.value] para que NUNCA se cierre el cubit compartido.
+class DeliveryCubitBootstrap extends StatefulWidget {
+  const DeliveryCubitBootstrap({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  State<DeliveryCubitBootstrap> createState() => _DeliveryCubitBootstrapState();
+}
+
+class _DeliveryCubitBootstrapState extends State<DeliveryCubitBootstrap> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => _ensureLoaded());
+  }
+
+  void _ensureLoaded() {
+    final cubit = context.read<DeliveryCubit>();
+    final status = cubit.state.status;
+    if (status == DeliveryStatus.initial || status == DeliveryStatus.failure) {
+      unawaited(cubit.load());
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.child;
 }
 
 class DeliveryActionData {
