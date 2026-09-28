@@ -9,10 +9,9 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   NotificationsCubit({
     required ApiClient apiClient,
     required PushNotificationService pushNotificationService,
-  })
-    : _apiClient = apiClient,
-      _pushNotificationService = pushNotificationService,
-      super(const NotificationsState());
+  }) : _apiClient = apiClient,
+       _pushNotificationService = pushNotificationService,
+       super(const NotificationsState());
 
   final ApiClient _apiClient;
   final PushNotificationService _pushNotificationService;
@@ -60,7 +59,15 @@ class NotificationsCubit extends Cubit<NotificationsState> {
       '/notificaciones/$id/leer',
       parser: (_) {},
     );
-    if (!result.isSuccess) return;
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          message:
+              result.error?.message ?? 'No se pudo marcar la notificacion.',
+        ),
+      );
+      return;
+    }
 
     emit(
       state.copyWith(

@@ -307,7 +307,9 @@ class _NotificationTile extends StatelessWidget {
     if (link == '/market/negocio/red' || link == AppRoutes.businessNetwork) {
       return AppRoutes.businessNetwork;
     }
-    if (link == '/market/notificaciones' || link == AppRoutes.notifications) {
+    if (link == '/market/notificaciones' ||
+        link == '/notifications' ||
+        link == AppRoutes.notifications) {
       return AppRoutes.notifications;
     }
     if (link == '/creditos' ||
@@ -339,8 +341,18 @@ class _NotificationTile extends StatelessWidget {
     if (link == '/pedidos' || link == AppRoutes.orders) {
       return AppRoutes.orders;
     }
-    if (link == '/negocio/pedidos' || link == AppRoutes.businessOrders) {
+    if (link == '/negocio/pedidos' ||
+        link == '/negocio/ordenes' ||
+        link == AppRoutes.businessOrders) {
       return AppRoutes.businessOrders;
+    }
+    if (link == '/business/plans' || link == AppRoutes.businessPlans) {
+      return AppRoutes.businessPlans;
+    }
+    if (link == '/tickets' ||
+        link == '/support/tickets' ||
+        link == AppRoutes.supportTickets) {
+      return AppRoutes.supportTickets;
     }
 
     final marketBusinessMatch = RegExp(
@@ -397,7 +409,9 @@ class _NotificationTile extends StatelessWidget {
   IconData _iconFor(String type) {
     return switch (type) {
       'sistema' => Icons.info_outline,
-      'promocion' || 'marketing' || 'promocion_canje' => Icons.campaign_outlined,
+      'promocion' ||
+      'marketing' ||
+      'promocion_canje' => Icons.campaign_outlined,
       'nuevo_producto' || 'producto_ia' => Icons.new_releases_outlined,
       'pedido' => Icons.receipt_long_outlined,
       'solicitud_red' => Icons.playlist_add_check_circle_outlined,
@@ -417,7 +431,8 @@ class _NotificationTile extends StatelessWidget {
       'stock_proveedor' || 'precio_proveedor' => Icons.inventory_2_outlined,
       'orden_delivery' || 'paquete_delivery' => Icons.local_shipping_outlined,
       'empleo' => Icons.work_outline,
-      'empleado_invitacion' || 'empleado_respuesta' => Icons.person_add_outlined,
+      'empleado_invitacion' ||
+      'empleado_respuesta' => Icons.person_add_outlined,
       _ => Icons.notifications_none_rounded,
     };
   }
