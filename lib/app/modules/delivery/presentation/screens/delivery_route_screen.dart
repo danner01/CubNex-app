@@ -1660,12 +1660,23 @@ class _RouteSummaryCard extends StatelessWidget {
     final generated = generatedSummary;
     final distance = generated?.distanceMeters ?? entrega.ruta?['distance'];
     final duration = generated?.durationSeconds ?? entrega.ruta?['duration'];
-    final rutaDistance = distance is num
+    final rutaDistanceMeters = distance is num
         ? distance.toDouble()
         : double.tryParse('$distance');
-    final rutaDuration = duration is num
+    final rutaDurationSeconds = duration is num
         ? duration.toDouble()
         : double.tryParse('$duration');
+    final rutaKm = rutaDistanceMeters == null ? null : rutaDistanceMeters / 1000;
+    final minutos = rutaDurationSeconds == null ? null : rutaDurationSeconds / 60;
+    final double? costo;
+    if ((entrega.paqueteTarifa ?? 0) > 0) {
+      costo = entrega.paqueteTarifa;
+    } else if (rutaKm != null &&
+        (entrega.tarifaBase > 0 || entrega.tarifaPorKm > 0)) {
+      costo = entrega.tarifaBase + entrega.tarifaPorKm * rutaKm;
+    } else {
+      costo = entrega.tarifaEstimada;
+    }
 
     return Card(
       elevation: 0,
@@ -1698,20 +1709,20 @@ class _RouteSummaryCard extends StatelessWidget {
                 _chip(
                   theme,
                   Icons.straighten_rounded,
-                  rutaDistance != null
-                      ? _formatDistance(rutaDistance)
+                  rutaKm != null
+                      ? _formatDistance(rutaKm)
                       : _formatDistance(entrega.distanciaTotalKm),
                 ),
-                if (rutaDuration != null)
+                if (minutos != null)
                   _chip(
                     theme,
                     Icons.schedule_rounded,
-                    _formatMinutes(rutaDuration),
+                    _formatMinutes(minutos),
                   ),
                 _chip(
                   theme,
                   Icons.payments_outlined,
-                  '${entrega.tarifaEstimada?.toStringAsFixed(2) ?? '-'} $currency',
+                  '${costo?.toStringAsFixed(2) ?? '-'} $currency',
                 ),
               ],
             ),
