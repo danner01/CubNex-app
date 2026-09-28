@@ -37,11 +37,19 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   double? _myLng;
   bool _locating = false;
   bool _drawingRoute = false;
+  String? _locationError;
+  DeliveryEntregaModel? _focusEntrega;
+  String? _focusEntregaId;
+  String? _loadingRouteFor;
+  bool _routesFetchInProgress = false;
+  final Map<String, List<List<double>>> _routeCache = {};
   List<List<double>>? _acceptedRouteCoords;
   String? _acceptedRouteId;
   Timer? _pollTimer;
 
   bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
+
+  static const _maxQueuedRoutes = 6;
 
   @override
   void initState() {
@@ -56,6 +64,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           status == DeliveryStatus.failure) {
         unawaited(cubit.load());
       }
+      unawaited(_loadFocusEntrega());
     });
     _pollTimer = Timer.periodic(
       _pollInterval,
@@ -72,20 +81,6 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     super.dispose();
   }
 
-  Future<geo.Position?> _currentPosition() async {
-    final enabled = await geo.Geolocator.isLocationServiceEnabled();
-    if (!enabled) return null;
-    var permission = await geo.Geolocator.checkPermission();
-    if (permission == geo.LocationPermission.denied) {
-      permission = await geo.Geolocator.requestPermission();
-    }
-    if (permission == geo.LocationPermission.denied ||
-        permission == geo.LocationPermission.deniedForever) {
-      return null;
-    }
-    return geo.Geolocator.getCurrentPosition();
-  }
-
   void _storePosition(geo.Position position) {
     final lng = position.longitude;
     final lat = position.latitude;
@@ -95,26 +90,86 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       setState(() {
         _myLat = lat;
         _myLng = lng;
+        if (_locationError != null) _locationError = null;
       });
     }
   }
 
+  void _applyLocationResult(DeliveryLocationResult result) {
+    if (result.hasPosition) {
+      _storePosition(result.position!);
+      return;
+    }
+    debugPrint('DeliveryQueueMap: ubicacion no disponible (${result.status})');
+    if (mounted) setState(() => _locationError = result.message);
+  }
+
+  Future<geo.Position?> _currentPosition() async {
+    final result = await readDeliveryPosition();
+    _applyLocationResult(result);
+    return result.position;
+  }
+
+  Future<void> _loadFocusEntrega() async {
+    final id = _requestedEntregaId();
+    if (id == null || id.isEmpty) return;
+    final result = await sl<ApiClient>().get<DeliveryEntregaModel>(
+      '/entregas/$id',
+      parser: (json) =>
+          DeliveryEntregaModel.fromJson(Map<String, dynamic>.from(json as Map)),
+    );
+    if (!mounted) return;
+    if (result.isSuccess && result.data != null) {
+      setState(() {
+        _focusEntrega = result.data;
+        _focusEntregaId = id;
+      });
+      await _ensureRouteFor(result.data!, force: true);
+      if (!mounted) return;
+      final dest = result.data!;
+      if (dest.destinoLatitude != null && dest.destinoLongitude != null) {
+        _didInitialCamera = true;
+        await _mapboxMap?.flyTo(
+          CameraOptions(
+            center: Point(
+              coordinates: Position(
+                dest.destinoLongitude!,
+                dest.destinoLatitude!,
+              ),
+            ),
+            zoom: 14,
+          ),
+          MapAnimationOptions(duration: 500),
+        );
+      }
+    } else {
+      debugPrint('DeliveryQueueMap: no se pudo cargar la entrega $id');
+    }
+  }
+
+  String? _requestedEntregaId() {
+    final uri = Uri.tryParse(GoRouterState.of(context).uri.toString());
+    if (uri == null) return null;
+    final value = uri.queryParameters['entrega'];
+    if (value == null || value.trim().isEmpty) return null;
+    return value.trim();
+  }
+
   Future<void> _refreshQueue({bool initial = false}) async {
     final cubit = context.read<DeliveryCubit>();
-    try {
-      final position = await _currentPosition();
-      if (position != null) {
-        _storePosition(position);
+    final position = await _currentPosition();
+    if (position != null) {
+      try {
         await cubit.reportLocation(
           latitude: position.latitude,
           longitude: position.longitude,
         );
-        if (_mapboxMap != null && !_didInitialCamera) {
-          await _syncAnnotations(initial: true);
-        }
+      } catch (error) {
+        debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
       }
-    } catch (_) {
-      // Continua cargando la cola aunque falle el reporte de posicion.
+      if (_mapboxMap != null && !_didInitialCamera) {
+        await _syncAnnotations(initial: true);
+      }
     }
     await cubit.loadDisponibles(silent: !initial);
   }
@@ -130,23 +185,22 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   Future<void> _locateCurrentPos() async {
-    setState(() => _locating = true);
-    final position = await _currentPosition();
+    if (mounted) setState(() => _locating = true);
+    final result = await readDeliveryPosition();
     if (!mounted) return;
-    if (position == null) {
+    _applyLocationResult(result);
+    if (!result.hasPosition) {
       setState(() => _locating = false);
-      showSnackOrAuthDialog(
-        context,
-        'No se pudo obtener tu ubicacion. Activa el permiso de ubicacion e '
-        'intenta de nuevo.',
-      );
+      showSnackOrAuthDialog(context, result.message);
       return;
     }
-    _storePosition(position);
     _didInitialCamera = false;
     await _syncAnnotations(initial: true);
     if (!mounted) return;
     setState(() => _locating = false);
+    if (result.fromLastKnown) {
+      showSnackOrAuthDialog(context, result.message);
+    }
   }
 
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
@@ -158,71 +212,99 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   List<List<double>>? _routePointsFor(DeliveryEntregaModel entrega) {
-    if (entrega.rutaCoordenadas != null &&
-        entrega.rutaCoordenadas!.length >= 2) {
-      return entrega.rutaCoordenadas;
-    }
-    if (_acceptedRouteId == entrega.id && _acceptedRouteCoords != null) {
-      return _acceptedRouteCoords;
-    }
+    final backend = entrega.rutaCoordenadas;
+    if (backend != null && backend.length >= 2) return backend;
+    final cached = _routeCache[entrega.id];
+    if (cached != null && cached.length >= 2) return cached;
     return null;
+  }
+
+  /// Origen de la entrega: el negocio si lo tiene, si no la posicion actual del
+  /// repartidor (que es por donde tiene que ir a recoger).
+  ({double lat, double lng})? _originFor(DeliveryEntregaModel entrega) {
+    final lat = entrega.negocioLatitude;
+    final lng = entrega.negocioLongitude;
+    if (lat != null && lng != null) return (lat: lat, lng: lng);
+    final myLat = _myLat;
+    final myLng = _myLng;
+    if (myLat != null && myLng != null) return (lat: myLat, lng: myLng);
+    return null;
+  }
+
+  bool _hasOriginCoordsFor(DeliveryEntregaModel entrega) =>
+      entrega.negocioLatitude != null && entrega.negocioLongitude != null;
+
+  Future<void> _ensureRouteFor(
+    DeliveryEntregaModel entrega, {
+    bool force = false,
+  }) async {
+    if (entrega.destinoLatitude == null || entrega.destinoLongitude == null) {
+      return;
+    }
+    if (!force && _routeCache[entrega.id] != null) return;
+    if (_loadingRouteFor == entrega.id) return;
+    final origin = _originFor(entrega);
+    if (origin == null) return;
+
+    _loadingRouteFor = entrega.id;
+    if (mounted) setState(() => _drawingRoute = true);
+    final coords = await fetchDeliveryStreetRoute(
+      originLat: origin.lat,
+      originLng: origin.lng,
+      destLat: entrega.destinoLatitude!,
+      destLng: entrega.destinoLongitude!,
+    );
+    if (!mounted) return;
+    if (coords.length >= 2) {
+      _routeCache[entrega.id] = coords;
+      if (entrega.id == sl<DeliveryAcceptedStore>().accepted.value?.id) {
+        _acceptedRouteCoords = coords;
+      }
+    } else {
+      debugPrint('DeliveryQueueMap: sin ruta por carretera para ${entrega.id}');
+    }
+    setState(() {
+      _loadingRouteFor = null;
+      _drawingRoute = false;
+    });
+    await _syncAnnotations(initial: false);
   }
 
   Future<void> _ensureAcceptedRoute(DeliveryEntregaModel entrega) async {
     if (_acceptedRouteId == entrega.id) return;
+    _acceptedRouteId = entrega.id;
     if (entrega.rutaCoordenadas != null &&
         entrega.rutaCoordenadas!.length >= 2) {
-      _acceptedRouteId = entrega.id;
-      return;
+      _acceptedRouteCoords = entrega.rutaCoordenadas;
     }
-    final originLat = entrega.negocioLatitude;
-    final originLng = entrega.negocioLongitude;
-    final destLat = entrega.destinoLatitude;
-    final destLng = entrega.destinoLongitude;
-    if (originLat == null ||
-        originLng == null ||
-        destLat == null ||
-        destLng == null) {
-      return;
-    }
-    _acceptedRouteId = entrega.id;
-    if (mounted) setState(() => _drawingRoute = true);
-    final result = await sl<ApiClient>().post<Map<String, dynamic>>(
-      '/mapbox/ruta',
-      data: {
-        'origen': {'lat': originLat, 'lng': originLng},
-        'destino': {'lat': destLat, 'lng': destLng},
-      },
-      parser: (json) =>
-          json is Map ? Map<String, dynamic>.from(json) : const {},
-    );
-    if (!mounted) return;
-    final parsed = <List<double>>[];
-    if (result.isSuccess) {
-      final routes = result.data?['routes'];
-      if (routes is List && routes.isNotEmpty) {
-        final first = routes.first;
-        if (first is Map) {
-          final geometry = first['geometry'];
-          final coords = geometry is Map ? geometry['coordinates'] : null;
-          if (coords is List) {
-            for (final entry in coords) {
-              if (entry is List && entry.length >= 2) {
-                final lng = (entry[0] as num?)?.toDouble();
-                final lat = (entry[1] as num?)?.toDouble();
-                if (lng != null && lat != null) parsed.add([lng, lat]);
-              }
-            }
-          }
+    await _ensureRouteFor(entrega, force: true);
+  }
+
+  /// Pide las rutas por carretera de las entregas visibles (activa + cola), con tope
+  /// para no saturar el backend. Las lineas rectas se pintan mientras llegan.
+  Future<void> _ensureVisibleRoutes(List<DeliveryEntregaModel> entries) async {
+    if (_routesFetchInProgress) return;
+    _routesFetchInProgress = true;
+    try {
+      var requested = 0;
+      for (final entrega in entries) {
+        if (requested >= _maxQueuedRoutes) break;
+        if (_routeCache[entrega.id] != null) continue;
+        if (entrega.rutaCoordenadas != null &&
+            entrega.rutaCoordenadas!.length >= 2) {
+          continue;
         }
+        if (entrega.destinoLatitude == null ||
+            entrega.destinoLongitude == null) {
+          continue;
+        }
+        if (_originFor(entrega) == null) continue;
+        requested++;
+        await _ensureRouteFor(entrega);
       }
+    } finally {
+      _routesFetchInProgress = false;
     }
-    if (!mounted) return;
-    setState(() {
-      _drawingRoute = false;
-      if (parsed.length >= 2) _acceptedRouteCoords = parsed;
-    });
-    await _syncAnnotations(initial: false);
   }
 
   Future<void> _syncAnnotations({required bool initial}) async {
@@ -236,6 +318,10 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       context.read<DeliveryCubit>().state.availableEntregas,
     );
     final entries = <DeliveryEntregaModel>[
+      if (_focusEntrega != null &&
+          accepted?.id != _focusEntrega!.id &&
+          !items.any((item) => item.id == _focusEntrega!.id))
+        _focusEntrega!,
       if (accepted != null && !items.any((item) => item.id == accepted.id))
         accepted,
       ...items,
@@ -248,19 +334,24 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       await pointManager.deleteAll();
 
       for (final entrega in entries) {
-        final originLat = entrega.negocioLatitude;
-        final originLng = entrega.negocioLongitude;
+        final origin = _originFor(entrega);
+        final originIsBusiness = _hasOriginCoordsFor(entrega);
         final destLat = entrega.destinoLatitude;
         final destLng = entrega.destinoLongitude;
         final route = _routePointsFor(entrega);
+        final isFocus = entrega.id == _focusEntregaId;
 
-        if (originLat != null && originLng != null) {
-          coords.add([originLng, originLat]);
+        if (origin != null) {
+          coords.add([origin.lng, origin.lat]);
           await pointManager.create(
             PointAnnotationOptions(
-              geometry: Point(coordinates: Position(originLng, originLat)),
+              geometry: Point(coordinates: Position(origin.lng, origin.lat)),
               iconImage: 'marker',
-              iconColor: DeliveryRouteColors.origin.toARGB32(),
+              iconColor:
+                  (originIsBusiness
+                          ? DeliveryRouteColors.origin
+                          : const Color(0xFF9E9E9E))
+                      .toARGB32(),
               iconSize: 1.0,
               iconAnchor: IconAnchor.BOTTOM,
             ),
@@ -274,7 +365,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
               geometry: Point(coordinates: Position(destLng, destLat)),
               iconImage: 'marker',
               iconColor: DeliveryRouteColors.destination.toARGB32(),
-              iconSize: 1.0,
+              iconSize: isFocus ? 1.3 : 1.0,
               iconAnchor: IconAnchor.BOTTOM,
             ),
           );
@@ -282,12 +373,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
         final geometry =
             route ??
-            (originLat != null &&
-                    originLng != null &&
-                    destLat != null &&
-                    destLng != null
+            (origin != null && destLat != null && destLng != null
                 ? <List<double>>[
-                    [originLng, originLat],
+                    [origin.lng, origin.lat],
                     [destLng, destLat],
                   ]
                 : null);
@@ -301,32 +389,40 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                     .toList(),
               ),
               lineColor: DeliveryRouteColors.route.toARGB32(),
-              lineWidth: 3.4,
-              lineOpacity: 0.75,
+              lineWidth: route == null ? 2 : (isFocus ? 5 : 3.4),
+              lineOpacity: route == null ? 0.5 : 0.8,
             ),
           );
         }
       }
-    } catch (_) {
-      // Si falla la sincronizacion de anotaciones, se conserva el estado previo.
+    } catch (error, stackTrace) {
+      debugPrint(
+        'DeliveryQueueMap: fallo pintando el mapa: $error\n$stackTrace',
+      );
     }
 
     final lastUserPos = _lastUserPos;
     if (lastUserPos != null) {
-      final iconId = await ensureDeliveryMarkerIcon(
-        map,
-        const Color(0xFF00ACC1),
-        null,
-      );
-      await pointManager.create(
-        PointAnnotationOptions(
-          geometry: Point(coordinates: lastUserPos),
-          iconImage: iconId ?? 'marker',
-          iconColor: iconId == null ? const Color(0xFF00ACC1).toARGB32() : null,
-          iconSize: 0.9,
-          iconAnchor: IconAnchor.BOTTOM,
-        ),
-      );
+      try {
+        final iconId = await ensureDeliveryMarkerIcon(
+          map,
+          const Color(0xFF00ACC1),
+          null,
+        );
+        await pointManager.create(
+          PointAnnotationOptions(
+            geometry: Point(coordinates: lastUserPos),
+            iconImage: iconId ?? 'marker',
+            iconColor: iconId == null
+                ? const Color(0xFF00ACC1).toARGB32()
+                : null,
+            iconSize: 0.9,
+            iconAnchor: IconAnchor.BOTTOM,
+          ),
+        );
+      } catch (error) {
+        debugPrint('DeliveryQueueMap: fallo pintando tu posicion: $error');
+      }
     }
 
     if (initial && !_didInitialCamera) {
@@ -342,6 +438,8 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         );
       }
     }
+
+    unawaited(_ensureVisibleRoutes(entries));
   }
 
   Position? _preferredCameraAnchor(List<List<double>> coords) {
@@ -595,10 +693,36 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   showManualRoute: false,
                 ),
                 const SizedBox(height: 12),
-                if (_myLat == null) ...[
+                if (_locationError != null) ...[
+                  _QueueErrorBlock(
+                    message: _locationError!,
+                    actionLabel: 'Reintentar ubicacion',
+                    onRetry: () => unawaited(_locateCurrentPos()),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_myLat == null && _locationError == null) ...[
                   _QueueLocatePrompt(
                     locating: _locating,
                     onRetry: () => unawaited(_locateCurrentPos()),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_drawingRoute) ...[
+                  const LinearProgressIndicator(minHeight: 2),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Trazando la ruta por carretera...',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (_focusEntrega != null) ...[
+                  _FocusDeliveryCard(
+                    entrega: _focusEntrega!,
+                    loadingRoute: _loadingRouteFor == _focusEntrega!.id,
+                    onGenerateRoute: () =>
+                        unawaited(_ensureRouteFor(_focusEntrega!, force: true)),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -870,6 +994,125 @@ class _AcceptedDeliveryCard extends StatelessWidget {
                 label: const Text('Continuar entrega'),
               ),
             ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _FocusDeliveryCard extends StatelessWidget {
+  const _FocusDeliveryCard({
+    required this.entrega,
+    required this.loadingRoute,
+    required this.onGenerateRoute,
+  });
+
+  final DeliveryEntregaModel entrega;
+  final bool loadingRoute;
+  final VoidCallback onGenerateRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currency = entrega.moneda ?? 'CUP';
+    final sinCoordenadas =
+        entrega.destinoLatitude == null || entrega.destinoLongitude == null;
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: theme.colorScheme.primary),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.map_rounded,
+                  color: theme.colorScheme.primary,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Pedido asignado: '
+                    '${entrega.clienteNombre ?? entrega.destinatarioNombre ?? '-'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              entrega.clienteDireccionEntrega ??
+                  entrega.negocioDireccion ??
+                  'Sin direccion de entrega',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                DeliveryMetaChip(
+                  icon: Icons.payments_outlined,
+                  label: formatDeliveryMoney(
+                    entrega.paqueteTarifa ?? entrega.tarifaEstimada,
+                    currency,
+                  ),
+                ),
+                if (entrega.distanciaTotalKm != null)
+                  DeliveryMetaChip(
+                    icon: Icons.straighten_rounded,
+                    label: formatDeliveryDistance(entrega.distanciaTotalKm),
+                  ),
+                DeliveryMetaChip(
+                  icon: Icons.route_rounded,
+                  label: sinCoordenadas
+                      ? 'Sin coordenadas'
+                      : loadingRoute
+                      ? 'Generando ruta...'
+                      : 'Ruta en el mapa',
+                ),
+              ],
+            ),
+            if (sinCoordenadas) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Este pedido no tiene coordenadas de entrega, por eso no se puede '
+                'trazar la ruta en el mapa.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.error,
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 10),
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: loadingRoute ? null : onGenerateRoute,
+                  icon: loadingRoute
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.route_rounded, size: 18),
+                  label: Text(
+                    loadingRoute ? 'Generando ruta...' : 'Generar ruta',
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),

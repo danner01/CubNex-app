@@ -39,23 +39,10 @@ class DeliveryHubProfileView extends StatelessWidget {
   }
 
   Future<geo.Position?> _currentPosition(BuildContext context) async {
-    final enabled = await geo.Geolocator.isLocationServiceEnabled();
-    if (!context.mounted) return null;
-    if (!enabled) {
-      showSnackOrAuthDialog(context, 'Activa la ubicacion del dispositivo.');
-      return null;
-    }
-    var permission = await geo.Geolocator.checkPermission();
-    if (permission == geo.LocationPermission.denied) {
-      permission = await geo.Geolocator.requestPermission();
-    }
-    if (!context.mounted) return null;
-    if (permission == geo.LocationPermission.denied ||
-        permission == geo.LocationPermission.deniedForever) {
-      showSnackOrAuthDialog(context, 'Permiso de ubicacion denegado.');
-      return null;
-    }
-    return geo.Geolocator.getCurrentPosition();
+    final result = await readDeliveryPosition();
+    if (result.hasPosition) return result.position;
+    if (context.mounted) showSnackOrAuthDialog(context, result.message);
+    return null;
   }
 
   @override

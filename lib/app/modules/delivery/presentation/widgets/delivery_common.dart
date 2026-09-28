@@ -288,6 +288,158 @@ String formatDeliveryMoney(double? value, String currency) {
   return '${value.toStringAsFixed(2)} $currency';
 }
 
+/// Motivo por el que no se pudo leer la ubicacion, para poder explicar el fallo
+/// en vez de tragarselo en silencio.
+enum DeliveryLocationStatus {
+  ok,
+  serviceDisabled,
+  permissionDenied,
+  permissionDeniedForever,
+  timeout,
+  error,
+}
+
+class DeliveryLocationResult {
+  const DeliveryLocationResult({
+    required this.status,
+    this.position,
+    this.fromLastKnown = false,
+  });
+
+  const DeliveryLocationResult.ok(
+    geo.Position position, {
+    bool fromLastKnown = false,
+  }) : this(
+         status: DeliveryLocationStatus.ok,
+         position: position,
+         fromLastKnown: fromLastKnown,
+       );
+
+  final DeliveryLocationStatus status;
+  final geo.Position? position;
+
+  /// `true` cuando se uso la ultima posicion conocida porque el GPS no respondio a tiempo.
+  final bool fromLastKnown;
+
+  bool get hasPosition => position != null;
+
+  String get message => switch (status) {
+    DeliveryLocationStatus.ok =>
+      fromLastKnown
+          ? 'Usando tu ultima posicion conocida. Sal a un lugar abierto para actualizarla.'
+          : '',
+    DeliveryLocationStatus.serviceDisabled =>
+      'La ubicacion del dispositivo esta apagada. Activala e intenta de nuevo.',
+    DeliveryLocationStatus.permissionDenied =>
+      'Permiso de ubicacion denegado. Concedelo desde los ajustes e intenta de nuevo.',
+    DeliveryLocationStatus.permissionDeniedForever =>
+      'El permiso de ubicacion esta bloqueado. Habilitalo desde los ajustes de la app.',
+    DeliveryLocationStatus.timeout =>
+      'El GPS no respondio a tiempo. Sal a un lugar abierto e intenta de nuevo.',
+    DeliveryLocationStatus.error =>
+      'No se pudo leer tu ubicacion. Revisa los permisos e intenta de nuevo.',
+  };
+}
+
+/// Lectura de ubicacion unificada para todo el modulo delivery.
+///
+/// `getCurrentPosition()` a secas se queda esperando indefinido en varios Android y
+/// lanza `TimeoutException`, lo que dejaba el mapa de la cola sin ubicacion. Aqui se
+/// pone un limite de tiempo y se cae a la ultima posicion conocida.
+Future<DeliveryLocationResult> readDeliveryPosition({
+  Duration timeLimit = const Duration(seconds: 20),
+  bool requestPermission = true,
+}) async {
+  try {
+    if (!await geo.Geolocator.isLocationServiceEnabled()) {
+      return const DeliveryLocationResult(
+        status: DeliveryLocationStatus.serviceDisabled,
+      );
+    }
+    var permission = await geo.Geolocator.checkPermission();
+    if (permission == geo.LocationPermission.denied && requestPermission) {
+      permission = await geo.Geolocator.requestPermission();
+    }
+    if (permission == geo.LocationPermission.deniedForever) {
+      return const DeliveryLocationResult(
+        status: DeliveryLocationStatus.permissionDeniedForever,
+      );
+    }
+    if (permission == geo.LocationPermission.denied) {
+      return const DeliveryLocationResult(
+        status: DeliveryLocationStatus.permissionDenied,
+      );
+    }
+
+    try {
+      final position = await geo.Geolocator.getCurrentPosition(
+        locationSettings: geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.high,
+          timeLimit: timeLimit,
+        ),
+      );
+      return DeliveryLocationResult.ok(position);
+    } catch (error) {
+      debugPrint(
+        'DeliveryLocation: GPS sin fix ($error), usando ultima conocida',
+      );
+      try {
+        final last = await geo.Geolocator.getLastKnownPosition();
+        if (last != null) {
+          return DeliveryLocationResult.ok(last, fromLastKnown: true);
+        }
+      } catch (_) {}
+      return DeliveryLocationResult(
+        status: error is TimeoutException
+            ? DeliveryLocationStatus.timeout
+            : DeliveryLocationStatus.error,
+      );
+    }
+  } catch (error) {
+    debugPrint('DeliveryLocation: fallo leyendo la ubicacion: $error');
+    return const DeliveryLocationResult(status: DeliveryLocationStatus.error);
+  }
+}
+
+/// Pide la ruta por carretera entre dos puntos usando el backend.
+Future<List<List<double>>> fetchDeliveryStreetRoute({
+  required double originLat,
+  required double originLng,
+  required double destLat,
+  required double destLng,
+}) async {
+  final result = await sl<ApiClient>().post<Map<String, dynamic>>(
+    '/mapbox/ruta',
+    data: {
+      'origen': {'lat': originLat, 'lng': originLng},
+      'destino': {'lat': destLat, 'lng': destLng},
+    },
+    parser: (json) => json is Map ? Map<String, dynamic>.from(json) : const {},
+  );
+  if (!result.isSuccess) return const [];
+
+  final routes = result.data?['routes'];
+  if (routes is! List || routes.isEmpty) return const [];
+  final first = routes.first;
+  if (first is! Map) return const [];
+  final geometry = first['geometry'];
+  if (geometry is! Map) return const [];
+  final coords = geometry['coordinates'];
+  if (coords is! List) return const [];
+
+  final parsed = <List<double>>[];
+  for (final entry in coords) {
+    if (entry is List && entry.length >= 2) {
+      final lng = (entry[0] as num?)?.toDouble();
+      final lat = (entry[1] as num?)?.toDouble();
+      if (lng != null && lat != null && lng.isFinite && lat.isFinite) {
+        parsed.add([lng, lat]);
+      }
+    }
+  }
+  return parsed;
+}
+
 IconData deliveryVehicleIcon(String? vehiculo) {
   return switch (vehiculo) {
     'bicicleta' => Icons.pedal_bike,

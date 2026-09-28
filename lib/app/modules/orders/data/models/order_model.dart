@@ -18,6 +18,7 @@ class OrderModel {
     this.currency,
     this.estimatedTotal,
     this.tarifaCobrada,
+    this.entregaId,
     this.metadata,
     this.qrCode,
     this.qrUrl,
@@ -40,6 +41,9 @@ class OrderModel {
   final String? currency;
   final double? estimatedTotal;
   final double? tarifaCobrada;
+
+  /// Id de la entrega de delivery asociada al pedido, si el backend la devuelve.
+  final String? entregaId;
   final Map<String, dynamic>? metadata;
   final String? qrCode;
   final String? qrUrl;
@@ -295,6 +299,10 @@ class OrderModel {
       tarifaCobrada: (tarifaCobrada != null && tarifaCobrada > 0)
           ? tarifaCobrada
           : null,
+      entregaId:
+          '${entregaMap['id'] ?? json['entrega_id'] ?? ''}'.trim().isEmpty
+          ? null
+          : '${entregaMap['id'] ?? json['entrega_id']}'.trim(),
       metadata: mergedMetadata.isEmpty ? null : mergedMetadata,
       qrCode: _normalizedQrValue(
         json['qr_codigo'] ?? json['qrCode'] ?? qrMap['token'],

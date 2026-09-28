@@ -45,14 +45,14 @@ class DeliveryManualRouteStore {
   static List<DeliveryManualRoute> _parse(String raw) {
     try {
       final decoded = jsonDecode(raw);
-      if (decoded is! List) return const [];
+      if (decoded is! List) return <DeliveryManualRoute>[];
       return decoded
           .map(DeliveryManualRoute.fromJson)
           .whereType<DeliveryManualRoute>()
           .toList();
     } catch (error) {
       debugPrint('DeliveryManualRouteStore: no se pudo leer el dato: $error');
-      return const [];
+      return <DeliveryManualRoute>[];
     }
   }
 
@@ -68,6 +68,8 @@ class DeliveryManualRouteStore {
     }
   }
 
+  /// Devuelve siempre una lista **modificable**: las pantallas agregan la ruta nueva
+  /// con `routes.add(...)` sobre el resultado de este metodo.
   static Future<List<DeliveryManualRoute>> load() async {
     final file = await _file();
     if (file != null && await file.exists()) {
@@ -84,13 +86,13 @@ class DeliveryManualRouteStore {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString(_storageKey);
-      if (raw == null || raw.isEmpty) return const [];
-      return _parse(raw);
+      if (raw == null || raw.isEmpty) return <DeliveryManualRoute>[];
+      return _parse(raw).toList();
     } catch (error) {
       debugPrint(
         'DeliveryManualRouteStore: fallo leyendo preferencias: $error',
       );
-      return const [];
+      return <DeliveryManualRoute>[];
     }
   }
 

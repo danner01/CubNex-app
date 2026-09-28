@@ -33,9 +33,15 @@ const _deliveryActiveTrackingStatuses = {
   'en_ruta',
 };
 
-const _deliveryPendingPickupStatuses = {
+/// Pedidos que ya se pueden abrir en el mapa de reparto para trazar la ruta.
+const _deliveryMapStatuses = {
+  'reservado_delivery',
   'delivery_asignado',
+  'recogido_por_delivery',
+  'en_ruta',
 };
+
+const _deliveryPendingPickupStatuses = {'delivery_asignado'};
 
 const _deliveryPendingDeliveryStatuses = {
   'recogido_por_delivery',
@@ -541,7 +547,9 @@ class DeliveryOrderCard extends StatelessWidget {
                     icon: const Icon(Icons.storefront_rounded, size: 18),
                     label: const Text('Escanear en el negocio'),
                   ),
-                if (_deliveryPendingDeliveryStatuses.contains(order.status)) ...[
+                if (_deliveryPendingDeliveryStatuses.contains(
+                  order.status,
+                )) ...[
                   OutlinedButton.icon(
                     onPressed: () => context.push(
                       '${AppRoutes.scanner}?evento=entregado_por_delivery',
@@ -563,9 +571,27 @@ class DeliveryOrderCard extends StatelessWidget {
                 ],
                 if (_deliveryActiveTrackingStatuses.contains(order.status))
                   OutlinedButton.icon(
-                    onPressed: () => showDeliveryTrackingSheet(context, order.id),
+                    onPressed: () =>
+                        showDeliveryTrackingSheet(context, order.id),
                     icon: const Icon(Icons.near_me_rounded, size: 18),
                     label: const Text('Ver ubicacion'),
+                  ),
+                if (_deliveryMapStatuses.contains(order.status))
+                  OutlinedButton.icon(
+                    onPressed: () {
+                      final entregaId = order.entregaId;
+                      context.push(
+                        entregaId == null || entregaId.isEmpty
+                            ? AppRoutes.deliveryQueueMap
+                            : '${AppRoutes.deliveryQueueMap}?entrega=$entregaId',
+                      );
+                    },
+                    icon: const Icon(Icons.map_rounded, size: 18),
+                    label: Text(
+                      order.entregaId == null || order.entregaId!.isEmpty
+                          ? 'Ver en el mapa'
+                          : 'Ver en el mapa y generar ruta',
+                    ),
                   ),
               ],
             ),

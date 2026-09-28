@@ -502,59 +502,20 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   }
 
   Future<geo.Position?> _readPosition({bool showErrors = false}) async {
-    try {
-      final enabled = await geo.Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        if (showErrors) {
-          _showMessage(
-            'Activa la ubicacion del dispositivo e intenta de nuevo.',
-          );
-        }
-        return null;
+    final result = await readDeliveryPosition();
+    if (result.hasPosition) {
+      if (showErrors && result.fromLastKnown) {
+        _showMessage(result.message);
       }
-      var permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        permission = await geo.Geolocator.requestPermission();
-      }
-      if (permission == geo.LocationPermission.deniedForever) {
-        if (showErrors) await _offerSettingsPrompt();
-        return null;
-      }
-      if (permission == geo.LocationPermission.denied) {
-        if (showErrors) {
-          _showMessage(
-            'Permiso de ubicacion denegado. Concedelo desde los ajustes e intenta de nuevo.',
-          );
-        }
-        return null;
-      }
-      try {
-        return await geo.Geolocator.getCurrentPosition(
-          locationSettings: geo.LocationSettings(
-            accuracy: geo.LocationAccuracy.high,
-            timeLimit: const Duration(seconds: 20),
-          ),
-        );
-      } catch (_) {
-        try {
-          final last = await geo.Geolocator.getLastKnownPosition();
-          if (last != null) return last;
-        } catch (_) {}
-        if (showErrors) {
-          _showMessage(
-            'No se pudo obtener tu posicion. Estate en un lugar abierto (GPS) e intenta de nuevo.',
-          );
-        }
-        return null;
-      }
-    } catch (_) {
-      if (showErrors) {
-        _showMessage(
-          'No se pudo acceder a la ubicacion. Revisa los permisos e intenta de nuevo.',
-        );
-      }
-      return null;
+      return result.position;
     }
+    if (!showErrors) return null;
+    if (result.status == DeliveryLocationStatus.permissionDeniedForever) {
+      await _offerSettingsPrompt();
+    } else {
+      _showMessage(result.message);
+    }
+    return null;
   }
 
   Future<void> _offerSettingsPrompt() async {
