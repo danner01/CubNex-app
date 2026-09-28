@@ -343,11 +343,12 @@ class DeliveryLocationResult {
 
 /// Lectura de ubicacion unificada para todo el modulo delivery.
 ///
-/// `getCurrentPosition()` a secas se queda esperando indefinido en varios Android y
-/// lanza `TimeoutException`, lo que dejaba el mapa de la cola sin ubicacion. Aqui se
-/// pone un limite de tiempo y se cae a la ultima posicion conocida.
+/// `getCurrentPosition()` a secas se queda esperando indefinido en varios Android
+/// (el `timeLimit` del `LocationSettings` se ignora) y eso dejaba la cola cargando
+/// en "Detectar mi posicion". Aqui se fuerza el retorno con `Future.timeout` y se
+/// cae a la ultima posicion conocida para no dejar la UI esperando.
 Future<DeliveryLocationResult> readDeliveryPosition({
-  Duration timeLimit = const Duration(seconds: 12),
+  Duration timeLimit = const Duration(seconds: 8),
   bool requestPermission = true,
 }) async {
   try {
@@ -371,10 +372,11 @@ Future<DeliveryLocationResult> readDeliveryPosition({
       );
     }
 
-    // IMPORTANTE: en Android el `timeLimit` del LocationSettings se ignora y
-    // getCurrentPosition puede quedarse esperando el primer fix sin devolver
-    // nada; por eso se envuelve siempre en `Future.timeout`. Si nadie lo
-    // corta, la pantalla se queda para siempre en "Detectar mi posicion".
+    // Intento 1: posicion fresca. IMPORTANTE: en Android el `timeLimit` del
+    // LocationSettings se ignora y getCurrentPosition puede quedarse esperando
+    // el primer fix sin devolver nada; por eso se envuelve siempre en
+    // `Future.timeout`. Sin eso la pantalla se queda cargando para siempre en
+    // "Detectar mi posicion"/"Mi ubicacion".
     try {
       final position = await geo.Geolocator.getCurrentPosition(
         locationSettings: geo.LocationSettings(
@@ -384,25 +386,15 @@ Future<DeliveryLocationResult> readDeliveryPosition({
       ).timeout(timeLimit);
       return DeliveryLocationResult.ok(position);
     } catch (error) {
-      debugPrint('DeliveryLocation: GPS alta sin fix en $timeLimit ($error)');
+      debugPrint('DeliveryLocation: GPS sin fix en $timeLimit ($error)');
     }
 
-    // Intento 2: precision media (suele encajar mas rapido usando red/celda).
-    const mediumLimit = Duration(seconds: 8);
+    // Intento 2: ultima posicion conocida (instantanea) para no dejar la UI
+    // cargando. Se marca como fromLastKnown para poder avisarle al usuario.
     try {
-      final position = await geo.Geolocator.getCurrentPosition(
-        locationSettings: geo.LocationSettings(
-          accuracy: geo.LocationAccuracy.medium,
-          timeLimit: mediumLimit,
-        ),
-      ).timeout(mediumLimit);
-      return DeliveryLocationResult.ok(position);
-    } catch (error) {
-      debugPrint('DeliveryLocation: GPS media sin fix ($error)');
-    }
-
-    try {
-      final last = await geo.Geolocator.getLastKnownPosition();
+      final last = await geo.Geolocator.getLastKnownPosition().timeout(
+        const Duration(seconds: 3),
+      );
       if (last != null) {
         return DeliveryLocationResult.ok(last, fromLastKnown: true);
       }

@@ -208,20 +208,22 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
   Future<void> _locateCurrentPos() async {
     if (mounted) setState(() => _locating = true);
-    final result = await readDeliveryPosition();
-    if (!mounted) return;
-    _applyLocationResult(result);
-    if (!result.hasPosition) {
-      setState(() => _locating = false);
-      showSnackOrAuthDialog(context, result.message);
-      return;
-    }
-    _didInitialCamera = false;
-    await _syncAnnotations(initial: true);
-    if (!mounted) return;
-    setState(() => _locating = false);
-    if (result.fromLastKnown) {
-      showSnackOrAuthDialog(context, result.message);
+    try {
+      final result = await readDeliveryPosition();
+      if (!mounted) return;
+      _applyLocationResult(result);
+      if (!result.hasPosition) {
+        showSnackOrAuthDialog(context, result.message);
+        return;
+      }
+      _didInitialCamera = false;
+      await _syncAnnotations(initial: true);
+      if (!mounted) return;
+      if (result.fromLastKnown) {
+        showSnackOrAuthDialog(context, result.message);
+      }
+    } finally {
+      if (mounted) setState(() => _locating = false);
     }
   }
 
