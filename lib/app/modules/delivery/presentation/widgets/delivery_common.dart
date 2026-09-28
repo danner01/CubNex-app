@@ -126,6 +126,157 @@ class DeliveryMessageCard extends StatelessWidget {
   }
 }
 
+class DeliveryRouteColors {
+  const DeliveryRouteColors._();
+
+  static const origin = Color(0xFF2E7D32);
+  static const destination = Color(0xFFC62828);
+  static const route = Color(0xFF1E88E5);
+  static const manualRoute = Color(0xFF6A1B9A);
+  static const delivery = Color(0xFF3949AB);
+}
+
+class DeliverySheetPanel extends StatelessWidget {
+  const DeliverySheetPanel({
+    required this.controller,
+    required this.child,
+    super.key,
+  });
+
+  final ScrollController controller;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surface,
+      elevation: 10,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: SafeArea(
+        top: false,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Container(
+              width: 40,
+              height: 4,
+              margin: const EdgeInsets.symmetric(vertical: 10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.outlineVariant,
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            Expanded(child: child),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class DeliveryMapLegendRow extends StatelessWidget {
+  const DeliveryMapLegendRow({
+    required this.myColor,
+    required this.showAcceptRoute,
+    required this.showManualRoute,
+    super.key,
+  });
+
+  final Color myColor;
+  final bool showAcceptRoute;
+  final bool showManualRoute;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final items = <Widget>[
+      _legendItem(
+        theme,
+        myColor,
+        'Tu',
+        labelColor: readableDeliveryMarkerIconColor(myColor),
+      ),
+      _legendItem(theme, DeliveryRouteColors.delivery, 'Repartidor'),
+      if (showAcceptRoute) ...[
+        _legendItem(theme, DeliveryRouteColors.origin, 'Origen'),
+        _legendItem(theme, DeliveryRouteColors.destination, 'Destino'),
+        _legendItem(theme, DeliveryRouteColors.route, 'Ruta', line: true),
+      ],
+      if (showManualRoute)
+        _legendItem(
+          theme,
+          DeliveryRouteColors.manualRoute,
+          'Ruta manual',
+          line: true,
+        ),
+    ];
+
+    return Row(
+      children: [
+        Expanded(
+          child: SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                for (var i = 0; i < items.length; i++) ...[
+                  if (i > 0) const SizedBox(width: 12),
+                  items[i],
+                ],
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _legendItem(
+    ThemeData theme,
+    Color color,
+    String label, {
+    Color? labelColor,
+    bool line = false,
+  }) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (line)
+          Container(
+            width: 18,
+            height: 4,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          )
+        else
+          Container(
+            width: 12,
+            height: 12,
+            decoration: BoxDecoration(
+              color: color,
+              shape: BoxShape.circle,
+              border: Border.all(color: theme.colorScheme.outlineVariant),
+            ),
+          ),
+        const SizedBox(width: 5),
+        Text(
+          label,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: labelColor,
+            fontWeight: FontWeight.w700,
+            fontSize: 11,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
 String formatDeliveryDistance(double? km) {
   if (km == null) return '-';
   if (km < 1) return '${(km * 1000).toStringAsFixed(0)} m';
@@ -435,7 +586,10 @@ Future<Uint8List?> _buildDeliveryPinPng(Color color, String? label) async {
     );
   }
 
-  final image = await recorder.endRecording().toImage(_deliveryPinSize, _deliveryPinSize);
+  final image = await recorder.endRecording().toImage(
+    _deliveryPinSize,
+    _deliveryPinSize,
+  );
   final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
   image.dispose();
   if (byteData == null) return null;
@@ -514,7 +668,7 @@ class DeliveryActionsGrid extends StatelessWidget {
               ).colorScheme.outlineVariant.withValues(alpha: 0.55),
             ),
           ),
-child: InkWell(
+          child: InkWell(
             onTap: action.onTap,
             borderRadius: BorderRadius.circular(16),
             child: Padding(
@@ -744,7 +898,9 @@ class _DeliveryMapSearchOverlayState extends State<DeliveryMapSearchOverlay> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Widget _field(ThemeData theme) {
@@ -828,7 +984,8 @@ class _DeliveryMapSearchOverlayState extends State<DeliveryMapSearchOverlay> {
                             shrinkWrap: true,
                             padding: EdgeInsets.zero,
                             itemCount: _suggestions.length,
-                            separatorBuilder: (_, _) => const Divider(height: 1),
+                            separatorBuilder: (_, _) =>
+                                const Divider(height: 1),
                             itemBuilder: (context, index) {
                               final suggestion = _suggestions[index];
                               return ListTile(
@@ -859,8 +1016,9 @@ class _DeliveryMapSearchOverlayState extends State<DeliveryMapSearchOverlay> {
             bottom: 12,
             child: FloatingActionButton.small(
               heroTag: 'delivery_map_locate',
-              onPressed:
-                  _locating ? null : () => unawaited(_useCurrentLocation()),
+              onPressed: _locating
+                  ? null
+                  : () => unawaited(_useCurrentLocation()),
               tooltip: 'Mi ubicacion',
               child: _locating
                   ? const SizedBox(

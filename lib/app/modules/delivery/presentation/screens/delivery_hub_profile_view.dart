@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/apk_version_card.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
@@ -79,7 +80,9 @@ class DeliveryHubProfileView extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              const Text('Vehiculo, tarifas, avatar, color del marcador y disponibilidad.'),
+              const Text(
+                'Vehiculo, tarifas, avatar, color del marcador y disponibilidad.',
+              ),
               const SizedBox(height: 16),
               if (state.status == DeliveryStatus.loading && profile == null)
                 const Padding(
@@ -94,12 +97,99 @@ class DeliveryHubProfileView extends StatelessWidget {
                 _buildAvailabilityCard(context, state),
                 const SizedBox(height: 12),
                 DeliveryProfileSummaryCard(profile: profile),
+                const SizedBox(height: 12),
+                _buildDeliveryModeCard(context, state),
                 const SizedBox(height: 18),
                 _buildManagementLists(context, profile),
               ],
             ],
           );
         },
+      ),
+    );
+  }
+
+  Widget _buildDeliveryModeCard(BuildContext context, DeliveryState state) {
+    final theme = Theme.of(context);
+    final deliveryActive = context.select<RoleModeCubit, bool>(
+      (cubit) => cubit.state.activeMode == RoleMode.delivery,
+    );
+    final canSwitch = context.select<RoleModeCubit, bool>(
+      (cubit) => cubit.state.availableModes.contains(RoleMode.delivery),
+    );
+    return Card(
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(20),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(14, 6, 14, 10),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: deliveryActive,
+              onChanged: !canSwitch
+                  ? null
+                  : (value) async {
+                      if (!context.mounted) return;
+                      final cubit = context.read<RoleModeCubit>();
+                      await cubit.setMode(
+                        value ? RoleMode.delivery : RoleMode.client,
+                      );
+                      if (!context.mounted) return;
+                      context.go(
+                        value ? AppRoutes.deliveryDashboard : AppRoutes.home,
+                      );
+                    },
+              title: const Text('Modo entrega'),
+              subtitle: Text(
+                canSwitch
+                    ? deliveryActive
+                          ? 'La app abre en el panel de reparto.'
+                          : 'Activa para trabajar en modo repartidor.'
+                    : 'Tu cuenta no tiene el rol de repartidor disponible.',
+              ),
+              secondary: Icon(
+                deliveryActive
+                    ? Icons.delivery_dining_rounded
+                    : Icons.delivery_dining_outlined,
+                size: 28,
+                color: deliveryActive
+                    ? theme.colorScheme.primary
+                    : theme.colorScheme.outline,
+              ),
+            ),
+            if (deliveryActive) ...[
+              const Divider(height: 20),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton.icon(
+                    onPressed: () => context.go(AppRoutes.deliveryDashboard),
+                    icon: const Icon(Icons.dashboard_rounded, size: 18),
+                    label: const Text('Panel'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go(AppRoutes.deliveryQueueMap),
+                    icon: const Icon(Icons.map_rounded, size: 18),
+                    label: const Text('Cola en el mapa'),
+                  ),
+                  OutlinedButton.icon(
+                    onPressed: () => context.go(AppRoutes.deliveryRoute),
+                    icon: const Icon(Icons.route_rounded, size: 18),
+                    label: const Text('Rutas'),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
@@ -139,7 +229,8 @@ class DeliveryHubProfileView extends StatelessWidget {
         _ProfileTile(
           icon: Icons.near_me_outlined,
           title: 'Repartidores cerca',
-          subtitle: 'Repartidores activos cercanos con su ubicacion en el mapa.',
+          subtitle:
+              'Repartidores activos cercanos con su ubicacion en el mapa.',
           onTap: () => context.push(AppRoutes.deliveryNearby),
         ),
         const SizedBox(height: 10),
@@ -482,7 +573,12 @@ class DeliveryProfileSummaryCard extends StatelessWidget {
   }
 
   String _hexColor(Color color) {
-    return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+    return color
+        .toARGB32()
+        .toRadixString(16)
+        .padLeft(8, '0')
+        .substring(2)
+        .toUpperCase();
   }
 }
 
@@ -536,8 +632,7 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
   void initState() {
     super.initState();
     _vehicleType = widget.profile.vehicleType ?? 'motorina';
-    _colorMarcador =
-        widget.profile.colorMarcador ?? deliveryDefaultMarkerColor;
+    _colorMarcador = widget.profile.colorMarcador ?? deliveryDefaultMarkerColor;
     _avatarUrl = widget.profile.avatarUrl;
     _plateController = TextEditingController(text: widget.profile.plate ?? '');
     _baseRateController = TextEditingController(
@@ -706,9 +801,8 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
             _buildColorPicker(context, markerColor),
             const SizedBox(height: 16),
             DropdownButtonFormField<String>(
-              initialValue: _vehicleOptions.any(
-                (option) => option.$1 == _vehicleType,
-              )
+              initialValue:
+                  _vehicleOptions.any((option) => option.$1 == _vehicleType)
                   ? _vehicleType
                   : 'motorina',
               decoration: const InputDecoration(
@@ -852,10 +946,7 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
                           : null,
                       child: hasAvatar
                           ? null
-                          : Icon(
-                              deliveryVehicleIcon(_vehicleType),
-                              size: 32,
-                            ),
+                          : Icon(deliveryVehicleIcon(_vehicleType), size: 32),
                     ),
                     if (_uploadingAvatar)
                       Positioned.fill(
@@ -892,11 +983,11 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
                         ),
                       const SizedBox(height: 8),
                       OutlinedButton.icon(
-                        onPressed: _uploadingAvatar ? null : () => unawaited(_pickAvatar()),
+                        onPressed: _uploadingAvatar
+                            ? null
+                            : () => unawaited(_pickAvatar()),
                         icon: const Icon(Icons.photo_camera_outlined, size: 18),
-                        label: Text(
-                          hasAvatar ? 'Cambiar foto' : 'Subir foto',
-                        ),
+                        label: Text(hasAvatar ? 'Cambiar foto' : 'Subir foto'),
                       ),
                     ],
                   ),
@@ -961,8 +1052,8 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
               runSpacing: 10,
               children: deliveryMarkerPalette.map((hex) {
                 final color = parseDeliveryMarkerColor(hex) ?? Colors.blue;
-                final selected = _colorMarcador?.toUpperCase() ==
-                    hex.toUpperCase();
+                final selected =
+                    _colorMarcador?.toUpperCase() == hex.toUpperCase();
                 return InkWell(
                   onTap: () => setState(() => _colorMarcador = hex),
                   borderRadius: BorderRadius.circular(999),
@@ -1013,6 +1104,11 @@ class _DeliveryProfileEditSheetState extends State<_DeliveryProfileEditSheet> {
   }
 
   String _hexColor(Color color) {
-    return color.toARGB32().toRadixString(16).padLeft(8, '0').substring(2).toUpperCase();
+    return color
+        .toARGB32()
+        .toRadixString(16)
+        .padLeft(8, '0')
+        .substring(2)
+        .toUpperCase();
   }
 }

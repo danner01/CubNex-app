@@ -8,8 +8,10 @@ import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
+import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
+import '../../blocs/delivery/delivery_accepted_store.dart';
 import '../../blocs/delivery/delivery_cubit.dart';
 import '../../blocs/delivery/delivery_state.dart';
 import '../../data/models/delivery_entrega_model.dart';
@@ -25,15 +27,18 @@ class DeliveryQueueMapScreen extends StatefulWidget {
 class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   static final _defaultCenter = Position(-82.3666, 23.1136);
   static const _pollInterval = Duration(seconds: 15);
-  static const _originColor = Color(0xFF2E7D32);
-  static const _destinationColor = Color(0xFFD32F2F);
-  static const _routeColor = Color(0xFF1E88E5);
 
   MapboxMap? _mapboxMap;
   PointAnnotationManager? _pointManager;
   PolylineAnnotationManager? _polylineManager;
   bool _didInitialCamera = false;
   Position? _lastUserPos;
+  double? _myLat;
+  double? _myLng;
+  bool _locating = false;
+  bool _drawingRoute = false;
+  List<List<double>>? _acceptedRouteCoords;
+  String? _acceptedRouteId;
   Timer? _pollTimer;
 
   bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
@@ -81,18 +86,31 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     return geo.Geolocator.getCurrentPosition();
   }
 
+  void _storePosition(geo.Position position) {
+    final lng = position.longitude;
+    final lat = position.latitude;
+    final changed = _myLat != lat || _myLng != lng;
+    _lastUserPos = Position(lng, lat);
+    if (changed && mounted) {
+      setState(() {
+        _myLat = lat;
+        _myLng = lng;
+      });
+    }
+  }
+
   Future<void> _refreshQueue({bool initial = false}) async {
     final cubit = context.read<DeliveryCubit>();
     try {
       final position = await _currentPosition();
       if (position != null) {
-        _lastUserPos = Position(position.longitude, position.latitude);
+        _storePosition(position);
         await cubit.reportLocation(
           latitude: position.latitude,
           longitude: position.longitude,
         );
         if (_mapboxMap != null && !_didInitialCamera) {
-          await _syncMarkers(initial: true);
+          await _syncAnnotations(initial: true);
         }
       }
     } catch (_) {
@@ -112,9 +130,11 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   Future<void> _locateCurrentPos() async {
+    setState(() => _locating = true);
     final position = await _currentPosition();
     if (!mounted) return;
     if (position == null) {
+      setState(() => _locating = false);
       showSnackOrAuthDialog(
         context,
         'No se pudo obtener tu ubicacion. Activa el permiso de ubicacion e '
@@ -122,38 +142,104 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       );
       return;
     }
-    setState(() => _lastUserPos = Position(position.longitude, position.latitude));
+    _storePosition(position);
     _didInitialCamera = false;
-    await _syncMarkers(initial: true);
+    await _syncAnnotations(initial: true);
+    if (!mounted) return;
+    setState(() => _locating = false);
   }
 
   Future<void> _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
-    _polylineManager =
-        await mapboxMap.annotations.createPolylineAnnotationManager();
-    await _syncMarkers(initial: true);
-    if (_lastUserPos == null) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (!mounted) return;
-        showSnackOrAuthDialog(
-          context,
-          'Activa el permiso de ubicacion para centrar el mapa en tu '
-          'posicion.',
-        );
-      });
-    }
+    _polylineManager = await mapboxMap.annotations
+        .createPolylineAnnotationManager();
+    await _syncAnnotations(initial: true);
   }
 
-  Future<void> _syncMarkers({required bool initial}) async {
+  List<List<double>>? _routePointsFor(DeliveryEntregaModel entrega) {
+    if (entrega.rutaCoordenadas != null &&
+        entrega.rutaCoordenadas!.length >= 2) {
+      return entrega.rutaCoordenadas;
+    }
+    if (_acceptedRouteId == entrega.id && _acceptedRouteCoords != null) {
+      return _acceptedRouteCoords;
+    }
+    return null;
+  }
+
+  Future<void> _ensureAcceptedRoute(DeliveryEntregaModel entrega) async {
+    if (_acceptedRouteId == entrega.id) return;
+    if (entrega.rutaCoordenadas != null &&
+        entrega.rutaCoordenadas!.length >= 2) {
+      _acceptedRouteId = entrega.id;
+      return;
+    }
+    final originLat = entrega.negocioLatitude;
+    final originLng = entrega.negocioLongitude;
+    final destLat = entrega.destinoLatitude;
+    final destLng = entrega.destinoLongitude;
+    if (originLat == null ||
+        originLng == null ||
+        destLat == null ||
+        destLng == null) {
+      return;
+    }
+    _acceptedRouteId = entrega.id;
+    if (mounted) setState(() => _drawingRoute = true);
+    final result = await sl<ApiClient>().post<Map<String, dynamic>>(
+      '/mapbox/ruta',
+      data: {
+        'origen': {'lat': originLat, 'lng': originLng},
+        'destino': {'lat': destLat, 'lng': destLng},
+      },
+      parser: (json) =>
+          json is Map ? Map<String, dynamic>.from(json) : const {},
+    );
+    if (!mounted) return;
+    final parsed = <List<double>>[];
+    if (result.isSuccess) {
+      final routes = result.data?['routes'];
+      if (routes is List && routes.isNotEmpty) {
+        final first = routes.first;
+        if (first is Map) {
+          final geometry = first['geometry'];
+          final coords = geometry is Map ? geometry['coordinates'] : null;
+          if (coords is List) {
+            for (final entry in coords) {
+              if (entry is List && entry.length >= 2) {
+                final lng = (entry[0] as num?)?.toDouble();
+                final lat = (entry[1] as num?)?.toDouble();
+                if (lng != null && lat != null) parsed.add([lng, lat]);
+              }
+            }
+          }
+        }
+      }
+    }
+    if (!mounted) return;
+    setState(() {
+      _drawingRoute = false;
+      if (parsed.length >= 2) _acceptedRouteCoords = parsed;
+    });
+    await _syncAnnotations(initial: false);
+  }
+
+  Future<void> _syncAnnotations({required bool initial}) async {
     final map = _mapboxMap;
     final pointManager = _pointManager;
     final polylineManager = _polylineManager;
     if (map == null || pointManager == null || polylineManager == null) return;
 
+    final accepted = sl<DeliveryAcceptedStore>().accepted.value;
     final items = List<DeliveryEntregaModel>.from(
       context.read<DeliveryCubit>().state.availableEntregas,
     );
+    final entries = <DeliveryEntregaModel>[
+      if (accepted != null && !items.any((item) => item.id == accepted.id))
+        accepted,
+      ...items,
+    ];
 
     final coords = <List<double>>[];
 
@@ -161,44 +247,62 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       await polylineManager.deleteAll();
       await pointManager.deleteAll();
 
-      for (final entrega in items) {
+      for (final entrega in entries) {
         final originLat = entrega.negocioLatitude;
         final originLng = entrega.negocioLongitude;
-        final destLat = entrega.destinoLatitude ?? entrega.negocioLatitude;
-        final destLng = entrega.destinoLongitude ?? entrega.negocioLongitude;
-        if (originLat == null || originLng == null) continue;
-        coords.add([originLng, originLat]);
-        await pointManager.create(
-          PointAnnotationOptions(
-            geometry: Point(coordinates: Position(originLng, originLat)),
-            iconImage: 'marker',
-            iconColor: _originColor.toARGB32(),
-            iconSize: 1.0,
-            iconAnchor: IconAnchor.BOTTOM,
-          ),
-        );
+        final destLat = entrega.destinoLatitude;
+        final destLng = entrega.destinoLongitude;
+        final route = _routePointsFor(entrega);
+
+        if (originLat != null && originLng != null) {
+          coords.add([originLng, originLat]);
+          await pointManager.create(
+            PointAnnotationOptions(
+              geometry: Point(coordinates: Position(originLng, originLat)),
+              iconImage: 'marker',
+              iconColor: DeliveryRouteColors.origin.toARGB32(),
+              iconSize: 1.0,
+              iconAnchor: IconAnchor.BOTTOM,
+            ),
+          );
+        }
+
         if (destLat != null && destLng != null) {
           coords.add([destLng, destLat]);
           await pointManager.create(
             PointAnnotationOptions(
               geometry: Point(coordinates: Position(destLng, destLat)),
               iconImage: 'marker',
-              iconColor: _destinationColor.toARGB32(),
+              iconColor: DeliveryRouteColors.destination.toARGB32(),
               iconSize: 1.0,
               iconAnchor: IconAnchor.BOTTOM,
             ),
           );
+        }
+
+        final geometry =
+            route ??
+            (originLat != null &&
+                    originLng != null &&
+                    destLat != null &&
+                    destLng != null
+                ? <List<double>>[
+                    [originLng, originLat],
+                    [destLng, destLat],
+                  ]
+                : null);
+        if (geometry != null && geometry.length >= 2) {
+          coords.addAll(geometry);
           await polylineManager.create(
             PolylineAnnotationOptions(
               geometry: LineString(
-                coordinates: [
-                  Position(originLng, originLat),
-                  Position(destLng, destLat),
-                ],
+                coordinates: geometry
+                    .map((point) => Position(point[0], point[1]))
+                    .toList(),
               ),
-              lineColor: _routeColor.toARGB32(),
+              lineColor: DeliveryRouteColors.route.toARGB32(),
               lineWidth: 3.4,
-              lineOpacity: 0.7,
+              lineOpacity: 0.75,
             ),
           );
         }
@@ -226,29 +330,27 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     }
 
     if (initial && !_didInitialCamera) {
-      if (coords.isNotEmpty) {
-        final center = _bboxCenter(coords);
-        if (center != null) {
-          _didInitialCamera = true;
-          await map.flyTo(
-            CameraOptions(
-              center: Point(coordinates: Position(center[0], center[1])),
-              zoom: _zoomFor(coords),
-            ),
-            MapAnimationOptions(duration: 400),
-          );
-        }
-      } else if (lastUserPos != null) {
+      final anchor = _preferredCameraAnchor(coords);
+      if (anchor != null) {
         _didInitialCamera = true;
         await map.flyTo(
           CameraOptions(
-            center: Point(coordinates: lastUserPos),
-            zoom: 13,
+            center: Point(coordinates: anchor),
+            zoom: _zoomFor(coords),
           ),
           MapAnimationOptions(duration: 400),
         );
       }
     }
+  }
+
+  Position? _preferredCameraAnchor(List<List<double>> coords) {
+    if (_lastUserPos != null) return _lastUserPos;
+    if (coords.isNotEmpty) {
+      final center = _bboxCenter(coords);
+      if (center != null) return Position(center[0], center[1]);
+    }
+    return null;
   }
 
   List<double>? _bboxCenter(List<List<double>> coords) {
@@ -267,6 +369,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   double _zoomFor(List<List<double>> coords) {
+    if (coords.isEmpty) return 13;
     double minLng = double.infinity;
     double maxLng = double.negativeInfinity;
     double minLat = double.infinity;
@@ -286,88 +389,6 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     return 10.5;
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return BlocProvider.value(
-      value: sl<DeliveryCubit>(),
-      child: Scaffold(
-      appBar: AppBar(
-        title: const Text('Cola de entregas en el mapa'),
-        actions: [
-          IconButton(
-            onPressed: () => _retry(),
-            icon: const Icon(Icons.refresh_rounded),
-            tooltip: 'Actualizar cola',
-          ),
-        ],
-      ),
-      body: BlocListener<DeliveryCubit, DeliveryState>(
-        listener: (context, state) {
-          if (_mapboxMap == null || _pointManager == null) return;
-          if (!_didInitialCamera || state.availableEntregas.isNotEmpty) {
-            unawaited(_syncMarkers(initial: !_didInitialCamera));
-          }
-        },
-        child: BlocBuilder<DeliveryCubit, DeliveryState>(
-          builder: (context, state) {
-            return Stack(
-            children: [
-              if (_hasToken)
-                MapWidget(
-                  // ignore: deprecated_member_use
-                  cameraOptions: CameraOptions(
-                    center: Point(coordinates: _defaultCenter),
-                    zoom: 11,
-                  ),
-                  onMapCreated: _onMapCreated,
-                )
-              else
-                const _MapTokenErrorPanel(),
-              Positioned(
-                left: 12,
-                right: 12,
-                top: 12,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    _LegendDot(_originColor, 'Recogida'),
-                    const SizedBox(width: 10),
-                    const Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [Icon(Icons.chevron_right_rounded)],
-                    ),
-                    const SizedBox(width: 10),
-                    _LegendDot(_destinationColor, 'Entrega'),
-                  ],
-                ),
-              ),
-              Positioned(
-                right: 12,
-                top: 56,
-                child: FloatingActionButton.small(
-                  heroTag: 'queue_map_locate',
-                  tooltip: 'Centrar en mi ubicacion',
-                  backgroundColor: Colors.white,
-                  foregroundColor: const Color(0xFF00ACC1),
-                  onPressed: () => unawaited(_locateCurrentPos()),
-                  child: const Icon(Icons.my_location_rounded),
-                ),
-              ),
-              Positioned(
-                left: 0,
-                right: 0,
-                bottom: 0,
-                child: _buildBottomPanel(context, state),
-              ),
-            ],
-          );
-          },
-        ),
-      ),
-      ),
-    );
-  }
-
   Future<void> _confirmAccept(
     DeliveryEntregaModel entrega, {
     required bool startRoute,
@@ -385,6 +406,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       );
       return;
     }
+    _storePosition(position);
     await context
         .read<DeliveryCubit>()
         .reportLocation(
@@ -397,138 +419,460 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     if (mounted) context.push(AppRoutes.deliveryRoute);
   }
 
-  Widget _buildBottomPanel(BuildContext context, DeliveryState state) {
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider.value(
+      value: sl<DeliveryCubit>(),
+      child: Scaffold(
+        appBar: AppBar(
+          title: const Text('Cola de entregas en el mapa'),
+          actions: [
+            IconButton(
+              onPressed: _retry,
+              icon: const Icon(Icons.refresh_rounded),
+              tooltip: 'Actualizar cola',
+            ),
+          ],
+        ),
+        body: ValueListenableBuilder<DeliveryEntregaModel?>(
+          valueListenable: sl<DeliveryAcceptedStore>().accepted,
+          builder: (context, accepted, _) {
+            final theme = Theme.of(context);
+            if (accepted != null) {
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) unawaited(_ensureAcceptedRoute(accepted));
+              });
+            }
+            final initialCenter = _myLat != null && _myLng != null
+                ? Point(coordinates: Position(_myLng!, _myLat!))
+                : (_acceptedRouteCoords != null &&
+                          _acceptedRouteCoords!.length >= 2
+                      ? Point(
+                          coordinates: Position(
+                            _acceptedRouteCoords!.first[0],
+                            _acceptedRouteCoords!.first[1],
+                          ),
+                        )
+                      : Point(coordinates: _defaultCenter));
+            return Stack(
+              children: [
+                if (_hasToken)
+                  Positioned.fill(
+                    child: MapWidget(
+                      // ignore: deprecated_member_use
+                      cameraOptions: CameraOptions(
+                        center: initialCenter,
+                        zoom: 13,
+                      ),
+                      onMapCreated: _onMapCreated,
+                    ),
+                  )
+                else
+                  const Positioned.fill(child: _MapTokenErrorPanel()),
+                if (_mapboxMap != null)
+                  Positioned.fill(
+                    child: SafeArea(
+                      bottom: false,
+                      child: DeliveryMapSearchOverlay(
+                        mapboxMap: _mapboxMap!,
+                        label: 'Buscar direccion en el mapa...',
+                        onFocusLocation: _onFocusLocation,
+                        onUseCurrentLocation: _locateCurrentPos,
+                        showLocateFab: false,
+                      ),
+                    ),
+                  ),
+                Positioned(
+                  top: 0,
+                  right: 12,
+                  child: SafeArea(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: FloatingActionButton.small(
+                        heroTag: 'queue_map_locate',
+                        tooltip: 'Centrar en mi ubicacion',
+                        backgroundColor: theme.colorScheme.surface,
+                        foregroundColor: const Color(0xFF00ACC1),
+                        onPressed: _locating
+                            ? null
+                            : () => unawaited(_locateCurrentPos()),
+                        child: _locating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2,
+                                ),
+                              )
+                            : const Icon(Icons.my_location_rounded),
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: BlocListener<DeliveryCubit, DeliveryState>(
+                    listener: (context, state) {
+                      if (_mapboxMap == null || _pointManager == null) return;
+                      if (!_didInitialCamera ||
+                          state.availableEntregas.isNotEmpty) {
+                        unawaited(
+                          _syncAnnotations(initial: !_didInitialCamera),
+                        );
+                      }
+                    },
+                    child: BlocBuilder<DeliveryCubit, DeliveryState>(
+                      builder: (context, state) {
+                        return _buildPanel(context, state, accepted);
+                      },
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  Future<void> _onFocusLocation(double lat, double lng) async {
+    _didInitialCamera = true;
+    await _mapboxMap?.flyTo(
+      CameraOptions(center: Point(coordinates: Position(lng, lat)), zoom: 15),
+      MapAnimationOptions(duration: 400),
+    );
+    await _syncAnnotations(initial: false);
+  }
+
+  Widget _buildPanel(
+    BuildContext context,
+    DeliveryState state,
+    DeliveryEntregaModel? accepted,
+  ) {
+    final theme = Theme.of(context);
     final items = state.availableEntregas;
-    if (state.status == DeliveryStatus.loading && items.isEmpty) {
-      return const Padding(
-        padding: EdgeInsets.all(24),
-        child: Center(child: CircularProgressIndicator()),
-      );
-    }
-    if (state.status == DeliveryStatus.failure && items.isEmpty) {
-      final error =
-          state.errorMessage ??
-          state.queueError ??
-          'No se pudo cargar la cola de entregas.';
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        child: Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(error, textAlign: TextAlign.center),
-                const SizedBox(height: 10),
-                FilledButton.tonalIcon(
-                  onPressed: () => _retry(),
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reintentar'),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
+    final hasAccepted = accepted != null;
+    final isLoading = state.status == DeliveryStatus.loading && items.isEmpty;
+    final isFailure = state.status == DeliveryStatus.failure && items.isEmpty;
     final profile = state.profile;
-    if (profile == null) {
-      return const DeliveryMessageCard(
-        message:
-            'Registra tu perfil delivery para ver la cola de entregas en el '
-            'mapa.',
-      );
-    }
-    if (!profile.available) {
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-        child: Card(
-          margin: EdgeInsets.zero,
-          child: Padding(
-            padding: const EdgeInsets.all(16),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
+    final queueError = state.queueError;
+
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: DraggableScrollableSheet(
+        initialChildSize: isLoading || isFailure
+            ? 0.3
+            : items.isEmpty && !hasAccepted
+            ? 0.3
+            : 0.4,
+        minChildSize: 0.24,
+        maxChildSize: 0.85,
+        snap: true,
+        snapSizes: const [0.24, 0.4, 0.62, 0.85],
+        builder: (context, sheetController) {
+          return DeliverySheetPanel(
+            controller: sheetController,
+            child: ListView(
+              controller: sheetController,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
               children: [
-                const Text(
-                  'Activa tu disponibilidad para ver la cola de entregas en '
-                  'el mapa.',
-                  textAlign: TextAlign.center,
+                Text(
+                  'Cola de entregas',
+                  style: theme.textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
-                const SizedBox(height: 10),
-                FilledButton.tonalIcon(
-                  onPressed: () => context.push(AppRoutes.deliveryProfile),
-                  icon: const Icon(Icons.radar_rounded),
-                  label: const Text('Panel delivery'),
+                const SizedBox(height: 2),
+                Text(
+                  hasAccepted
+                      ? 'Mostrando tu entrega activa y las entregas disponibles cerca.'
+                      : 'Acepta una entrega para ver su ruta en el mapa.',
                 ),
+                const SizedBox(height: 14),
+                DeliveryMapLegendRow(
+                  myColor: const Color(0xFF00ACC1),
+                  showAcceptRoute: hasAccepted || items.isNotEmpty,
+                  showManualRoute: false,
+                ),
+                const SizedBox(height: 12),
+                if (_myLat == null) ...[
+                  _QueueLocatePrompt(
+                    locating: _locating,
+                    onRetry: () => unawaited(_locateCurrentPos()),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (isLoading)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Center(child: CircularProgressIndicator()),
+                  ),
+                if (isFailure)
+                  _QueueErrorBlock(
+                    message:
+                        state.errorMessage ??
+                        queueError ??
+                        'No se pudo cargar la cola de entregas.',
+                    onRetry: _retry,
+                  ),
+                if (profile == null && !isLoading)
+                  const DeliveryMessageCard(
+                    message:
+                        'Registra tu perfil delivery para ver la cola de entregas '
+                        'en el mapa.',
+                  ),
+                if (profile != null && !profile.available && !isLoading)
+                  _QueueErrorBlock(
+                    message:
+                        'Activa tu disponibilidad para ver la cola de entregas '
+                        'en el mapa.',
+                    actionLabel: 'Abrir panel delivery',
+                    onRetry: () => context.push(AppRoutes.deliveryProfile),
+                  ),
+                if (hasAccepted) ...[
+                  _AcceptedDeliveryCard(
+                    entrega: accepted,
+                    drawingRoute: _drawingRoute,
+                    onContinue: () => context.push(AppRoutes.deliveryRoute),
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                if (!isLoading && !isFailure && profile?.available == true) ...[
+                  if (queueError != null &&
+                      queueError.isNotEmpty &&
+                      items.isEmpty)
+                    _QueueErrorBlock(message: queueError, onRetry: _retry),
+                  if (items.isEmpty &&
+                      (queueError == null || queueError.isEmpty))
+                    const DeliveryMessageCard(
+                      message:
+                          'No hay entregas disponibles por ahora.\n\nSolo aparecen '
+                          'los pedidos que el cliente pidio con reparto, dentro de '
+                          'tu radio de operacion y con tu disponibilidad activa.',
+                    ),
+                  if (items.isNotEmpty) ...[
+                    Text(
+                      'Disponibles (${items.length})',
+                      style: theme.textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w900,
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    for (var i = 0; i < items.length; i++) ...[
+                      _QueueMapItemCard(
+                        entrega: items[i],
+                        index: i,
+                        accepting: state.acceptingEntregaId == items[i].id,
+                        onAccept: () => unawaited(
+                          context.read<DeliveryCubit>().aceptar(items[i].id),
+                        ),
+                        onStartRoute: () => unawaited(
+                          _confirmAccept(items[i], startRoute: true),
+                        ),
+                      ),
+                      if (i != items.length - 1) const SizedBox(height: 8),
+                    ],
+                  ],
+                ],
               ],
             ),
-          ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _QueueLocatePrompt extends StatelessWidget {
+  const _QueueLocatePrompt({required this.locating, required this.onRetry});
+
+  final bool locating;
+  final VoidCallback onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
         ),
-      );
-    }
-    if (items.isEmpty) {
-      final error = state.queueError;
-      if (error != null && error.isNotEmpty) {
-        return Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-          child: Card(
-            margin: EdgeInsets.zero,
-            child: Padding(
-              padding: const EdgeInsets.all(16),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            Icon(
+              Icons.location_off_rounded,
+              color: theme.colorScheme.primary,
+              size: 28,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(error, textAlign: TextAlign.center),
-                  const SizedBox(height: 10),
-                  FilledButton.tonalIcon(
-                    onPressed: () => _retry(),
-                    icon: const Icon(Icons.refresh_rounded),
-                    label: const Text('Reintentar'),
+                  const Text(
+                    'Detectar mi posicion',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    'Activa el GPS para centrar el mapa en ti y ver la cola de entregas.',
+                    style: theme.textTheme.bodySmall,
                   ),
                 ],
               ),
             ),
-          ),
-        );
-      }
-      return const DeliveryMessageCard(
-        message: 'No hay entregas disponibles por ahora.',
-      );
-    }
-    return DraggableScrollableSheet(
-      initialChildSize: 0.34,
-      minChildSize: 0.2,
-      maxChildSize: 0.62,
-      builder: (context, scrollController) {
-        return Container(
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-            boxShadow: [BoxShadow(blurRadius: 10, color: Colors.black26)],
-          ),
-          child: ListView(
-            controller: scrollController,
-            padding: const EdgeInsets.fromLTRB(12, 8, 12, 16),
-            children: [
-              for (var i = 0; i < items.length; i++) ...[
-                _QueueMapItemCard(
-                  entrega: items[i],
-                  index: i,
-                  accepting: state.acceptingEntregaId == items[i].id,
-                  onAccept: () => unawaited(
-                    context.read<DeliveryCubit>().aceptar(items[i].id),
-                  ),
-                  onStartRoute: () => unawaited(
-                    _confirmAccept(items[i], startRoute: true),
+            const SizedBox(width: 8),
+            FilledButton.tonal(
+              onPressed: locating ? null : onRetry,
+              child: locating
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Usar'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _QueueErrorBlock extends StatelessWidget {
+  const _QueueErrorBlock({
+    required this.message,
+    required this.onRetry,
+    this.actionLabel = 'Reintentar',
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final String actionLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(message, textAlign: TextAlign.center),
+            const SizedBox(height: 10),
+            FilledButton.tonalIcon(
+              onPressed: onRetry,
+              icon: const Icon(Icons.refresh_rounded),
+              label: Text(actionLabel),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AcceptedDeliveryCard extends StatelessWidget {
+  const _AcceptedDeliveryCard({
+    required this.entrega,
+    required this.drawingRoute,
+    required this.onContinue,
+  });
+
+  final DeliveryEntregaModel entrega;
+  final bool drawingRoute;
+  final VoidCallback onContinue;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final currency = entrega.moneda ?? 'CUP';
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: DeliveryRouteColors.route),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.local_shipping_rounded,
+                  color: DeliveryRouteColors.route,
+                  size: 20,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Entrega activa: ${entrega.clienteNombre ?? entrega.destinatarioNombre ?? '-'}',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.titleSmall?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 ),
-                if (i != items.length - 1) const SizedBox(height: 8),
               ],
-            ],
-          ),
-        );
-      },
+            ),
+            const SizedBox(height: 6),
+            Text(
+              entrega.clienteDireccionEntrega ??
+                  entrega.negocioDireccion ??
+                  '-',
+              style: theme.textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: [
+                DeliveryMetaChip(
+                  icon: Icons.payments_outlined,
+                  label: formatDeliveryMoney(
+                    entrega.paqueteTarifa ?? entrega.tarifaEstimada,
+                    currency,
+                  ),
+                ),
+                DeliveryMetaChip(
+                  icon: Icons.straighten_rounded,
+                  label: formatDeliveryDistance(entrega.distanciaTotalKm),
+                ),
+                DeliveryMetaChip(
+                  icon: Icons.route_rounded,
+                  label: drawingRoute
+                      ? 'Calculando ruta...'
+                      : 'Ruta en el mapa',
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: onContinue,
+                icon: const Icon(Icons.navigation_rounded, size: 18),
+                label: const Text('Continuar entrega'),
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
@@ -588,25 +932,6 @@ class _MapTokenErrorPanel extends StatelessWidget {
   }
 }
 
-class _LegendDot extends StatelessWidget {
-  const _LegendDot(this.color, this.label);
-
-  final Color color;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Chip(
-      backgroundColor: Colors.white,
-      label: Text(label),
-      avatar: CircleAvatar(
-        backgroundColor: color,
-        radius: 6,
-      ),
-    );
-  }
-}
-
 class _QueueMapItemCard extends StatelessWidget {
   const _QueueMapItemCard({
     required this.entrega,
@@ -645,7 +970,10 @@ class _QueueMapItemCard extends StatelessWidget {
                   radius: 13,
                   backgroundColor: theme.colorScheme.primary,
                   foregroundColor: theme.colorScheme.onPrimary,
-                  child: Text('${index + 1}', style: const TextStyle(fontSize: 12)),
+                  child: Text(
+                    '${index + 1}',
+                    style: const TextStyle(fontSize: 12),
+                  ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(

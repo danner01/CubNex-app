@@ -159,7 +159,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     });
     await _mapboxMap?.flyTo(
       CameraOptions(
-        center: Point(coordinates: Position(position.longitude, position.latitude)),
+        center: Point(
+          coordinates: Position(position.longitude, position.latitude),
+        ),
         zoom: 15,
       ),
       MapAnimationOptions(duration: 500),
@@ -185,9 +187,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     });
     await _mapboxMap?.flyTo(
       CameraOptions(
-        center: Point(
-          coordinates: Position(place.longitude, place.latitude),
-        ),
+        center: Point(coordinates: Position(place.longitude, place.latitude)),
         zoom: 15,
       ),
       MapAnimationOptions(duration: 500),
@@ -264,25 +264,32 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   Future<void> _saveManualRoute() async {
     if (_manualWaypoints.length < 2 || _saving) return;
     final name = await _promptRouteName();
-    if (name == null || name.isEmpty || !mounted) return;
+    if (name == null || !mounted) return;
     final validPoints = _validManualPoints();
     if (validPoints.length < 2) {
       _showMessage('Agrega al menos 2 paradas con coordenadas validas.');
       return;
     }
+    final routeName = name.trim().isEmpty
+        ? 'Ruta ${_manualRouteStamp()}'
+        : name.trim();
     setState(() => _saving = true);
     try {
       final routes = await DeliveryManualRouteStore.load();
-      routes.add(DeliveryManualRoute(name: name, points: validPoints));
+      routes.add(DeliveryManualRoute(name: routeName, points: validPoints));
       final ok = await DeliveryManualRouteStore.save(routes);
       if (!mounted) return;
       if (ok) {
-        _showMessage('Ruta guardada correctamente.');
+        _showMessage(
+          'Ruta "$routeName" guardada. Ya puedes abrirla en "Mis rutas".',
+        );
       } else {
         _showMessage('No se pudo guardar la ruta. Intenta de nuevo.');
       }
     } catch (error, stackTrace) {
-      debugPrint('DeliveryRouteScreen: error guardando ruta: $error\n$stackTrace');
+      debugPrint(
+        'DeliveryRouteScreen: error guardando ruta: $error\n$stackTrace',
+      );
       if (mounted) {
         _showMessage('No se pudo guardar la ruta. Intenta de nuevo.');
       }
@@ -291,11 +298,20 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     }
   }
 
+  String _manualRouteStamp() {
+    final now = DateTime.now();
+    String two(int value) => value.toString().padLeft(2, '0');
+    return '${two(now.day)}/${two(now.month)} ${two(now.hour)}:${two(now.minute)}';
+  }
+
   Future<void> _openSavedRoutes() async {
     final routes = await DeliveryManualRouteStore.load();
     if (!mounted) return;
     if (routes.isEmpty) {
-      _showMessage('Aun no tienes rutas guardadas.');
+      _showMessage(
+        'Aun no tienes rutas guardadas. Activa el modo manual, agrega al menos '
+        '2 paradas y pulsa "Guardar ruta".',
+      );
       return;
     }
     await showModalBottomSheet<void>(
@@ -308,9 +324,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
             _manualWaypoints
               ..clear()
               ..addAll(
-                route.points
-                    .map((point) => List<double>.from(point))
-                    .toList(),
+                route.points.map((point) => List<double>.from(point)).toList(),
               );
             _manualRouteCoords = null;
             _manualRouteSummary = null;
@@ -384,7 +398,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   Future<void> _centerOnDelivery() async {
     final entrega = sl<DeliveryAcceptedStore>().accepted.value;
     List<double>? target;
-    final routeCoords = _entregaRouteCoords ??
+    final routeCoords =
+        _entregaRouteCoords ??
         (entrega?.rutaCoordenadas?.isNotEmpty ?? false
             ? entrega!.rutaCoordenadas
             : null);
@@ -491,7 +506,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       final enabled = await geo.Geolocator.isLocationServiceEnabled();
       if (!enabled) {
         if (showErrors) {
-          _showMessage('Activa la ubicacion del dispositivo e intenta de nuevo.');
+          _showMessage(
+            'Activa la ubicacion del dispositivo e intenta de nuevo.',
+          );
         }
         return null;
       }
@@ -607,7 +624,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
 
   void _showMessage(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   Future<void> _refresh() async {
@@ -783,7 +802,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   void _onMapCreated(MapboxMap mapboxMap) async {
     _mapboxMap = mapboxMap;
     if (mounted) setState(() {});
-    _routeManager = await mapboxMap.annotations.createPolylineAnnotationManager();
+    _routeManager = await mapboxMap.annotations
+        .createPolylineAnnotationManager();
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
     _pointManager?.setIconAllowOverlap(true);
     _pointManager?.setTextAllowOverlap(true);
@@ -883,22 +903,30 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
             lineOpacity: 0.92,
           ),
         );
-        await _addMarker(route.first, AppColorsForRoute.origin, label: 'Origen');
+        await _addMarker(
+          route.first,
+          DeliveryRouteColors.origin,
+          label: 'Origen',
+        );
         await _addMarker(
           route.last,
-          AppColorsForRoute.destination,
+          DeliveryRouteColors.destination,
           label: 'Destino',
         );
         track(route.first[1], route.first[0]);
         track(route.last[1], route.last[0]);
       } else if (route != null && route.isNotEmpty) {
-        await _addMarker(route.first, AppColorsForRoute.origin, label: 'Origen');
+        await _addMarker(
+          route.first,
+          DeliveryRouteColors.origin,
+          label: 'Origen',
+        );
         track(route.first[1], route.first[0]);
       } else if (entrega.negocioLongitude != null &&
           entrega.negocioLatitude != null) {
         await _addMarker(
           [entrega.negocioLongitude!, entrega.negocioLatitude!],
-          AppColorsForRoute.origin,
+          DeliveryRouteColors.origin,
           label: 'Origen',
         );
         track(entrega.negocioLatitude!, entrega.negocioLongitude!);
@@ -954,10 +982,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       await _mapboxMap?.flyTo(
         CameraOptions(
           center: Point(
-            coordinates: Position(
-              (minLng + maxLng) / 2,
-              (minLat + maxLat) / 2,
-            ),
+            coordinates: Position((minLng + maxLng) / 2, (minLat + maxLat) / 2),
           ),
           zoom: 12,
         ),
@@ -1011,9 +1036,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       final isOrigin = i == 0;
       final isDestination = i == _manualWaypoints.length - 1 && i != 0;
       final color = isOrigin
-          ? AppColorsForRoute.origin
+          ? DeliveryRouteColors.origin
           : isDestination
-          ? AppColorsForRoute.destination
+          ? DeliveryRouteColors.destination
           : const Color(0xFF00897B);
       final innerLabel = isOrigin || isDestination ? null : '${i + 1}';
       final icon = await ensureDeliveryPinIcon(
@@ -1120,7 +1145,8 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
         valueListenable: sl<DeliveryAcceptedStore>().accepted,
         builder: (context, entrega, _) {
           final hasRouteOverlay = entrega != null;
-          final routeInfoAvailable = hasRouteOverlay &&
+          final routeInfoAvailable =
+              hasRouteOverlay &&
               ((entrega.rutaCoordenadas?.isNotEmpty ?? false) ||
                   (_entregaRouteCoords != null &&
                       _entregaRouteCoords!.isNotEmpty) ||
@@ -1138,8 +1164,12 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
               routeChips.add('Calculando ruta por calles...');
             } else if (_manualRouteSummary != null) {
               routeChips
-                ..add(_formatDistance(_manualRouteSummary!.distanceMeters / 1000))
-                ..add(_formatMinutes(_manualRouteSummary!.durationSeconds / 60));
+                ..add(
+                  _formatDistance(_manualRouteSummary!.distanceMeters / 1000),
+                )
+                ..add(
+                  _formatMinutes(_manualRouteSummary!.durationSeconds / 60),
+                );
             } else {
               routeChips.add('Toca "Dibujar ruta por calles"');
             }
@@ -1248,7 +1278,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                   maxChildSize: 0.8,
                   snap: true,
                   snapSizes: const [0.22, 0.32, 0.55, 0.8],
-                  builder: (context, sheetController) => _SheetPanel(
+                  builder: (context, sheetController) => DeliverySheetPanel(
                     controller: sheetController,
                     child: ListView(
                       controller: sheetController,
@@ -1280,7 +1310,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                               : 'Mapa en tiempo real: tu posicion y los repartidores activos.',
                         ),
                         const SizedBox(height: 14),
-                        _MapLegendRow(
+                        DeliveryMapLegendRow(
                           myColor: myColor,
                           showAcceptRoute: hasRouteOverlay,
                           showManualRoute: manualActive,
@@ -1289,8 +1319,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                         if (_myLat == null) ...[
                           _LocatePrompt(
                             locating: _locating,
-                            onRetry: () =>
-                                unawaited(_locateCurrentPosition()),
+                            onRetry: () => unawaited(_locateCurrentPosition()),
                           ),
                           const SizedBox(height: 10),
                         ],
@@ -1301,9 +1330,15 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                           drawing: _drawingRoute,
                           routeChips: routeChips,
                           onToggle: _toggleManualMode,
-                          onUndo: _manualWaypoints.isEmpty ? null : _undoWaypoint,
-                          onClear: _manualWaypoints.isEmpty ? null : _clearWaypoints,
-                          onSave: _manualWaypoints.length < 2 ? null : _saveManualRoute,
+                          onUndo: _manualWaypoints.isEmpty
+                              ? null
+                              : _undoWaypoint,
+                          onClear: _manualWaypoints.isEmpty
+                              ? null
+                              : _clearWaypoints,
+                          onSave: _manualWaypoints.length < 2
+                              ? null
+                              : _saveManualRoute,
                           onDrawRoute: _manualWaypoints.length < 2
                               ? null
                               : () => unawaited(_fetchStreetRoute()),
@@ -1350,7 +1385,10 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                         ],
                         const SizedBox(height: 12),
                         if (routeInfoAvailable) ...[
-                          _RouteSummaryCard(entrega: entrega, generatedSummary: _entregaRouteSummary),
+                          _RouteSummaryCard(
+                            entrega: entrega,
+                            generatedSummary: _entregaRouteSummary,
+                          ),
                           const SizedBox(height: 14),
                         ],
                         if (_loading && _items.isEmpty)
@@ -1400,44 +1438,6 @@ class _ManualRouteSummary {
   final double durationSeconds;
 }
 
-class _SheetPanel extends StatelessWidget {
-  const _SheetPanel({required this.controller, required this.child});
-
-  final ScrollController controller;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    return Material(
-      color: theme.colorScheme.surface,
-      elevation: 10,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      clipBehavior: Clip.antiAlias,
-      child: SafeArea(
-        top: false,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Container(
-              width: 40,
-              height: 4,
-              margin: const EdgeInsets.symmetric(vertical: 10),
-              decoration: BoxDecoration(
-                color: theme.colorScheme.outlineVariant,
-                borderRadius: BorderRadius.circular(999),
-              ),
-            ),
-            Expanded(child: child),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 class _ManualStatusBanner extends StatelessWidget {
   const _ManualStatusBanner({
     required this.waypoints,
@@ -1457,7 +1457,8 @@ class _ManualStatusBanner extends StatelessWidget {
     final String sub;
     if (waypoints == 0) {
       main = 'Paso 1 de 2 — fija el ORIGEN';
-      sub = 'Toca el mapa, busca una direccion o usa "Mi ubicacion" como origen.';
+      sub =
+          'Toca el mapa, busca una direccion o usa "Mi ubicacion" como origen.';
     } else if (waypoints == 1) {
       main = 'Paso 2 de 2 — fija el DESTINO';
       sub = 'Toca el mapa o busca la direccion de entrega.';
@@ -1495,10 +1496,7 @@ class _ManualStatusBanner extends StatelessWidget {
                   const SizedBox(height: 2),
                   Text(
                     sub,
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 11,
-                    ),
+                    style: const TextStyle(color: Colors.white70, fontSize: 11),
                   ),
                 ],
               ),
@@ -1579,104 +1577,6 @@ class _LocatePrompt extends StatelessWidget {
   }
 }
 
-class _MapLegendRow extends StatelessWidget {
-  const _MapLegendRow({
-    required this.myColor,
-    required this.showAcceptRoute,
-    required this.showManualRoute,
-  });
-
-  final Color myColor;
-  final bool showAcceptRoute;
-  final bool showManualRoute;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final items = <Widget>[
-      _legendItem(
-        theme,
-        myColor,
-        'Tu',
-        labelColor: readableDeliveryMarkerIconColor(myColor),
-      ),
-      _legendItem(theme, const Color(0xFF3949AB), 'Repartidor'),
-      if (showAcceptRoute) ...[
-        _legendItem(theme, AppColorsForRoute.origin, 'Origen'),
-        _legendItem(theme, AppColorsForRoute.destination, 'Destino'),
-        _legendItem(theme, Colors.blue, 'Ruta', line: true),
-      ],
-      if (showManualRoute)
-        _legendItem(
-          theme,
-          const Color(0xFF6A1B9A),
-          'Ruta manual',
-          line: true,
-        ),
-    ];
-
-    return Row(
-      children: [
-        Expanded(
-          child: SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            child: Row(
-              children: [
-                for (var i = 0; i < items.length; i++) ...[
-                  if (i > 0) const SizedBox(width: 12),
-                  items[i],
-                ],
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _legendItem(
-    ThemeData theme,
-    Color color,
-    String label, {
-    Color? labelColor,
-    bool line = false,
-  }) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        if (line)
-          Container(
-            width: 18,
-            height: 4,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          )
-        else
-          Container(
-            width: 12,
-            height: 12,
-            decoration: BoxDecoration(
-              color: color,
-              shape: BoxShape.circle,
-              border: Border.all(color: theme.colorScheme.outlineVariant),
-            ),
-          ),
-        const SizedBox(width: 5),
-        Text(
-          label,
-          style: theme.textTheme.bodySmall?.copyWith(
-            color: labelColor,
-            fontWeight: FontWeight.w700,
-            fontSize: 11,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
 class _ActiveDeliveryCard extends StatelessWidget {
   const _ActiveDeliveryCard({required this.item});
 
@@ -1706,8 +1606,10 @@ class _ActiveDeliveryCard extends StatelessWidget {
               : null,
           child: item.avatarUrl?.isNotEmpty == true
               ? null
-              : Icon(_vehiculoIcon(item.tipoVehiculo),
-                  color: theme.colorScheme.secondary),
+              : Icon(
+                  _vehiculoIcon(item.tipoVehiculo),
+                  color: theme.colorScheme.secondary,
+                ),
         ),
         title: Row(
           children: [
@@ -1789,10 +1691,7 @@ class _ActiveDot extends StatelessWidget {
         shape: BoxShape.circle,
         border: Border.all(color: Colors.white, width: 2),
         boxShadow: [
-          BoxShadow(
-            color: color.withValues(alpha: 0.4),
-            blurRadius: 4,
-          ),
+          BoxShadow(color: color.withValues(alpha: 0.4), blurRadius: 4),
         ],
       ),
     );
@@ -1954,11 +1853,6 @@ class _MessageCard extends StatelessWidget {
   }
 }
 
-class AppColorsForRoute {
-  static const origin = Color(0xFF2E7D32);
-  static const destination = Color(0xFFC62828);
-}
-
 String _formatDistance(double? km) {
   if (km == null) return '-';
   if (km < 1) return '${(km * 1000).toStringAsFixed(0)} m';
@@ -2074,12 +1968,7 @@ class _ManualRouteControls extends StatelessWidget {
                 drawing ? null : onDrawRoute,
                 highlight: true,
               ),
-              _actionButton(
-                theme,
-                Icons.undo_rounded,
-                'Deshacer',
-                onUndo,
-              ),
+              _actionButton(theme, Icons.undo_rounded, 'Deshacer', onUndo),
               _actionButton(
                 theme,
                 Icons.delete_outline_rounded,
@@ -2101,8 +1990,7 @@ class _ManualRouteControls extends StatelessWidget {
               spacing: 6,
               runSpacing: 6,
               children: [
-                for (final chip in routeChips)
-                  _routeChip(theme, chip),
+                for (final chip in routeChips) _routeChip(theme, chip),
               ],
             ),
           ],
@@ -2237,8 +2125,9 @@ class _SavedRoutesSheet extends StatelessWidget {
                   return ListTile(
                     leading: CircleAvatar(
                       radius: 18,
-                      backgroundColor: theme.colorScheme.secondary
-                          .withValues(alpha: 0.12),
+                      backgroundColor: theme.colorScheme.secondary.withValues(
+                        alpha: 0.12,
+                      ),
                       child: Icon(
                         Icons.route_rounded,
                         size: 20,
@@ -2251,9 +2140,7 @@ class _SavedRoutesSheet extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       style: const TextStyle(fontWeight: FontWeight.w800),
                     ),
-                    subtitle: Text(
-                      stops == 1 ? '1 parada' : '$stops paradas',
-                    ),
+                    subtitle: Text(stops == 1 ? '1 parada' : '$stops paradas'),
                     trailing: IconButton(
                       tooltip: 'Eliminar',
                       icon: const Icon(Icons.delete_outline_rounded),
