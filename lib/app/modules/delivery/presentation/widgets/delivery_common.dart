@@ -347,7 +347,7 @@ class DeliveryLocationResult {
 /// lanza `TimeoutException`, lo que dejaba el mapa de la cola sin ubicacion. Aqui se
 /// pone un limite de tiempo y se cae a la ultima posicion conocida.
 Future<DeliveryLocationResult> readDeliveryPosition({
-  Duration timeLimit = const Duration(seconds: 20),
+  Duration timeLimit = const Duration(seconds: 12),
   bool requestPermission = true,
 }) async {
   try {
@@ -371,30 +371,43 @@ Future<DeliveryLocationResult> readDeliveryPosition({
       );
     }
 
+    // IMPORTANTE: en Android el `timeLimit` del LocationSettings se ignora y
+    // getCurrentPosition puede quedarse esperando el primer fix sin devolver
+    // nada; por eso se envuelve siempre en `Future.timeout`. Si nadie lo
+    // corta, la pantalla se queda para siempre en "Detectar mi posicion".
     try {
       final position = await geo.Geolocator.getCurrentPosition(
         locationSettings: geo.LocationSettings(
           accuracy: geo.LocationAccuracy.high,
           timeLimit: timeLimit,
         ),
-      );
+      ).timeout(timeLimit);
       return DeliveryLocationResult.ok(position);
     } catch (error) {
-      debugPrint(
-        'DeliveryLocation: GPS sin fix ($error), usando ultima conocida',
-      );
-      try {
-        final last = await geo.Geolocator.getLastKnownPosition();
-        if (last != null) {
-          return DeliveryLocationResult.ok(last, fromLastKnown: true);
-        }
-      } catch (_) {}
-      return DeliveryLocationResult(
-        status: error is TimeoutException
-            ? DeliveryLocationStatus.timeout
-            : DeliveryLocationStatus.error,
-      );
+      debugPrint('DeliveryLocation: GPS alta sin fix en $timeLimit ($error)');
     }
+
+    // Intento 2: precision media (suele encajar mas rapido usando red/celda).
+    const mediumLimit = Duration(seconds: 8);
+    try {
+      final position = await geo.Geolocator.getCurrentPosition(
+        locationSettings: geo.LocationSettings(
+          accuracy: geo.LocationAccuracy.medium,
+          timeLimit: mediumLimit,
+        ),
+      ).timeout(mediumLimit);
+      return DeliveryLocationResult.ok(position);
+    } catch (error) {
+      debugPrint('DeliveryLocation: GPS media sin fix ($error)');
+    }
+
+    try {
+      final last = await geo.Geolocator.getLastKnownPosition();
+      if (last != null) {
+        return DeliveryLocationResult.ok(last, fromLastKnown: true);
+      }
+    } catch (_) {}
+    return const DeliveryLocationResult(status: DeliveryLocationStatus.timeout);
   } catch (error) {
     debugPrint('DeliveryLocation: fallo leyendo la ubicacion: $error');
     return const DeliveryLocationResult(status: DeliveryLocationStatus.error);
@@ -1016,21 +1029,12 @@ class _DeliveryMapSearchOverlayState extends State<DeliveryMapSearchOverlay> {
         await widget.onUseCurrentLocation!();
         return;
       }
-      final enabled = await geo.Geolocator.isLocationServiceEnabled();
-      if (!enabled) {
-        _showMessage('Activa la ubicacion del dispositivo.');
+      final result = await readDeliveryPosition();
+      if (!result.hasPosition) {
+        _showMessage(result.message);
         return;
       }
-      var permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        permission = await geo.Geolocator.requestPermission();
-      }
-      if (permission == geo.LocationPermission.denied ||
-          permission == geo.LocationPermission.deniedForever) {
-        _showMessage('Permiso de ubicacion denegado.');
-        return;
-      }
-      final position = await geo.Geolocator.getCurrentPosition();
+      final position = result.position!;
       unawaited(
         widget.mapboxMap.flyTo(
           CameraOptions(

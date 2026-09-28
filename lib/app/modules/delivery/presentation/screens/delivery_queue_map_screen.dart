@@ -44,7 +44,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   bool _routesFetchInProgress = false;
   final Map<String, List<List<double>>> _routeCache = {};
   List<List<double>>? _acceptedRouteCoords;
-  String? _acceptedRouteId;
+  bool _autoCentered = false;
   Timer? _pollTimer;
 
   bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
@@ -84,8 +84,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   void _storePosition(geo.Position position) {
     final lng = position.longitude;
     final lat = position.latitude;
-    final changed = _myLat != lat || _myLng != lng;
+    final hadPosition = _lastUserPos != null;
     _lastUserPos = Position(lng, lat);
+    final changed = _myLat != lat || _myLng != lng;
     if (changed && mounted) {
       setState(() {
         _myLat = lat;
@@ -93,6 +94,25 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         if (_locationError != null) _locationError = null;
       });
     }
+    if (!hadPosition && _focusEntrega == null && !_autoCentered && mounted) {
+      _autoCentered = true;
+      unawaited(_centerOnUser());
+    }
+  }
+
+  /// Centra la camara en la posicion del repartidor la primera vez que se
+  /// obtiene, aunque llegue despues de que el mapa termino de cargar. Si el
+  /// mapa aun no existe, [_onMapCreated] lo hara al crearse.
+  Future<void> _centerOnUser() async {
+    final pos = _lastUserPos;
+    final map = _mapboxMap;
+    if (pos == null || map == null) return;
+    if (_focusEntrega != null) return;
+    _didInitialCamera = true;
+    await map.flyTo(
+      CameraOptions(center: Point(coordinates: pos), zoom: 14),
+      MapAnimationOptions(duration: 500),
+    );
   }
 
   void _applyLocationResult(DeliveryLocationResult result) {
@@ -157,21 +177,23 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
   Future<void> _refreshQueue({bool initial = false}) async {
     final cubit = context.read<DeliveryCubit>();
-    final position = await _currentPosition();
-    if (position != null) {
-      try {
-        await cubit.reportLocation(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-      } catch (error) {
-        debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
-      }
-      if (_mapboxMap != null && !_didInitialCamera) {
-        await _syncAnnotations(initial: true);
-      }
-    }
+    // La posicion puede tardar (el GPS busca el primer fix); no bloquees la
+    // carga de la lista de entregas por eso.
+    final positionFuture = _currentPosition();
     await cubit.loadDisponibles(silent: !initial);
+    final position = await positionFuture;
+    if (position == null || !mounted) return;
+    try {
+      await cubit.reportLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+    } catch (error) {
+      debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
+    }
+    if (_mapboxMap != null && !_didInitialCamera) {
+      await _syncAnnotations(initial: true);
+    }
   }
 
   void _retry() {
@@ -208,7 +230,14 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     _pointManager = await mapboxMap.annotations.createPointAnnotationManager();
     _polylineManager = await mapboxMap.annotations
         .createPolylineAnnotationManager();
-    await _syncAnnotations(initial: true);
+    if (_autoCentered && !_didInitialCamera && _lastUserPos != null) {
+      _didInitialCamera = true;
+      await mapboxMap.flyTo(
+        CameraOptions(center: Point(coordinates: _lastUserPos!), zoom: 14),
+        MapAnimationOptions(duration: 400),
+      );
+    }
+    await _syncAnnotations(initial: !_didInitialCamera);
   }
 
   List<List<double>>? _routePointsFor(DeliveryEntregaModel entrega) {
@@ -271,13 +300,11 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   Future<void> _ensureAcceptedRoute(DeliveryEntregaModel entrega) async {
-    if (_acceptedRouteId == entrega.id) return;
-    _acceptedRouteId = entrega.id;
     if (entrega.rutaCoordenadas != null &&
         entrega.rutaCoordenadas!.length >= 2) {
       _acceptedRouteCoords = entrega.rutaCoordenadas;
     }
-    await _ensureRouteFor(entrega, force: true);
+    await _ensureRouteFor(entrega);
   }
 
   /// Pide las rutas por carretera de las entregas visibles (activa + cola), con tope

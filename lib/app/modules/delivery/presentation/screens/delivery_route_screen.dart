@@ -423,25 +423,13 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
 
   Future<void> _pollPosition() async {
     if (!_followingDelivery) return;
-    try {
-      final enabled = await geo.Geolocator.isLocationServiceEnabled();
-      if (!enabled) return;
-      var permission = await geo.Geolocator.checkPermission();
-      if (permission == geo.LocationPermission.denied) {
-        permission = await geo.Geolocator.requestPermission();
-      }
-      if (permission != geo.LocationPermission.whileInUse &&
-          permission != geo.LocationPermission.always) {
-        return;
-      }
-      final position = await geo.Geolocator.getCurrentPosition();
-      if (!mounted) return;
-      setState(() {
-        _myLat = position.latitude;
-        _myLng = position.longitude;
-      });
-      await _followPosition();
-    } catch (_) {}
+    final result = await readDeliveryPosition();
+    if (!mounted || !result.hasPosition) return;
+    setState(() {
+      _myLat = result.position!.latitude;
+      _myLng = result.position!.longitude;
+    });
+    await _followPosition();
   }
 
   Future<void> _followPosition() async {
@@ -638,16 +626,16 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
   }
 
   Future<void> _fetchEntregaStreetRoute(DeliveryEntregaModel entrega) async {
-    final originLat = entrega.negocioLatitude;
-    final originLng = entrega.negocioLongitude;
+    var originLat = entrega.negocioLatitude;
+    var originLng = entrega.negocioLongitude;
     final destLat = entrega.destinoLatitude;
     final destLng = entrega.destinoLongitude;
-    if (originLat == null ||
-        originLng == null ||
-        destLat == null ||
-        destLng == null) {
-      return;
+    if (destLat == null || destLng == null) return;
+    if (originLat == null || originLng == null) {
+      originLat = _myLat;
+      originLng = _myLng;
     }
+    if (originLat == null || originLng == null) return;
     setState(() => _drawingRoute = true);
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/mapbox/ruta',
