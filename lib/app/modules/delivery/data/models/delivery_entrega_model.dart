@@ -29,6 +29,7 @@ class DeliveryEntregaModel {
     this.distanciaAlOrigenKm,
     this.distanciaTotalKm,
     this.tarifaEstimada,
+    this.tarifaTotal,
     this.tarifaBase = 0,
     this.tarifaPorKm = 0,
     this.creadaEn,
@@ -64,10 +65,26 @@ class DeliveryEntregaModel {
   final double? distanciaAlOrigenKm;
   final double? distanciaTotalKm;
   final double? tarifaEstimada;
+  final double? tarifaTotal;
   final double tarifaBase;
   final double tarifaPorKm;
   final DateTime? creadaEn;
   final Map<String, dynamic>? ruta;
+
+  /// Distancia real por calles de la ruta calculada (Mapbox), en kilometros.
+  double? get rutaDistanceKm {
+    final raw = ruta?['distance'];
+    if (raw is num) return raw.toDouble() / 1000;
+    final parsed = double.tryParse('$raw');
+    return parsed == null ? null : parsed / 1000;
+  }
+
+  /// Duracion real por calles de la ruta calculada (Mapbox), en segundos.
+  double? get rutaDurationSeconds {
+    final raw = ruta?['duration'];
+    if (raw is num) return raw.toDouble();
+    return double.tryParse('$raw');
+  }
 
   List<List<double>>? get rutaCoordenadas {
     final geometry = ruta?['geometry'];
@@ -147,6 +164,7 @@ class DeliveryEntregaModel {
       distanciaAlOrigenKm: _num(json['distancia_al_origen_km']),
       distanciaTotalKm: _num(json['distancia_total_km']),
       tarifaEstimada: _num(json['tarifa_estimada']),
+      tarifaTotal: _num(json['tarifa_total']),
       tarifaBase: _num(json['tarifa_base']) ?? 0,
       tarifaPorKm: _num(json['tarifa_por_km']) ?? 0,
       creadaEn: DateTime.tryParse('${json['created_at'] ?? ''}'),

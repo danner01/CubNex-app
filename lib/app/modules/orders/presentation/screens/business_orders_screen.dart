@@ -14,6 +14,7 @@ import '../../../../config/routes/app_routes.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
+import '../widgets/order_delivery_metrics.dart';
 
 const _statusFilters = [
   _FilterOption('reservado_recogida', 'Reservado'),
@@ -810,6 +811,7 @@ class _BusinessOrderCard extends StatelessWidget {
                   ),
               ],
             ),
+            OrderDeliveryMetricsCard(order: order),
             const SizedBox(height: 6),
             if (canTrackDelivery) ...[
               Align(

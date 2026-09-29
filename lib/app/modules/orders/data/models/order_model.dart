@@ -167,7 +167,9 @@ class OrderModel {
       'confirmado_negocio' ||
       'preparando' ||
       'listo_para_recoger' ||
-      'delivery_asignado' => true,
+      'delivery_asignado' ||
+      'recogido_por_delivery' ||
+      'en_ruta' => true,
       _ => false,
     };
   }

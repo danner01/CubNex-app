@@ -11,6 +11,7 @@ import '../../../../config/routes/app_routes.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
+import '../widgets/order_delivery_metrics.dart';
 
 class OrdersScreen extends StatelessWidget {
   const OrdersScreen({
@@ -604,6 +605,8 @@ class _OrderCard extends StatelessWidget {
                   ),
               ],
             ),
+            const SizedBox(height: 12),
+            OrderDeliveryMetricsCard(order: order),
             const SizedBox(height: 12),
             if (_deliveryTrackableStatuses.contains(order.status))
               OutlinedButton.icon(
