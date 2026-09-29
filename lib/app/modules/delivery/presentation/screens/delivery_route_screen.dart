@@ -636,19 +636,21 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       originLng = _myLng;
     }
     if (originLat == null || originLng == null) return;
+    final routeOriginLat = originLat;
+    final routeOriginLng = originLng;
     setState(() => _drawingRoute = true);
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/mapbox/ruta',
       data: {
-        'origen': {'lat': originLat, 'lng': originLng},
+        'origen': {'lat': routeOriginLat, 'lng': routeOriginLng},
         'destino': {'lat': destLat, 'lng': destLng},
       },
       parser: (json) =>
           json is Map ? Map<String, dynamic>.from(json) : const {},
     );
     if (!mounted) return;
+    var streetRouteDrawn = false;
     if (result.isSuccess &&
-        _entregaRouteCoords == null &&
         sl<DeliveryAcceptedStore>().accepted.value == entrega) {
       final routes = result.data?['routes'];
       if (routes is List && routes.isNotEmpty) {
@@ -664,6 +666,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
               }
             }
             if (parsed.length >= 2 && mounted) {
+              streetRouteDrawn = true;
               setState(() {
                 _drawingRoute = false;
                 _entregaRouteCoords = parsed;
@@ -673,13 +676,32 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 );
               });
               await _syncAll(initial: false);
-              return;
             }
           }
         }
       }
     }
-    if (mounted) setState(() => _drawingRoute = false);
+    if (streetRouteDrawn) return;
+    if (_entregaRouteCoords != null ||
+        (mounted &&
+            entrega.ruta != null &&
+            entrega.rutaCoordenadas != null)) {
+      if (mounted) setState(() => _drawingRoute = false);
+      return;
+    }
+    if (!mounted) return;
+    setState(() {
+      _drawingRoute = false;
+      _entregaRouteCoords = [
+        [routeOriginLng, routeOriginLat],
+        [destLng, destLat],
+      ];
+      _entregaRouteSummary = null;
+    });
+    _showMessage(
+      'No se pudo calcular la ruta por calles. Se muestra la linea recta.',
+    );
+    await _syncAll(initial: false);
   }
 
   Future<void> _fetchStreetRoute() async {
