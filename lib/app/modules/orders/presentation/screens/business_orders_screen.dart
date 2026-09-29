@@ -11,7 +11,6 @@ import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
-import '../../../../modules/delivery/presentation/widgets/delivery_tracking_sheet.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
@@ -816,9 +815,11 @@ class _BusinessOrderCard extends StatelessWidget {
               Align(
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
-                  onPressed: () => showDeliveryTrackingSheet(context, order.id),
-                  icon: const Icon(Icons.near_me_rounded, size: 18),
-                  label: const Text('Ver seguimiento del repartidor'),
+                  onPressed: () => context.push(
+                    '${AppRoutes.orderTracking}?orden_id=${order.id}',
+                  ),
+                  icon: const Icon(Icons.map_outlined, size: 18),
+                  label: const Text('Ver pedido en el mapa'),
                 ),
               ),
               const SizedBox(height: 6),

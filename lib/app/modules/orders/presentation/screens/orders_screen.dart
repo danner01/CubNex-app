@@ -8,7 +8,6 @@ import '../../../../common/presentation/widgets/compact_date_range_dialog.dart';
 import '../../../../common/presentation/widgets/order_qr_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
-import '../../../delivery/presentation/widgets/delivery_tracking_sheet.dart';
 import '../../blocs/orders/orders_cubit.dart';
 import '../../blocs/orders/orders_state.dart';
 import '../../data/models/order_model.dart';
@@ -608,9 +607,11 @@ class _OrderCard extends StatelessWidget {
             const SizedBox(height: 12),
             if (_deliveryTrackableStatuses.contains(order.status))
               OutlinedButton.icon(
-                onPressed: () => showDeliveryTrackingSheet(context, order.id),
-                icon: const Icon(Icons.near_me_rounded),
-                label: const Text('Ver seguimiento del repartidor'),
+                onPressed: () => context.push(
+                  '${AppRoutes.orderTracking}?orden_id=${order.id}',
+                ),
+                icon: const Icon(Icons.map_outlined),
+                label: const Text('Ver pedido en el mapa'),
               ),
           ],
         ),

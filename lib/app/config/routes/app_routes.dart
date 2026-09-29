@@ -12,6 +12,7 @@ class AppRoutes {
   static const favorites = '/favorites';
   static const cart = '/cart';
   static const orders = '/orders';
+  static const orderTracking = '/orders/track';
   static const notifications = '/notifications';
   static const profile = '/profile';
   static const credits = '/creditos';

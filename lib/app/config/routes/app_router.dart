@@ -20,6 +20,7 @@ import '../../modules/business_network/presentation/screens/business_network_scr
 import '../../modules/delivery/presentation/screens/delivery_hub_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_nearby_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_queue_map_screen.dart';
+import '../../modules/delivery/presentation/screens/delivery_order_tracking_screen.dart';
 import '../../modules/favorites/presentation/screens/favorites_screen.dart';
 import '../../modules/credits/presentation/screens/credits_screen.dart';
 import '../../modules/gamification/presentation/screens/gamification_screen.dart';
@@ -109,6 +110,12 @@ GoRouter createAppRouter(
       GoRoute(
         path: '/market/negocio/pedidos',
         redirect: (_, __) => AppRoutes.businessOrders,
+      ),
+      GoRoute(
+        path: AppRoutes.orderTracking,
+        builder: (context, state) => DeliveryOrderTrackingScreen(
+          ordenId: state.uri.queryParameters['orden_id'] ?? '',
+        ),
       ),
       GoRoute(
         path: '/market/negocio/red',
