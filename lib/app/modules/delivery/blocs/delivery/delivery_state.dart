@@ -14,6 +14,7 @@ class DeliveryState extends Equatable {
     this.isUpdatingProfile = false,
     this.refreshingQueue = false,
     this.acceptingEntregaId,
+    this.rechazandoEntregaId,
     this.errorMessage,
     this.queueError,
   });
@@ -25,6 +26,7 @@ class DeliveryState extends Equatable {
   final bool isUpdatingProfile;
   final bool refreshingQueue;
   final String? acceptingEntregaId;
+  final String? rechazandoEntregaId;
   final String? errorMessage;
   final String? queueError;
 
@@ -38,6 +40,7 @@ class DeliveryState extends Equatable {
     bool? isUpdatingProfile,
     bool? refreshingQueue,
     Object? acceptingEntregaId = _unset,
+    Object? rechazandoEntregaId = _unset,
     Object? errorMessage = _unset,
     Object? queueError = _unset,
   }) {
@@ -55,6 +58,9 @@ class DeliveryState extends Equatable {
       acceptingEntregaId: identical(acceptingEntregaId, _unset)
           ? this.acceptingEntregaId
           : acceptingEntregaId as String?,
+      rechazandoEntregaId: identical(rechazandoEntregaId, _unset)
+          ? this.rechazandoEntregaId
+          : rechazandoEntregaId as String?,
       errorMessage: identical(errorMessage, _unset)
           ? this.errorMessage
           : errorMessage as String?,
@@ -73,7 +79,20 @@ class DeliveryState extends Equatable {
     isUpdatingProfile,
     refreshingQueue,
     acceptingEntregaId,
+    rechazandoEntregaId,
     errorMessage,
     queueError,
   ];
 }
+
+String entregaStatusLabel(String? estado) => switch (estado) {
+      'solicitado' => 'Pendiente',
+      'aceptado_delivery' => 'Asignado',
+      'recogido_delivery' || 'recogido_por_delivery' => 'Recogido',
+      'en_ruta' => 'En ruta',
+      'entregado' || 'entregado_por_delivery' || 'recibido_cliente' =>
+        'Entregado',
+      'liquidado_negocio' || 'completado' => 'Liquidado',
+      'cancelado' => 'Cancelado',
+      _ => 'Estado desconocido',
+    };

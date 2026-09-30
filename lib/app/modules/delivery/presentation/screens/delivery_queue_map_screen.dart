@@ -36,6 +36,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   double? _myLat;
   double? _myLng;
   bool _locating = false;
+  bool _autoLocating = false;
   bool _drawingRoute = false;
   String? _locationError;
   DeliveryEntregaModel? _focusEntrega;
@@ -97,6 +98,23 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     if (!hadPosition && _focusEntrega == null && !_autoCentered && mounted) {
       _autoCentered = true;
       unawaited(_centerOnUser());
+    }
+    if (!hadPosition && mounted) {
+      // Ya existe la posicion del repartidor: reintenta las rutas que antes no
+      // se pudieron trazar por falta de origen.
+      final focus = _focusEntrega;
+      if (focus != null &&
+          focus.destinoLatitude != null &&
+          _routeCache[focus.id] == null) {
+        unawaited(_ensureRouteFor(focus));
+      }
+      final accepted = sl<DeliveryAcceptedStore>().accepted.value;
+      if (accepted != null &&
+          accepted.id != focus?.id &&
+          accepted.destinoLatitude != null &&
+          _routeCache[accepted.id] == null) {
+        unawaited(_ensureRouteFor(accepted));
+      }
     }
   }
 
@@ -179,20 +197,26 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     final cubit = context.read<DeliveryCubit>();
     // La posicion puede tardar (el GPS busca el primer fix); no bloquees la
     // carga de la lista de entregas por eso.
-    final positionFuture = _currentPosition();
-    await cubit.loadDisponibles(silent: !initial);
-    final position = await positionFuture;
-    if (position == null || !mounted) return;
+    final detecting = _myLat == null;
+    if (detecting && mounted) setState(() => _autoLocating = true);
     try {
-      await cubit.reportLocation(
-        latitude: position.latitude,
-        longitude: position.longitude,
-      );
-    } catch (error) {
-      debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
-    }
-    if (_mapboxMap != null && !_didInitialCamera) {
-      await _syncAnnotations(initial: true);
+      final positionFuture = _currentPosition();
+      await cubit.loadDisponibles(silent: !initial);
+      final position = await positionFuture;
+      if (position == null || !mounted) return;
+      try {
+        await cubit.reportLocation(
+          latitude: position.latitude,
+          longitude: position.longitude,
+        );
+      } catch (error) {
+        debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
+      }
+      if (_mapboxMap != null && !_didInitialCamera) {
+        await _syncAnnotations(initial: true);
+      }
+    } finally {
+      if (detecting && mounted) setState(() => _autoLocating = false);
     }
   }
 
@@ -270,12 +294,34 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     bool force = false,
   }) async {
     if (entrega.destinoLatitude == null || entrega.destinoLongitude == null) {
+      if (force) {
+        showSnackOrAuthDialog(
+          context,
+          'No se puede generar la ruta: el pedido no tiene coordenadas de entrega.',
+        );
+      }
       return;
     }
     if (!force && _routeCache[entrega.id] != null) return;
     if (_loadingRouteFor == entrega.id) return;
-    final origin = _originFor(entrega);
-    if (origin == null) return;
+    var origin = _originFor(entrega);
+    if (origin == null && _myLat == null) {
+      // Aun no tenemos ubicacion del repartidor (y el negocio puede no tener
+      // coordenadas). Intenta detectarla antes de rendirte.
+      await _currentPosition();
+      if (!mounted) return;
+      origin = _originFor(entrega);
+    }
+    if (origin == null) {
+      if (force) {
+        showSnackOrAuthDialog(
+          context,
+          'No se pudo trazar la ruta: faltan las coordenadas del negocio y la '
+          'del repartidor. Detecta tu posicion e intenta de nuevo.',
+        );
+      }
+      return;
+    }
 
     _loadingRouteFor = entrega.id;
     if (mounted) setState(() => _drawingRoute = true);
@@ -291,6 +337,11 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       if (entrega.id == sl<DeliveryAcceptedStore>().accepted.value?.id) {
         _acceptedRouteCoords = coords;
       }
+    } else if (force) {
+      showSnackOrAuthDialog(
+        context,
+        'No se pudo calcular la ruta por calles. Se muestra la linea recta.',
+      );
     } else {
       debugPrint('DeliveryQueueMap: sin ruta por carretera para ${entrega.id}');
     }
@@ -546,6 +597,69 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     if (mounted) context.push(AppRoutes.deliveryRoute);
   }
 
+  Future<void> _confirmRechazar(DeliveryEntregaModel entrega) async {
+    final estado = entrega.estado;
+    final yaRecogida = estado != null &&
+        const {'recogido_delivery', 'recogido_por_delivery', 'en_ruta', 'entregado', 'liquidado_negocio'}
+            .contains(estado);
+    if (yaRecogida) {
+      showSnackOrAuthDialog(
+        context,
+        'No puedes rechazar esta entrega porque ya recogiste la mercancia o el paquete en el negocio.',
+      );
+      return;
+    }
+    final esActiva = sl<DeliveryAcceptedStore>().accepted.value?.id == entrega.id;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: Text(esActiva ? 'Rechazar entrega' : 'Rechazar pedido'),
+        content: Text(
+          esActiva
+              ? 'Si la rechazas antes de recoger, el pedido vuelve a la cola para que otro '
+                  'repartidor lo tome. El negocio y el cliente seran notificados.'
+              : 'Esta entrega sigue pendiente. Si la rechazas, el negocio y el cliente seran '
+                  'notificados y quedara disponible para otros repartidores.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Rechazar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final cubit = context.read<DeliveryCubit>();
+    await cubit.rechazarEntrega(entrega.id);
+    if (!mounted) return;
+    if (_focusEntregaId == entrega.id) {
+      setState(() {
+        _focusEntrega = null;
+        _focusEntregaId = null;
+      });
+    }
+    if (esActiva) {
+      _acceptedRouteCoords = null;
+    }
+    final error = cubit.state.queueError;
+    if (error != null && error.isNotEmpty) {
+      showSnackOrAuthDialog(context, error);
+    } else {
+      showSnackOrAuthDialog(
+        context,
+        esActiva
+            ? 'Entrega rechazada. Quedo disponible para otro repartidor.'
+            : 'Pedido rechazado.',
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocProvider.value(
@@ -620,10 +734,10 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                         tooltip: 'Centrar en mi ubicacion',
                         backgroundColor: theme.colorScheme.surface,
                         foregroundColor: const Color(0xFF00ACC1),
-                        onPressed: _locating
+                        onPressed: _locating || _autoLocating
                             ? null
                             : () => unawaited(_locateCurrentPos()),
-                        child: _locating
+                        child: _locating || _autoLocating
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
@@ -731,10 +845,13 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   const SizedBox(height: 12),
                 ],
                 if (_myLat == null && _locationError == null) ...[
-                  _QueueLocatePrompt(
-                    locating: _locating,
-                    onRetry: () => unawaited(_locateCurrentPos()),
-                  ),
+                  if (_autoLocating || _locating)
+                    const _QueueLocatingBlock()
+                  else
+                    _QueueLocatePrompt(
+                      locating: _locating,
+                      onRetry: () => unawaited(_locateCurrentPos()),
+                    ),
                   const SizedBox(height: 12),
                 ],
                 if (_drawingRoute) ...[
@@ -750,8 +867,10 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   _FocusDeliveryCard(
                     entrega: _focusEntrega!,
                     loadingRoute: _loadingRouteFor == _focusEntrega!.id,
+                    rejecting: state.rechazandoEntregaId == _focusEntrega!.id,
                     onGenerateRoute: () =>
                         unawaited(_ensureRouteFor(_focusEntrega!, force: true)),
+                    onReject: () => unawaited(_confirmRechazar(_focusEntrega!)),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -786,7 +905,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   _AcceptedDeliveryCard(
                     entrega: accepted,
                     drawingRoute: _drawingRoute,
+                    rejecting: state.rechazandoEntregaId == accepted.id,
                     onContinue: () => context.push(AppRoutes.deliveryRoute),
+                    onReject: () => unawaited(_confirmRechazar(accepted)),
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -816,12 +937,15 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                         entrega: items[i],
                         index: i,
                         accepting: state.acceptingEntregaId == items[i].id,
+                        rejecting: state.rechazandoEntregaId == items[i].id,
                         onAccept: () => unawaited(
                           context.read<DeliveryCubit>().aceptar(items[i].id),
                         ),
                         onStartRoute: () => unawaited(
                           _confirmAccept(items[i], startRoute: true),
                         ),
+                        onReject: () =>
+                            unawaited(_confirmRechazar(items[i])),
                       ),
                       if (i != items.length - 1) const SizedBox(height: 8),
                     ],
@@ -831,6 +955,56 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
             ),
           );
         },
+      ),
+    );
+  }
+}
+
+class _QueueLocatingBlock extends StatelessWidget {
+  const _QueueLocatingBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      elevation: 0,
+      margin: EdgeInsets.zero,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.55),
+        ),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          children: [
+            SizedBox(
+              width: 24,
+              height: 24,
+              child: CircularProgressIndicator(
+                strokeWidth: 2,
+                color: theme.colorScheme.primary,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Detectando tu posicion',
+                    style: TextStyle(fontWeight: FontWeight.w900),
+                  ),
+                  Text(
+                    'Se esta centrando el mapa en tu ubicacion de forma automatica.',
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -940,12 +1114,20 @@ class _AcceptedDeliveryCard extends StatelessWidget {
   const _AcceptedDeliveryCard({
     required this.entrega,
     required this.drawingRoute,
+    required this.rejecting,
     required this.onContinue,
+    required this.onReject,
   });
 
   final DeliveryEntregaModel entrega;
   final bool drawingRoute;
+  final bool rejecting;
   final VoidCallback onContinue;
+  final VoidCallback onReject;
+
+  bool get _canReject =>
+      entrega.estado == null ||
+      const {'solicitado', 'aceptado_delivery'}.contains(entrega.estado);
 
   @override
   Widget build(BuildContext context) {
@@ -1012,6 +1194,10 @@ class _AcceptedDeliveryCard extends StatelessWidget {
                       ? 'Calculando ruta...'
                       : 'Ruta en el mapa',
                 ),
+                DeliveryStatusPill(
+                  status: entrega.estado,
+                  label: entregaStatusLabel(entrega.estado),
+                ),
               ],
             ),
             const SizedBox(height: 10),
@@ -1020,9 +1206,26 @@ class _AcceptedDeliveryCard extends StatelessWidget {
               child: FilledButton.icon(
                 onPressed: onContinue,
                 icon: const Icon(Icons.navigation_rounded, size: 18),
-                label: const Text('Continuar entrega'),
+                label: const Text('Empezar entrega'),
               ),
             ),
+            if (_canReject) ...[
+              const SizedBox(height: 8),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: rejecting ? null : onReject,
+                  icon: rejecting
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.cancel_outlined, size: 18),
+                  label: Text(rejecting ? 'Rechazando...' : 'Rechazar entrega'),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -1034,12 +1237,16 @@ class _FocusDeliveryCard extends StatelessWidget {
   const _FocusDeliveryCard({
     required this.entrega,
     required this.loadingRoute,
+    required this.rejecting,
     required this.onGenerateRoute,
+    required this.onReject,
   });
 
   final DeliveryEntregaModel entrega;
   final bool loadingRoute;
+  final bool rejecting;
   final VoidCallback onGenerateRoute;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -1142,6 +1349,21 @@ class _FocusDeliveryCard extends StatelessWidget {
                 ),
               ),
             ],
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: rejecting ? null : onReject,
+                icon: rejecting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 18),
+                label: Text(rejecting ? 'Rechazando...' : 'Rechazar pedido'),
+              ),
+            ),
           ],
         ),
       ),
@@ -1209,15 +1431,19 @@ class _QueueMapItemCard extends StatelessWidget {
     required this.entrega,
     required this.index,
     required this.accepting,
+    required this.rejecting,
     required this.onAccept,
     required this.onStartRoute,
+    required this.onReject,
   });
 
   final DeliveryEntregaModel entrega;
   final int index;
   final bool accepting;
+  final bool rejecting;
   final VoidCallback onAccept;
   final VoidCallback onStartRoute;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -1307,6 +1533,20 @@ class _QueueMapItemCard extends StatelessWidget {
                 onPressed: accepting ? null : onStartRoute,
                 icon: const Icon(Icons.route_rounded, size: 18),
                 label: const Text('Iniciar ruta'),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: accepting || rejecting ? null : onReject,
+                icon: rejecting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 18),
+                label: Text(rejecting ? 'Rechazando...' : 'Rechazar'),
               ),
             ),
           ],

@@ -635,7 +635,27 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
       originLat = _myLat;
       originLng = _myLng;
     }
-    if (originLat == null || originLng == null) return;
+    if (originLat == null || originLng == null) {
+      // Faltan ambas: la ubicacion del repartidor y las coordenadas del negocio.
+      // Intenta detectar la posicion antes de rendirse.
+      final position = await _readPosition();
+      if (!mounted) return;
+      if (position != null && _myLat == null && _myLng == null) {
+        setState(() {
+          _myLat = position.latitude;
+          _myLng = position.longitude;
+        });
+      }
+      originLat = _myLat;
+      originLng = _myLng;
+    }
+    if (originLat == null || originLng == null) {
+      _showMessage(
+        'No se pudo trazar la ruta: faltan las coordenadas del negocio y las '
+        'del repartidor. Detecta tu posicion e intenta de nuevo.',
+      );
+      return;
+    }
     final routeOriginLat = originLat;
     final routeOriginLng = originLng;
     setState(() => _drawingRoute = true);

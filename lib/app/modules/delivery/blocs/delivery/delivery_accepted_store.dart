@@ -6,4 +6,6 @@ class DeliveryAcceptedStore {
   final ValueNotifier<DeliveryEntregaModel?> accepted = ValueNotifier(null);
 
   void accept(DeliveryEntregaModel entrega) => accepted.value = entrega;
+
+  void clear() => accepted.value = null;
 }

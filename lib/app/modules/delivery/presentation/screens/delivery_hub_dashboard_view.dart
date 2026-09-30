@@ -372,9 +372,11 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
           (entrega) => AvailableDeliveryCard(
             entrega: entrega,
             accepting: state.acceptingEntregaId == entrega.id,
+            rejecting: state.rechazandoEntregaId == entrega.id,
             onAccept: () => unawaited(_confirmAccept(entrega)),
             onStartRoute: () =>
                 unawaited(_confirmAccept(entrega, startRoute: true)),
+            onReject: () => unawaited(_confirmRechazar(entrega)),
           ),
         )
         .toList();
@@ -457,6 +459,40 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
     }
   }
 
+  Future<void> _confirmRechazar(DeliveryEntregaModel entrega) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Rechazar pedido'),
+        content: const Text(
+          'Esta entrega sigue pendiente. Si la rechazas, el negocio y el cliente '
+          'seran notificados y quedara disponible para otros repartidores.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Rechazar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    final cubit = context.read<DeliveryCubit>();
+    await cubit.rechazarEntrega(entrega.id);
+    if (!mounted) return;
+    final error = cubit.state.queueError;
+    if (error != null && error.isNotEmpty) {
+      showSnackOrAuthDialog(context, error);
+    } else {
+      showSnackOrAuthDialog(context, 'Pedido rechazado.');
+    }
+  }
+
   Future<void> _showAcceptedDialog(DeliveryEntregaModel entrega) async {
     final currency = entrega.moneda ?? 'CUP';
     await showDialog<void>(
@@ -501,15 +537,19 @@ class AvailableDeliveryCard extends StatelessWidget {
   const AvailableDeliveryCard({
     required this.entrega,
     required this.accepting,
+    required this.rejecting,
     required this.onAccept,
     required this.onStartRoute,
+    required this.onReject,
     super.key,
   });
 
   final DeliveryEntregaModel entrega;
   final bool accepting;
+  final bool rejecting;
   final VoidCallback onAccept;
   final VoidCallback onStartRoute;
+  final VoidCallback onReject;
 
   @override
   Widget build(BuildContext context) {
@@ -658,6 +698,20 @@ class AvailableDeliveryCard extends StatelessWidget {
                 onPressed: accepting ? null : onStartRoute,
                 icon: const Icon(Icons.route_rounded, size: 18),
                 label: const Text('Iniciar ruta'),
+              ),
+            ),
+            SizedBox(
+              width: double.infinity,
+              child: TextButton.icon(
+                onPressed: accepting || rejecting ? null : onReject,
+                icon: rejecting
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.cancel_outlined, size: 18),
+                label: Text(rejecting ? 'Rechazando...' : 'Rechazar'),
               ),
             ),
           ],

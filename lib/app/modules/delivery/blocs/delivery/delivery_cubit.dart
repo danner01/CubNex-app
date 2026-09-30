@@ -17,6 +17,7 @@ class DeliveryCubit extends Cubit<DeliveryState> {
   final ApiClient _apiClient;
   final DeliveryAcceptedStore _acceptedStore;
   bool _queueRequestInFlight = false;
+  final Set<String> _rechazadas = {};
 
   Future<void> load() async {
     if (state.status == DeliveryStatus.loading) return;
@@ -225,7 +226,9 @@ class DeliveryCubit extends Cubit<DeliveryState> {
       emit(
         state.copyWith(
           refreshingQueue: false,
-          availableEntregas: result.data ?? const <DeliveryEntregaModel>[],
+          availableEntregas: (result.data ?? const <DeliveryEntregaModel>[])
+              .where((item) => !_rechazadas.contains(item.id))
+              .toList(),
           errorMessage: null,
           queueError: null,
         ),
@@ -286,6 +289,46 @@ class DeliveryCubit extends Cubit<DeliveryState> {
       state.copyWith(
         acceptingEntregaId: null,
         queueError: result.error?.message ?? 'No se pudo aceptar la entrega.',
+      ),
+    );
+  }
+
+  Future<void> rechazarEntrega(String entregaId) async {
+    if (state.rechazandoEntregaId != null) return;
+    emit(state.copyWith(rechazandoEntregaId: entregaId, queueError: null));
+
+    final result = await _apiClient.post<Map<String, dynamic>>(
+      '/entregas/$entregaId/rechazar',
+      parser: (json) => json is Map
+          ? Map<String, dynamic>.from(json)
+          : const <String, dynamic>{},
+    );
+    if (isClosed) return;
+
+    if (result.isSuccess) {
+      _rechazadas.add(entregaId);
+      if (_acceptedStore.accepted.value?.id == entregaId) {
+        _acceptedStore.clear();
+      }
+      emit(
+        state.copyWith(
+          rechazandoEntregaId: null,
+          acceptedEntrega: state.acceptedEntrega?.id == entregaId
+              ? null
+              : state.acceptedEntrega,
+          availableEntregas: state.availableEntregas
+              .where((item) => item.id != entregaId)
+              .toList(),
+          queueError: null,
+        ),
+      );
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        rechazandoEntregaId: null,
+        queueError: result.error?.message ?? 'No se pudo rechazar la entrega.',
       ),
     );
   }
