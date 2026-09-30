@@ -200,18 +200,21 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     final detecting = _myLat == null;
     if (detecting && mounted) setState(() => _autoLocating = true);
     try {
-      final positionFuture = _currentPosition();
-      await cubit.loadDisponibles(silent: !initial);
-      final position = await positionFuture;
-      if (position == null || !mounted) return;
-      try {
-        await cubit.reportLocation(
-          latitude: position.latitude,
-          longitude: position.longitude,
-        );
-      } catch (error) {
-        debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
+      // Primero se reporta la posicion: el backend rechaza /entregas/disponibles
+      // si la ultima ubicacion tiene mas de 2 minutos (POSICION_OBSOLETA).
+      final position = await _currentPosition();
+      if (position != null) {
+        try {
+          await cubit.reportLocation(
+            latitude: position.latitude,
+            longitude: position.longitude,
+          );
+        } catch (error) {
+          debugPrint('DeliveryQueueMap: no se pudo reportar la posicion: $error');
+        }
       }
+      if (!mounted) return;
+      await cubit.loadDisponibles(silent: !initial);
       if (_mapboxMap != null && !_didInitialCamera) {
         await _syncAnnotations(initial: true);
       }

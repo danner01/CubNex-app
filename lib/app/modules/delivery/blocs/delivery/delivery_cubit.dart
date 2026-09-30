@@ -1,4 +1,8 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:geolocator/geolocator.dart' as geo;
 
 import '../../../../config/http/api_client.dart';
 import '../../data/models/delivery_entrega_model.dart';
@@ -18,6 +22,82 @@ class DeliveryCubit extends Cubit<DeliveryState> {
   final DeliveryAcceptedStore _acceptedStore;
   bool _queueRequestInFlight = false;
   final Set<String> _rechazadas = {};
+  Timer? _locationWatch;
+  bool _reportingPosition = false;
+
+  /// Vigila que la posicion reportada al backend no caduque.
+  /// El backend rechaza /entregas/disponibles si la ultima ubicacion tiene
+  /// mas de 2 minutos. Este timer global (vive en el cubit, no en una
+  /// pantalla) mantiene el punto fresco mientras el delivery este disponible.
+  void startLocationWatch() {
+    if (_locationWatch != null) return;
+    _locationWatch = Timer.periodic(
+      const Duration(seconds: 30),
+      (_) => unawaited(_reportPositionWatchTick()),
+    );
+  }
+
+  Future<void> _reportPositionWatchTick() async {
+    final profile = state.profile;
+    if (profile == null || profile.available != true) return;
+    if (_reportingPosition) return;
+    _reportingPosition = true;
+    try {
+      final position = await _readCurrentPosition();
+      if (position == null) return;
+      await reportLocation(
+        latitude: position.latitude,
+        longitude: position.longitude,
+      );
+      // Si la ultima carga fallo por posicion caducada, ya hay punto fresco:
+      // rearranca la cola para que no se quede el error visible.
+      if (state.queueError != null) {
+        await loadDisponibles(silent: true);
+      }
+    } catch (_) {
+      // El siguiente tick reintenta; no debe romper la cola.
+    } finally {
+      _reportingPosition = false;
+    }
+  }
+
+  Future<geo.Position?> _readCurrentPosition() async {
+    try {
+      if (!await geo.Geolocator.isLocationServiceEnabled()) return null;
+      var permission = await geo.Geolocator.checkPermission();
+      if (permission == geo.LocationPermission.denied) {
+        permission = await geo.Geolocator.requestPermission();
+      }
+      if (permission == geo.LocationPermission.denied ||
+          permission == geo.LocationPermission.deniedForever) {
+        return null;
+      }
+      try {
+        return await geo.Geolocator.getCurrentPosition(
+          locationSettings: geo.LocationSettings(
+            accuracy: geo.LocationAccuracy.high,
+            timeLimit: const Duration(seconds: 8),
+          ),
+        ).timeout(const Duration(seconds: 8));
+      } catch (error) {
+        debugPrint('DeliveryCubit: GPS sin fix en 8s ($error)');
+      }
+      try {
+        return await geo.Geolocator.getLastKnownPosition().timeout(
+          const Duration(seconds: 3),
+        );
+      } catch (_) {}
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  Future<void> close() {
+    _locationWatch?.cancel();
+    return super.close();
+  }
 
   Future<void> load() async {
     if (state.status == DeliveryStatus.loading) return;
@@ -211,6 +291,7 @@ class DeliveryCubit extends Cubit<DeliveryState> {
   Future<void> loadDisponibles({bool silent = false}) async {
     final profile = state.profile;
     if (profile == null || !profile.available) return;
+    startLocationWatch();
     if (_queueRequestInFlight) return;
     _queueRequestInFlight = true;
     if (!silent) emit(state.copyWith(refreshingQueue: true));
