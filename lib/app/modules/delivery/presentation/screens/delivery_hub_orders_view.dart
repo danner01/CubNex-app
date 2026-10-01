@@ -590,8 +590,11 @@ class DeliveryOrderCard extends StatelessWidget {
                 ],
                 if (_deliveryActiveTrackingStatuses.contains(order.status))
                   OutlinedButton.icon(
-                    onPressed: () =>
-                        showDeliveryTrackingSheet(context, order.id),
+                    onPressed: () => showDeliveryTrackingSheet(
+                      context,
+                      order.id,
+                      entregaId: order.entregaId,
+                    ),
                     icon: const Icon(Icons.near_me_rounded, size: 18),
                     label: const Text('Ver ubicacion'),
                   ),

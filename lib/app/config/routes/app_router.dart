@@ -115,6 +115,7 @@ GoRouter createAppRouter(
         path: AppRoutes.orderTracking,
         builder: (context, state) => DeliveryOrderTrackingScreen(
           ordenId: state.uri.queryParameters['orden_id'] ?? '',
+          entregaId: state.uri.queryParameters['entrega_id'],
         ),
       ),
       GoRoute(

@@ -611,7 +611,8 @@ class _OrderCard extends StatelessWidget {
             if (_deliveryTrackableStatuses.contains(order.status))
               OutlinedButton.icon(
                 onPressed: () => context.push(
-                  '${AppRoutes.orderTracking}?orden_id=${order.id}',
+                  '${AppRoutes.orderTracking}?orden_id=${order.id}'
+                    '${order.entregaId == null ? '' : '&entrega_id=${order.entregaId}'}',
                 ),
                 icon: const Icon(Icons.map_outlined),
                 label: const Text('Ver pedido en el mapa'),

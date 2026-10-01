@@ -9,9 +9,17 @@ import '../../data/models/delivery_entrega_model.dart';
 import '../widgets/delivery_common.dart';
 
 class DeliveryOrderTrackingScreen extends StatefulWidget {
-  const DeliveryOrderTrackingScreen({required this.ordenId, super.key});
+  const DeliveryOrderTrackingScreen({
+    required this.ordenId,
+    this.entregaId,
+    super.key,
+  });
 
   final String ordenId;
+
+  /// Id de la entrega cuando el llamador ya la conoce, para evitar re-buscar
+  /// por orden (que depende del scope del rol).
+  final String? entregaId;
 
   @override
   State<DeliveryOrderTrackingScreen> createState() =>
@@ -46,7 +54,10 @@ class _DeliveryOrderTrackingScreenState
   @override
   void initState() {
     super.initState();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => unawaited(_refresh()));
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => unawaited(_hasEntrega ? _refresh() : _resolveEntrega()),
+    );
     unawaited(_resolveEntrega());
   }
 
@@ -57,6 +68,20 @@ class _DeliveryOrderTrackingScreenState
   }
 
   Future<void> _resolveEntrega() async {
+    final knownEntregaId = widget.entregaId;
+    if (knownEntregaId != null && knownEntregaId.isNotEmpty) {
+      setState(() {
+        _entregaId = knownEntregaId;
+        _entregaLoading = false;
+        _hasEntrega = true;
+      });
+      await Future.wait([
+        _loadDetalle(knownEntregaId),
+        _refresh(),
+      ]);
+      return;
+    }
+
     final result = await _apiClient.get<List<Map<String, dynamic>>>(
       '/entregas',
       queryParameters: {

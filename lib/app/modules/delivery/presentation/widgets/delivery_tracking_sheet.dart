@@ -7,19 +7,31 @@ import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import 'delivery_common.dart';
 
-Future<void> showDeliveryTrackingSheet(BuildContext context, String ordenId) {
+Future<void> showDeliveryTrackingSheet(
+  BuildContext context,
+  String ordenId, {
+  String? entregaId,
+}) {
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     showDragHandle: true,
-    builder: (_) => DeliveryTrackingSheet(ordenId: ordenId),
+    builder: (_) => DeliveryTrackingSheet(
+      ordenId: ordenId,
+      entregaId: entregaId,
+    ),
   );
 }
 
 class DeliveryTrackingSheet extends StatefulWidget {
-  const DeliveryTrackingSheet({required this.ordenId, super.key});
+  const DeliveryTrackingSheet({required this.ordenId, this.entregaId, super.key});
 
   final String ordenId;
+
+  /// Id de la entrega cuando el pedido ya la tiene embebida (hub del
+  /// repartidor). Evita re-buscar la entrega por orden, que puede fallar
+  /// segun el scope del rol.
+  final String? entregaId;
 
   @override
   State<DeliveryTrackingSheet> createState() => _DeliveryTrackingSheetState();
@@ -44,7 +56,10 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
   @override
   void initState() {
     super.initState();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => unawaited(_refresh()));
+    _pollTimer = Timer.periodic(
+      _pollInterval,
+      (_) => unawaited(_hasEntrega ? _refresh() : _resolveEntrega()),
+    );
     unawaited(_resolveEntrega());
   }
 
@@ -55,6 +70,17 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
   }
 
   Future<void> _resolveEntrega() async {
+    final knownEntregaId = widget.entregaId;
+    if (knownEntregaId != null && knownEntregaId.isNotEmpty) {
+      setState(() {
+        _entregaId = knownEntregaId;
+        _entregaLoading = false;
+        _hasEntrega = true;
+      });
+      await _refresh();
+      return;
+    }
+
     final result = await _apiClient.get<List<Map<String, dynamic>>>(
       '/entregas',
       queryParameters: {

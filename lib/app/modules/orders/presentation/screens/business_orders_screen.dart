@@ -818,7 +818,8 @@ class _BusinessOrderCard extends StatelessWidget {
                 alignment: Alignment.centerLeft,
                 child: OutlinedButton.icon(
                   onPressed: () => context.push(
-                    '${AppRoutes.orderTracking}?orden_id=${order.id}',
+                    '${AppRoutes.orderTracking}?orden_id=${order.id}'
+                    '${order.entregaId == null ? '' : '&entrega_id=${order.entregaId}'}',
                   ),
                   icon: const Icon(Icons.map_outlined, size: 18),
                   label: const Text('Ver pedido en el mapa'),
