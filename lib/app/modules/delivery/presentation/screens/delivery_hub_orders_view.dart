@@ -16,15 +16,22 @@ import '../widgets/delivery_tracking_sheet.dart';
 
 enum _DateFilter { all, today, last7, thisMonth }
 
-const _deliveryTrackedStatuses = {
-  'reservado_delivery',
+const _deliveryActiveWorkStatuses = {
   'delivery_asignado',
   'recogido_por_delivery',
   'en_ruta',
   'entregado_por_delivery',
+};
+
+const _deliveryClosedStatuses = {
   'recibido_cliente',
   'completado',
   'cancelado',
+};
+
+const _deliveryWorkStatuses = {
+  ..._deliveryActiveWorkStatuses,
+  ..._deliveryClosedStatuses,
 };
 
 const _deliveryActiveTrackingStatuses = {
@@ -49,17 +56,12 @@ const _deliveryPendingDeliveryStatuses = {
   'entregado_por_delivery',
 };
 
-const _deliveryStatusFiltersRequests = [
+const _deliveryStatusFiltersWork = [
   _StatusOption(null, 'Todos'),
-  _StatusOption('reservado_delivery', 'Reservado'),
   _StatusOption('delivery_asignado', 'Asignado'),
   _StatusOption('recogido_por_delivery', 'Recogido'),
   _StatusOption('en_ruta', 'En ruta'),
   _StatusOption('entregado_por_delivery', 'Entregado'),
-];
-
-const _deliveryStatusFiltersHistory = [
-  _StatusOption(null, 'Todos'),
   _StatusOption('recibido_cliente', 'Recibido'),
   _StatusOption('completado', 'Completado'),
   _StatusOption('cancelado', 'Cancelado'),
@@ -124,7 +126,6 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
 
   @override
   Widget build(BuildContext context) {
-    final isRequests = widget.section == DeliveryHubSection.requests;
     return Scaffold(
       floatingActionButton: FloatingActionButton(
         onPressed: () => setState(() => _showSearch = !_showSearch),
@@ -138,17 +139,20 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
           }
         },
         builder: (context, state) {
-          final scoped = state.items.where((order) {
-            if (!_deliveryTrackedStatuses.contains(order.status)) return false;
-            final closed = const {
-              'completado',
-              'cerrado',
-              'cancelado',
-              'recibido_cliente',
-            }.contains(order.status);
-            return isRequests ? !closed : closed;
-          });
-          final visible = scoped.where(_matchesFilters).toList();
+          final visible = state.items
+              .where(
+                (order) => _deliveryWorkStatuses.contains(order.status),
+              )
+              .where(_matchesFilters)
+              .toList();
+          final active = visible
+              .where((order) => _deliveryActiveWorkStatuses.contains(order.status))
+              .toList()
+            ..sort(_byNewest);
+          final closed = visible
+              .where((order) => _deliveryClosedStatuses.contains(order.status))
+              .toList()
+            ..sort(_byNewest);
 
           return Column(
             children: [
@@ -160,17 +164,13 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        isRequests
-                            ? 'Solicitudes delivery'
-                            : 'Historial delivery',
+                        'Pedidos y entregas',
                         style: Theme.of(context).textTheme.headlineSmall
                             ?.copyWith(fontWeight: FontWeight.w900),
                       ),
                       const SizedBox(height: 6),
-                      Text(
-                        isRequests
-                            ? 'Pedidos activos pendientes de recoger o entregar.'
-                            : 'Pedidos cerrados, recibidos o cancelados.',
+                      const Text(
+                        'Activos en reparto y entregas cerradas.',
                       ),
                       if (_showSearch) ...[
                         const SizedBox(height: 12),
@@ -251,17 +251,33 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
                         children: [
                           if (state.status == OrdersStatus.failure)
                             DeliveryMessageCard(
-                              message:
-                                  state.errorMessage ?? 'No se pudo cargar.',
+                              message: state.errorMessage ?? 'No se pudo cargar.',
                             )
-                          else if (visible.isEmpty)
+                          else if (active.isEmpty && closed.isEmpty)
                             const DeliveryMessageCard(
                               message: 'No hay pedidos con esos filtros.',
                             )
-                          else
-                            ...visible.map(
-                              (order) => DeliveryOrderCard(order: order),
-                            ),
+                          else ...[
+                            if (active.isNotEmpty) ...[
+                              _SectionHeader(
+                                title: 'Activos',
+                                icon: Icons.local_shipping_rounded,
+                              ),
+                              ...active.map(
+                                (order) => DeliveryOrderCard(order: order),
+                              ),
+                            ],
+                            if (closed.isNotEmpty) ...[
+                              const SizedBox(height: 8),
+                              _SectionHeader(
+                                title: 'Historial',
+                                icon: Icons.history_rounded,
+                              ),
+                              ...closed.map(
+                                (order) => DeliveryOrderCard(order: order),
+                              ),
+                            ],
+                          ],
                         ],
                       ),
                     );
@@ -273,6 +289,12 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
         },
       ),
     );
+  }
+
+  int _byNewest(OrderModel a, OrderModel b) {
+    final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+    return bDate.compareTo(aDate);
   }
 
   bool _matchesFilters(OrderModel order) {
@@ -422,10 +444,7 @@ class _DeliveryHubOrdersViewState extends State<DeliveryHubOrdersView> {
     return 'Todos';
   }
 
-  List<_StatusOption> get _statusOptions =>
-      widget.section == DeliveryHubSection.requests
-      ? _deliveryStatusFiltersRequests
-      : _deliveryStatusFiltersHistory;
+  List<_StatusOption> get _statusOptions => _deliveryStatusFiltersWork;
 
   String _dateLabel(_DateFilter value) {
     return switch (value) {
@@ -593,12 +612,82 @@ class DeliveryOrderCard extends StatelessWidget {
                           : 'Ver en el mapa y generar ruta',
                     ),
                   ),
+                if (deliveryAllowedNextStatuses(order.status).isNotEmpty)
+                  OutlinedButton.icon(
+                    onPressed: () => _pickManualStatus(context, order),
+                    icon: const Icon(Icons.tune_rounded, size: 18),
+                    label: const Text('Cambiar estado'),
+                  ),
               ],
             ),
           ],
         ),
       ),
     );
+  }
+
+  Future<void> _pickManualStatus(BuildContext context, OrderModel order) async {
+    final allowed = deliveryAllowedNextStatuses(order.status);
+    if (allowed.isEmpty) return;
+    final selected = await showModalBottomSheet<String>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheetContext) {
+        return SafeArea(
+          child: ListView(
+            shrinkWrap: true,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 6, 20, 8),
+                child: Text(
+                  'Cambiar estado del pedido',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              ...allowed.map((status) {
+                return ListTile(
+                  leading: const Icon(Icons.radio_button_off_rounded),
+                  title: Text(
+                    _deliveryShortStatusLabels[status] ?? status,
+                  ),
+                  onTap: () => Navigator.of(sheetContext).pop(status),
+                );
+              }),
+              const SizedBox(height: 10),
+            ],
+          ),
+        );
+      },
+    );
+    if (selected == null || !context.mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Confirmar cambio de estado'),
+        content: Text(
+          'Cambiar el pedido a '
+          '${_deliveryShortStatusLabels[selected] ?? selected}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(true),
+            child: const Text('Cambiar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed == true && context.mounted) {
+      await context
+          .read<OrdersCubit>()
+          .updateStatusWithOptions(order.id, status: selected);
+    }
   }
 
   IconData _iconFor(String? type) {
@@ -710,4 +799,44 @@ class _StatusOption {
 String _shortDeliveryStatusLabel(String? status, String fallback) {
   if (status == null || status.isEmpty) return fallback;
   return _deliveryShortStatusLabels[status] ?? fallback;
+}
+
+/// Estados a los que el delivery puede pasar manualmente desde su tarjeta,
+/// limitados a las transiciones que el backend permite para el rol delivery
+/// (isAllowedOrderStatusTransition).
+List<String> deliveryAllowedNextStatuses(String? current) {
+  return switch (current) {
+    'delivery_asignado' => const ['recogido_por_delivery', 'en_ruta'],
+    'recogido_por_delivery' => const ['en_ruta', 'entregado_por_delivery'],
+    'en_ruta' => const ['entregado_por_delivery'],
+    'entregado_por_delivery' => const ['completado'],
+    'recibido_cliente' => const ['completado'],
+    _ => const <String>[],
+  };
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.title, required this.icon});
+
+  final String title;
+  final IconData icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 12, bottom: 8),
+      child: Row(
+        children: [
+          Icon(icon, size: 18, color: Theme.of(context).colorScheme.primary),
+          const SizedBox(width: 8),
+          Text(
+            title,
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+              fontWeight: FontWeight.w900,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }

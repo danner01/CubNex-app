@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
 
+import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
@@ -288,7 +289,37 @@ class _NotificationTile extends StatelessWidget {
       return;
     }
 
+    // Si la pantalla destino pertenece a otro modo (negocio/delivery/cliente),
+    // cambia el RoleMode primero: HomeShell expulsa las rutas de otros modos
+    // (home_shell.dart _isModeHomeMismatch) y la notificacion no navegaria.
+    final requiredMode = _modeForTarget(target);
+    if (requiredMode != null) {
+      final roleMode = context.read<RoleModeCubit>();
+      if (requiredMode != roleMode.state.activeMode &&
+          roleMode.state.availableModes.contains(requiredMode)) {
+        await roleMode.setMode(requiredMode);
+        if (!context.mounted) return;
+      }
+    }
+
     context.go(target);
+  }
+
+  RoleMode? _modeForTarget(String target) {
+    if (target.startsWith('/delivery')) return RoleMode.delivery;
+    if (target.startsWith('/business')) return RoleMode.business;
+    // Pantallas exclusivas del modo cliente: HomeShell las expulsa si el modo
+    // activo es negocio o delivery (home_shell.dart _isModeHomeMismatch).
+    if (target == AppRoutes.home ||
+        target == AppRoutes.cart ||
+        target == AppRoutes.orders ||
+        target == AppRoutes.promotions ||
+        target == AppRoutes.posts) {
+      return RoleMode.client;
+    }
+    // Las demas (perfil, creditos, notificaciones, soporte, store, producto,
+    // tickets...) se ven desde cualquier modo: no hay que cambiar.
+    return null;
   }
 
   String? _normalizedLink(String? rawLink) {
@@ -339,6 +370,9 @@ class _NotificationTile extends StatelessWidget {
       return AppRoutes.deliveryDashboard;
     }
     if (link == '/pedidos' || link == AppRoutes.orders) {
+      return AppRoutes.orders;
+    }
+    if (link.startsWith('/ordenes/')) {
       return AppRoutes.orders;
     }
     if (link == '/negocio/pedidos' ||

@@ -10,6 +10,7 @@ import 'delivery_hub_dashboard_view.dart';
 import 'delivery_hub_orders_view.dart';
 import 'delivery_hub_profile_view.dart';
 import 'delivery_route_screen.dart';
+import 'delivery_solicitudes_view.dart';
 
 export '../delivery_hub_section.dart';
 
@@ -28,8 +29,15 @@ class DeliveryHubScreen extends StatelessWidget {
         ),
       );
     }
-    if (section == DeliveryHubSection.requests ||
-        section == DeliveryHubSection.history) {
+    if (section == DeliveryHubSection.requests) {
+      return BlocProvider.value(
+        value: sl<DeliveryCubit>(),
+        child: const DeliveryCubitBootstrap(
+          child: DeliverySolicitudesView(),
+        ),
+      );
+    }
+    if (section == DeliveryHubSection.history) {
       return BlocProvider(
         create: (_) => sl<OrdersCubit>()..load(),
         child: DeliveryHubOrdersView(section: section),
