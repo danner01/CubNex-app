@@ -231,6 +231,12 @@ class _ProfileScreenState extends State<ProfileScreen> {
 List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
   final common = [
     _ProfileTile(
+      icon: Icons.show_chart_rounded,
+      title: 'Finanzas',
+      subtitle: 'Cotizaciones de monedas y precios de productos.',
+      onTap: () => context.go(AppRoutes.finanzas),
+    ),
+    _ProfileTile(
       icon: Icons.monetization_on_outlined,
       title: 'Billetera',
       subtitle: 'Saldo ConKkao, transferencias por alias/QR y movimientos.',

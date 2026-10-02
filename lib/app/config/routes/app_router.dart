@@ -22,6 +22,8 @@ import '../../modules/delivery/presentation/screens/delivery_nearby_screen.dart'
 import '../../modules/delivery/presentation/screens/delivery_queue_map_screen.dart';
 import '../../modules/delivery/presentation/screens/delivery_order_tracking_screen.dart';
 import '../../modules/favorites/presentation/screens/favorites_screen.dart';
+import '../../modules/finanzas/presentation/screens/finanzas_screen.dart';
+import '../../modules/finanzas/presentation/screens/finanzas_detalle_screen.dart';
 import '../../modules/credits/presentation/screens/credits_screen.dart';
 import '../../modules/gamification/presentation/screens/gamification_screen.dart';
 import '../../modules/home/presentation/screens/home_screen.dart';
@@ -355,6 +357,18 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.tutorials,
             builder: (_, __) => const TutorialsScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.finanzas,
+            builder: (_, __) => const FinanzasScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.finanzasDetalle,
+            builder: (context, state) => FinanzasDetalleScreen(
+              tipo: state.uri.queryParameters['tipo'] ?? 'moneda',
+              referencia: state.uri.queryParameters['ref'] ?? '',
+              nombre: state.uri.queryParameters['nombre'] ?? 'Finanzas',
+            ),
           ),
         ],
       ),

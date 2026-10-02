@@ -47,6 +47,12 @@ class MarketAppBar extends StatelessWidget implements PreferredSizeWidget {
               onPressed: () => context.go(AppRoutes.notifications),
             ),
             const SizedBox(width: 8),
+            _HeaderButton(
+              tooltip: 'Finanzas',
+              icon: Icons.show_chart_rounded,
+              onPressed: () => context.go(AppRoutes.finanzas),
+            ),
+            const SizedBox(width: 8),
             switch (roleMode) {
               RoleMode.client => Row(
                 mainAxisSize: MainAxisSize.min,

@@ -56,6 +56,8 @@ class AppRoutes {
   static const deliveryQueueMap = '/delivery/queue-map';
   static const supportTickets = '/soporte/tickets';
   static const tutorials = '/tutoriales';
+  static const finanzas = '/finanzas';
+  static const finanzasDetalle = '/finanzas/detalle';
 
   static String product(String id) => '/product/$id';
   static String store(String id) => '/store/$id';

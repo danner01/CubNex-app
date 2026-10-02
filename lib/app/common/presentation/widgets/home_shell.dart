@@ -9,6 +9,7 @@ import '../../blocs/app_session/app_session_cubit.dart';
 import '../../blocs/role_mode/role_mode_cubit.dart';
 import '../../entities/employee_permissions.dart';
 import 'auth_required_dialog.dart';
+import 'finanzas_ticker_bar.dart';
 import 'market_app_bar.dart';
 
 const _clientAllowlistBusinessRoutes = <String>{
@@ -41,7 +42,12 @@ class HomeShell extends StatelessWidget {
         showBackButton: showBackButton,
         fallbackLocation: expectedHome,
       ),
-      body: child,
+      body: Column(
+        children: [
+          const FinanceTickerBar(),
+          Expanded(child: child),
+        ],
+      ),
       bottomNavigationBar: roleMode == RoleMode.business
           ? _BusinessBottomBar(
               location: location,
