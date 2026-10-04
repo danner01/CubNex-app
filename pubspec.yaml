@@ -1,7 +1,7 @@
 name: cubnex_app
 description: "ConKkao mobile marketplace for clients, guests, and business owners."
 publish_to: "none"
-version: 0.1.43+53
+version: 0.1.44+54
 
 environment:
   sdk: ^3.9.2

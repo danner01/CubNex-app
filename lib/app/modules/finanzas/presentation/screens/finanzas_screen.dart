@@ -31,11 +31,19 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
   String? _error;
   TickerSnapshot? _ticker;
   FinanzasProductos? _productos;
+  final TextEditingController _buscadorController = TextEditingController();
+  String _busqueda = '';
 
   @override
   void initState() {
     super.initState();
     _cargar();
+  }
+
+  @override
+  void dispose() {
+    _buscadorController.dispose();
+    super.dispose();
   }
 
   Future<void> _cargar({bool refresh = false}) async {
@@ -74,7 +82,9 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
             sliver: SliverList.list(
               children: [
-                _EncabezadoFinanzas(actualizadoEn: _ticker?.referencia.actualizadoEn),
+                _EncabezadoFinanzas(
+                  actualizadoEn: _ticker?.referencia.actualizadoEn,
+                ),
                 const SizedBox(height: 14),
                 const _SeccionFinanzas(titulo: 'Mercado'),
                 const SizedBox(height: 8),
@@ -84,7 +94,13 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
                   ..._seccionMercado(),
                 const SizedBox(height: 18),
                 const _SeccionFinanzas(titulo: 'Productos'),
-                const SizedBox(height: 8),
+                const SizedBox(height: 10),
+                _ProductosBuscador(
+                  controller: _buscadorController,
+                  onChanged: (valor) =>
+                      setState(() => _busqueda = valor.trim()),
+                ),
+                const SizedBox(height: 4),
                 if (_cargando)
                   const _CargandoFinanzas()
                 else
@@ -131,9 +147,8 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
           valor: valor,
           tendencia: tendencias[entry.key],
           desglose: '"${tasa.fuente.isEmpty ? 'mercado' : tasa.fuente}"',
-          onTap: () => context.go(
-            _detalleUri('moneda', entry.key, tasa.nombre),
-          ),
+          onTap: () =>
+              context.go(_detalleUri('moneda', entry.key, tasa.nombre)),
         ),
       );
     }
@@ -160,15 +175,50 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
       }
     }
 
-    return filas;
+    final widgets = <Widget>[];
+    for (var i = 0; i < filas.length; i++) {
+      if (i > 0) widgets.add(const SizedBox(height: 6));
+      widgets.add(filas[i]);
+    }
+    return widgets;
   }
 
   List<Widget> _seccionProductos() {
     final productos = _productos;
     if (productos == null || productos.categorias.isEmpty) {
       return const [
-        _MensajeFinanzas(texto: 'Aun no hay productos con precios registrados.'),
+        _MensajeFinanzas(
+          texto: 'Aun no hay productos con precios registrados.',
+        ),
       ];
+    }
+
+    final query = _busqueda.toLowerCase();
+    if (query.isNotEmpty) {
+      final resultados = _resultadosBusqueda(productos, query);
+      if (resultados.isEmpty) {
+        return const [
+          _MensajeFinanzas(
+            texto:
+                'No encontramos productos o servicios que coincidan con tu busqueda.',
+          ),
+        ];
+      }
+      final widgets = <Widget>[
+        Text(
+          '${resultados.length} resultado(s) para "$_busqueda"',
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 10),
+      ];
+      for (var i = 0; i < resultados.length; i++) {
+        widgets.add(_ProductoResultadoFila(producto: resultados[i].producto));
+        widgets.add(const SizedBox(height: 6));
+      }
+      return widgets;
     }
 
     final widgets = <Widget>[];
@@ -185,6 +235,27 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
     }
     return widgets;
   }
+
+  List<({ProductoFinanzas producto, String categoria})> _resultadosBusqueda(
+    FinanzasProductos productos,
+    String query,
+  ) {
+    final salida = <({ProductoFinanzas producto, String categoria})>[];
+    for (final categoria in productos.categorias) {
+      for (final producto in categoria.productos) {
+        final texto = [
+          categoria.nombre,
+          producto.nombre,
+          producto.marca ?? '',
+          producto.descripcion,
+        ].join(' ').toLowerCase();
+        if (texto.contains(query)) {
+          salida.add((producto: producto, categoria: categoria.nombre));
+        }
+      }
+    }
+    return salida;
+  }
 }
 
 class _EncabezadoFinanzas extends StatelessWidget {
@@ -199,9 +270,9 @@ class _EncabezadoFinanzas extends StatelessWidget {
       children: [
         Text(
           'Finanzas',
-          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.headlineMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
         const SizedBox(height: 4),
         Text(
@@ -209,8 +280,8 @@ class _EncabezadoFinanzas extends StatelessWidget {
               ? 'Cotizaciones de monedas y precios de productos.'
               : 'Cotizaciones y precios de productos. Actualizado ${_fechaCorta(actualizadoEn!)}.',
           style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
+            color: Theme.of(context).colorScheme.onSurfaceVariant,
+          ),
         ),
       ],
     );
@@ -246,9 +317,9 @@ class _SeccionFinanzas extends StatelessWidget {
         const SizedBox(width: 8),
         Text(
           titulo,
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
       ],
     );
@@ -406,10 +477,12 @@ class _CategoriaCardState extends State<_CategoriaCard> {
   @override
   Widget build(BuildContext context) {
     final categoria = widget.categoria;
-    final alza = categoria.tendenciaPorcentual == null ||
+    final alza =
+        categoria.tendenciaPorcentual == null ||
         categoria.tendenciaPorcentual! >= 0;
-    final colorVariacion =
-        categoria.tendenciaPorcentual == null ? null : (alza ? _subida : _bajada);
+    final colorVariacion = categoria.tendenciaPorcentual == null
+        ? null
+        : (alza ? _subida : _bajada);
     final variantes = _agruparVariantes(categoria.productos);
 
     return Card(
@@ -439,7 +512,9 @@ class _CategoriaCardState extends State<_CategoriaCard> {
                           'en ${categoria.negocios} negocios',
                           style: TextStyle(
                             fontSize: 12,
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onSurfaceVariant,
                           ),
                         ),
                       ],
@@ -469,7 +544,9 @@ class _CategoriaCardState extends State<_CategoriaCard> {
                               ),
                               const SizedBox(width: 2),
                               Text(
-                                formatearTendencia(categoria.tendenciaPorcentual),
+                                formatearTendencia(
+                                  categoria.tendenciaPorcentual,
+                                ),
                                 style: TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.w700,
@@ -639,7 +716,128 @@ class _VarianteFila extends StatelessWidget {
         ],
       ),
       onTap: () => context.go(
-        _detalleUri('producto', variante.productoRepresentante.id, variante.etiqueta),
+        _detalleUri(
+          'producto',
+          variante.productoRepresentante.id,
+          variante.etiqueta,
+        ),
+      ),
+    );
+  }
+}
+
+class _ProductosBuscador extends StatelessWidget {
+  const _ProductosBuscador({required this.controller, required this.onChanged});
+
+  final TextEditingController controller;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return TextField(
+      controller: controller,
+      onChanged: onChanged,
+      textInputAction: TextInputAction.search,
+      decoration: InputDecoration(
+        hintText: 'Buscar producto o servicio por palabra clave...',
+        prefixIcon: const Icon(Icons.search_rounded),
+        suffixIcon: controller.text.isEmpty
+            ? null
+            : IconButton(
+                tooltip: 'Limpiar',
+                icon: const Icon(Icons.close_rounded),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                },
+              ),
+        filled: true,
+        isDense: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(14),
+          borderSide: BorderSide.none,
+        ),
+        contentPadding: const EdgeInsets.symmetric(vertical: 12),
+      ),
+    );
+  }
+}
+
+class _ProductoResultadoFila extends StatelessWidget {
+  const _ProductoResultadoFila({required this.producto});
+
+  final ProductoFinanzas producto;
+
+  @override
+  Widget build(BuildContext context) {
+    final tendencia = producto.tendenciaPorcentual;
+    final alza = tendencia == null || tendencia >= 0;
+    final color = tendencia == null ? null : (alza ? _subida : _bajada);
+
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => context.go(
+          _detalleUri('producto', producto.id, producto.descripcion),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: const Icon(Icons.sell_outlined, size: 20),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      producto.descripcion,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13.5,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      producto.precioCup == null
+                          ? 'Precio no disponible'
+                          : '${formatoDinero(producto.precioCup)} CUP',
+                      style: TextStyle(
+                        fontWeight: FontWeight.w800,
+                        fontSize: 13,
+                        color: color,
+                        fontFeatures: const [FontFeature.tabularFigures()],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (tendencia != null)
+                Text(
+                  formatearTendencia(tendencia),
+                  style: TextStyle(
+                    fontSize: 12,
+                    fontWeight: FontWeight.w700,
+                    color: color,
+                    fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ),
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right_rounded, size: 20),
+            ],
+          ),
+        ),
       ),
     );
   }
