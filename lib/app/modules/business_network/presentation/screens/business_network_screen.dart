@@ -39,8 +39,14 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   String? _loadedBusinessId;
   int _loadRequestId = 0;
   int _searchRequestId = 0;
+  int _intelRequestId = 0;
   bool _requestSheetOpen = false;
+  bool _demandSheetOpen = false;
+  var _intelLoading = false;
+  String? _intelError;
   List<BusinessConnectionModel> _connections = const [];
+  List<_NetworkSuggestionItem> _suggestions = const [];
+  List<_NetworkOpportunityItem> _opportunities = const [];
   List<BusinessModel> _candidates = const [];
   final _connectionsCache = <String, List<BusinessConnectionModel>>{};
   final _businessCache = <String, BusinessModel>{};
@@ -59,15 +65,16 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   }
 
   Future<void> _reloadForActiveBusiness() async {
-    var activeBusiness = context.read<ActiveBusinessCubit>().state.activeBusiness;
+    var activeBusiness = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness;
     if (activeBusiness == null) {
       await context.read<ActiveBusinessCubit>().load();
       if (!mounted) return;
       activeBusiness = context.read<ActiveBusinessCubit>().state.activeBusiness;
     }
-    _log(
-      'reload:start activeBusiness=${activeBusiness?.id}',
-    );
+    _log('reload:start activeBusiness=${activeBusiness?.id}');
     if (activeBusiness == null) {
       await _load();
       return;
@@ -83,14 +90,94 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         _loading = false;
         _error = null;
       });
-      _log('reload:cache-hit business=${activeBusiness.id} connections=${cached.length}');
+      _log(
+        'reload:cache-hit business=${activeBusiness.id} connections=${cached.length}',
+      );
     }
     await Future.wait<void>([
       _load(expectedBusinessId: activeBusiness.id),
       _searchBusinesses(_searchQuery, business: activeBusiness),
+      _loadNetworkIntel(businessId: activeBusiness.id),
     ]);
     _log(
-      'reload:done loadedBusiness=$_loadedBusinessId connections=${_connections.length} candidates=${_candidates.length}',
+      'reload:done loadedBusiness=$_loadedBusinessId connections=${_connections.length} candidates=${_candidates.length} suggestions=${_suggestions.length} opportunities=${_opportunities.length}',
+    );
+  }
+
+  Future<void> _loadNetworkIntel({String? businessId}) async {
+    final requestId = ++_intelRequestId;
+    final activeBusiness =
+        businessId ?? context.read<ActiveBusinessCubit>().state.activeBusiness;
+    if (activeBusiness == null) {
+      _log('intel[$requestId]:skipped no active business');
+      return;
+    }
+    _log('intel[$requestId]:start business=$activeBusiness');
+    if (mounted) {
+      setState(() {
+        _intelLoading = true;
+        _intelError = null;
+      });
+    }
+
+    final results = await Future.wait<dynamic>([
+      _apiClient
+          .get<List<_NetworkSuggestionItem>>(
+            '/red-negocios/sugerencias',
+            queryParameters: {'negocio_id': activeBusiness, 'limit': 12},
+            parser: (json) =>
+                _asList(json).map(_NetworkSuggestionItem.fromJson).toList(),
+          )
+          .timeout(
+            const Duration(seconds: 12),
+            onTimeout: () => const ApiResult.failure(
+              ApiFailure(
+                code: 'sugerencias_timeout',
+                message: 'Las sugerencias tardaron demasiado.',
+              ),
+            ),
+          ),
+      _apiClient
+          .get<List<_NetworkOpportunityItem>>(
+            '/red-negocios/oportunidades',
+            queryParameters: {'negocio_id': activeBusiness, 'limit': 20},
+            parser: (json) => _asList(
+              json,
+              key: 'oportunidades',
+            ).map(_NetworkOpportunityItem.fromJson).toList(),
+          )
+          .timeout(
+            const Duration(seconds: 14),
+            onTimeout: () => const ApiResult.failure(
+              ApiFailure(
+                code: 'oportunidades_timeout',
+                message: 'Las oportunidades tardaron demasiado.',
+              ),
+            ),
+          ),
+    ]);
+
+    if (!mounted || requestId != _intelRequestId) return;
+    final suggestionsResult =
+        results[0] as ApiResult<List<_NetworkSuggestionItem>>;
+    final opportunitiesResult =
+        results[1] as ApiResult<List<_NetworkOpportunityItem>>;
+    final errors = <String?>[
+      suggestionsResult.error?.message,
+      opportunitiesResult.error?.message,
+    ].whereType<String>();
+    setState(() {
+      _intelLoading = false;
+      _intelError = errors.isEmpty ? null : errors.first;
+      if (suggestionsResult.isSuccess) {
+        _suggestions = suggestionsResult.data ?? const [];
+      }
+      if (opportunitiesResult.isSuccess) {
+        _opportunities = opportunitiesResult.data ?? const [];
+      }
+    });
+    _log(
+      'intel[$requestId]:done suggestions=${_suggestions.length} opportunities=${_opportunities.length} error=$_intelError',
     );
   }
 
@@ -98,7 +185,8 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     final requestId = ++_loadRequestId;
     final loadStopwatch = Stopwatch()..start();
     var activeBusinessState = context.read<ActiveBusinessCubit>().state;
-    var businessId = expectedBusinessId ?? activeBusinessState.activeBusiness?.id;
+    var businessId =
+        expectedBusinessId ?? activeBusinessState.activeBusiness?.id;
     _log(
       'load[$requestId]:start business=$businessId status=${activeBusinessState.status.name}',
     );
@@ -161,6 +249,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
             queryParameters: {
               'negocio_id': businessId,
               'limit': 30,
+              'include_requests': 'true',
               'order': 'created_at.desc',
             },
             parser: (json) {
@@ -182,7 +271,8 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
       // Reintenta solo en errores de servidor (5xx) y sin statusCode (timeout/red);
       // errores 4xx (auth, permiso) y éxito son definitivos.
       final errStatus = result.error?.statusCode;
-      final isDefinitive = result.isSuccess ||
+      final isDefinitive =
+          result.isSuccess ||
           (errStatus != null && errStatus >= 400 && errStatus < 500);
       if (isDefinitive) break;
     }
@@ -275,13 +365,30 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         .toList();
     if (matches.isEmpty) return null;
 
-    final active = matches.where((connection) => connection.isActive).firstOrNull;
+    final active = matches
+        .where((connection) => connection.isActive)
+        .firstOrNull;
     if (active != null) return active;
 
-    final incoming = matches.where((connection) => connection.isIncomingRequest).firstOrNull;
+    final incoming = matches
+        .where((connection) => connection.isIncomingRequest)
+        .firstOrNull;
     if (incoming != null) return incoming;
 
     return matches.first;
+  }
+
+  int get _pendingIncomingRequestsCount {
+    var count = 0;
+    for (final connection in _connections) {
+      for (final request in connection.requests) {
+        final isIncoming =
+            request.targetBusinessId == connection.businessId &&
+            request.requesterBusinessId == connection.connectedBusinessId;
+        if (isIncoming && request.isPendingRequest) count++;
+      }
+    }
+    return count;
   }
 
   Future<void> _openBusinessAction(BusinessModel target) async {
@@ -340,8 +447,8 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     BusinessModel? business,
   }) async {
     final requestId = ++_searchRequestId;
-    final activeBusiness = business ??
-        context.read<ActiveBusinessCubit>().state.activeBusiness;
+    final activeBusiness =
+        business ?? context.read<ActiveBusinessCubit>().state.activeBusiness;
     if (activeBusiness == null) {
       _log('search[$requestId]:skipped no active business query="$query"');
       return;
@@ -795,8 +902,8 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
             (item) => item.id == connection.id
                 ? item.copyWith(notifications: value)
                 : item,
-            )
-            .toList();
+          )
+          .toList();
       if (_loadedBusinessId != null) {
         _connectionsCache[_loadedBusinessId!] = _connections;
       }
@@ -817,7 +924,9 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
 
   Future<void> _requestProduct(BusinessConnectionModel connection) async {
     if (_requestSheetOpen) {
-      _log('request_product:ignored duplicate open for connection=${connection.id}');
+      _log(
+        'request_product:ignored duplicate open for connection=${connection.id}',
+      );
       return;
     }
 
@@ -829,13 +938,14 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     if (!mounted) return;
 
     _requestSheetOpen = true;
-    final product = await showModalBottomSheet<_SupplyRequestPayload>(
-      context: context,
-      isScrollControlled: true,
-      builder: (_) => _SupplyRequestSheet(connection: enrichedConnection),
-    ).whenComplete(() {
-      _requestSheetOpen = false;
-    });
+    final product =
+        await showModalBottomSheet<_SupplyRequestPayload>(
+          context: context,
+          isScrollControlled: true,
+          builder: (_) => _SupplyRequestSheet(connection: enrichedConnection),
+        ).whenComplete(() {
+          _requestSheetOpen = false;
+        });
     if (product == null || !mounted) return;
 
     final result = await _apiClient.post<void>(
@@ -864,6 +974,96 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     );
   }
 
+  Future<void> _openDemandSheet() async {
+    final activeBusiness = context
+        .read<ActiveBusinessCubit>()
+        .state
+        .activeBusiness;
+    if (activeBusiness == null) {
+      showSnackOrAuthDialog(context, 'Selecciona un negocio activo.');
+      return;
+    }
+    if (_demandSheetOpen) {
+      _log('demand_sheet:ignored duplicate open');
+      return;
+    }
+
+    _demandSheetOpen = true;
+    final payload = await showModalBottomSheet<_DemandPayload>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => const _DemandSheet(),
+    ).whenComplete(() => _demandSheetOpen = false);
+    if (payload == null || !mounted) return;
+
+    final result = await _apiClient.post<void>(
+      '/red-negocios/publicar-demanda',
+      data: {
+        'negocio_id': activeBusiness.id,
+        'vendo_como_mayorista': payload.sellsAsWholesaler,
+        if (payload.showcase) 'es_escaparate_mayorista': true,
+        if (payload.wholesaleDescription.isNotEmpty)
+          'descripcion_mayorista': payload.wholesaleDescription,
+        if (payload.seekingProducts.isNotEmpty)
+          'busco_productos': payload.seekingProducts,
+        if (payload.supplyRadiusKm != null)
+          'radio_abastecimiento_km': payload.supplyRadiusKm,
+      },
+      parser: (_) {},
+    );
+
+    if (!mounted) return;
+    showSnackOrAuthDialog(
+      context,
+      result.isSuccess
+          ? 'Oferta o demanda publicada en la red.'
+          : result.error?.message ?? 'No se pudo publicar la senal.',
+    );
+    if (result.isSuccess) {
+      unawaited(_loadNetworkIntel(businessId: activeBusiness.id));
+    }
+  }
+
+  Future<void> _respondRequest(
+    BusinessConnectionRequestModel request,
+    String action,
+  ) async {
+    final payload = await showModalBottomSheet<_RespondRequestPayload>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => _RespondRequestSheet(request: request, action: action),
+    );
+    if (payload == null || !mounted) return;
+
+    final result = await _apiClient.post<void>(
+      '/solicitudes-red/${request.id}/$action',
+      data: {
+        if (payload.unitPrice != null)
+          'propuesta_precio_por_unidad': payload.unitPrice,
+        if (payload.message.isNotEmpty) 'respuesta_proveedor': payload.message,
+      },
+      parser: (_) {},
+    );
+
+    if (!mounted) return;
+    final label = switch (action) {
+      'aceptar' => 'aceptada',
+      'rechazar' => 'rechazada',
+      'cancelar' => 'cancelada',
+      'confirmar' => 'completada',
+      _ => action,
+    };
+    showSnackOrAuthDialog(
+      context,
+      result.isSuccess
+          ? 'Solicitud $label.'
+          : result.error?.message ?? 'No se pudo actualizar la solicitud.',
+    );
+    if (result.isSuccess) {
+      unawaited(_reloadForActiveBusiness());
+    }
+  }
+
   Future<void> _showSubscribersSheet() async {
     final activeBusiness = context
         .read<ActiveBusinessCubit>()
@@ -876,10 +1076,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
 
     final result = await _apiClient.get<List<_BusinessSubscriber>>(
       '/suscripciones',
-      queryParameters: {
-        'negocio_id': activeBusiness.id,
-        'limit': 30,
-      },
+      queryParameters: {'negocio_id': activeBusiness.id, 'limit': 30},
       parser: (json) =>
           _asList(json).map(_BusinessSubscriber.fromJson).toList(),
     );
@@ -888,7 +1085,8 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
     if (!result.isSuccess) {
       showSnackOrAuthDialog(
         context,
-        result.error?.message ?? 'No se pudieron cargar los clientes suscritos.',
+        result.error?.message ??
+            'No se pudieron cargar los clientes suscritos.',
       );
       return;
     }
@@ -927,7 +1125,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         .state
         .activeBusiness;
     return DefaultTabController(
-      length: 2,
+      length: 3,
       child: BlocListener<ActiveBusinessCubit, ActiveBusinessState>(
         listenWhen: (previous, current) =>
             previous.activeBusiness?.id != current.activeBusiness?.id,
@@ -952,6 +1150,23 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                               ?.copyWith(fontWeight: FontWeight.w900),
                         ),
                       ),
+                      if (_pendingIncomingRequestsCount > 0) ...[
+                        Chip(
+                          visualDensity: VisualDensity.compact,
+                          avatar: Icon(
+                            Icons.notifications_active_outlined,
+                            size: 16,
+                            color: AppColors.goldDark,
+                          ),
+                          label: Text(
+                            '$_pendingIncomingRequestsCount por responder',
+                          ),
+                          backgroundColor: AppColors.gold.withValues(
+                            alpha: 0.16,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
                       IconButton.filledTonal(
                         onPressed: _reloadForActiveBusiness,
                         icon: const Icon(Icons.refresh_rounded),
@@ -971,6 +1186,15 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                     'Conecta proveedores, clientes mayoristas, aliados y deliverys. Recibe avisos cuando actualicen productos o solicita abastecimiento con antelacion.',
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      onPressed: _openDemandSheet,
+                      icon: const Icon(Icons.storefront_outlined),
+                      label: const Text('Publicar oferta o demanda'),
+                    ),
+                  ),
                   const SizedBox(height: 16),
                   _BusinessSearchPanel(
                     candidates: _candidates,
@@ -985,6 +1209,10 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                     tabs: [
                       Tab(icon: Icon(Icons.list_alt_rounded), text: 'Lista'),
                       Tab(icon: Icon(Icons.hub_outlined), text: 'Modo Red'),
+                      Tab(
+                        icon: Icon(Icons.trending_up_rounded),
+                        text: 'Oportunidades',
+                      ),
                     ],
                   ),
                   SizedBox(
@@ -1009,6 +1237,21 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
                           onTap: (connection) =>
                               _showConnectionDetails(connection),
                         ),
+                        _OpportunitiesTab(
+                          loading: _intelLoading,
+                          error: _intelError,
+                          suggestions: _suggestions,
+                          opportunities: _opportunities,
+                          onOpenDemand: _openDemandSheet,
+                          onOpenBusiness: _openBusinessAction,
+                          onRequestProduct: (businessId) {
+                            final relation = _relationForBusinessId(businessId);
+                            if (relation != null) {
+                              unawaited(_requestProduct(relation));
+                            }
+                          },
+                          relationForBusinessId: _relationForBusinessId,
+                        ),
                       ],
                     ),
                   ),
@@ -1032,6 +1275,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
         onRequestProduct: () => _requestProduct(connection),
         onEdit: () => _editConnection(connection),
         onDelete: () => _deleteConnection(connection),
+        onRespondRequest: (request, action) => _respondRequest(request, action),
         onAccept: connection.isPending && connection.isIncomingRequest
             ? () => _acceptConnection(connection)
             : null,
@@ -1040,7 +1284,7 @@ class _BusinessNetworkScreenState extends State<BusinessNetworkScreen> {
   }
 }
 
-List<Map<String, dynamic>> _asList(dynamic json) {
+List<Map<String, dynamic>> _asList(dynamic json, {String? key}) {
   if (json is List) {
     return json
         .whereType<Map>()
@@ -1048,7 +1292,8 @@ List<Map<String, dynamic>> _asList(dynamic json) {
         .toList();
   }
   if (json is Map) {
-    final values = json['items'] ?? json['datos'] ?? json['negocios'];
+    final values =
+        json[key] ?? json['items'] ?? json['datos'] ?? json['negocios'];
     if (values is List) {
       return values
           .whereType<Map>()
@@ -1233,8 +1478,9 @@ class _ConnectionCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final business = connection.connectedBusiness;
     final businessName = _connectionBusinessName(connection);
-    final targetBusinessId =
-        business?.id.isNotEmpty == true ? business!.id : connection.connectedBusinessId;
+    final targetBusinessId = business?.id.isNotEmpty == true
+        ? business!.id
+        : connection.connectedBusinessId;
     return Card(
       clipBehavior: Clip.antiAlias,
       child: InkWell(
@@ -1681,12 +1927,14 @@ class _BusinessSubscriber {
     final rawProfile = json['perfiles'] ?? json['cliente'] ?? json['perfil'];
     final profile = rawProfile is List
         ? rawProfile.isNotEmpty && rawProfile.first is Map
-            ? Map<String, dynamic>.from(rawProfile.first as Map)
-            : <String, dynamic>{}
+              ? Map<String, dynamic>.from(rawProfile.first as Map)
+              : <String, dynamic>{}
         : rawProfile is Map
-            ? Map<String, dynamic>.from(rawProfile)
-            : <String, dynamic>{};
-    final name = '${profile['nombre_completo'] ?? profile['nombre'] ?? 'Cliente'}'.trim();
+        ? Map<String, dynamic>.from(rawProfile)
+        : <String, dynamic>{};
+    final name =
+        '${profile['nombre_completo'] ?? profile['nombre'] ?? 'Cliente'}'
+            .trim();
     return _BusinessSubscriber(
       id: '${json['id'] ?? ''}',
       clientId: '${json['cliente_id'] ?? ''}',
@@ -1722,9 +1970,9 @@ class _SubscribersSheet extends StatelessWidget {
           children: [
             Text(
               'Clientes suscritos de $businessName',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
             ),
             const SizedBox(height: 8),
             Text(
@@ -1761,23 +2009,30 @@ class _SubscribersSheet extends StatelessWidget {
                                 CircleAvatar(
                                   child: Text(
                                     subscriber.displayName.isNotEmpty
-                                        ? subscriber.displayName.substring(0, 1).toUpperCase()
+                                        ? subscriber.displayName
+                                              .substring(0, 1)
+                                              .toUpperCase()
                                         : 'C',
                                   ),
                                 ),
                                 const SizedBox(width: 12),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         subscriber.displayName,
-                                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium
+                                            ?.copyWith(
                                               fontWeight: FontWeight.w900,
                                             ),
                                       ),
                                       Text(
-                                        subscriber.status == 'activo' || subscriber.status == 'activa'
+                                        subscriber.status == 'activo' ||
+                                                subscriber.status == 'activa'
                                             ? 'Cliente frecuente'
                                             : subscriber.status,
                                       ),
@@ -1793,11 +2048,14 @@ class _SubscribersSheet extends StatelessWidget {
                               children: [
                                 FilledButton.tonalIcon(
                                   onPressed: () => onWhatsApp(subscriber),
-                                  icon: const Icon(Icons.chat_bubble_outline_rounded),
+                                  icon: const Icon(
+                                    Icons.chat_bubble_outline_rounded,
+                                  ),
                                   label: const Text('WhatsApp'),
                                 ),
                                 OutlinedButton.icon(
-                                  onPressed: subscriber.phone?.isNotEmpty == true
+                                  onPressed:
+                                      subscriber.phone?.isNotEmpty == true
                                       ? () => onPhone(subscriber)
                                       : null,
                                   icon: const Icon(Icons.call_outlined),
@@ -1831,6 +2089,7 @@ class _ConnectionDetailsSheet extends StatelessWidget {
     required this.onRequestProduct,
     required this.onEdit,
     required this.onDelete,
+    required this.onRespondRequest,
     this.onAccept,
   });
 
@@ -1839,11 +2098,36 @@ class _ConnectionDetailsSheet extends StatelessWidget {
   final VoidCallback onRequestProduct;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
+  final void Function(BusinessConnectionRequestModel request, String action)
+  onRespondRequest;
   final VoidCallback? onAccept;
+
+  bool _isIncoming(BusinessConnectionRequestModel request) {
+    if (request.targetBusinessId == connection.businessId) return true;
+    if (request.requesterBusinessId == connection.businessId) return false;
+    return request.requesterBusinessId == connection.connectedBusinessId;
+  }
+
+  bool _isOutgoing(BusinessConnectionRequestModel request) {
+    if (request.requesterBusinessId == connection.businessId) return true;
+    return connection.businessId.isEmpty &&
+        request.targetBusinessId == connection.connectedBusinessId;
+  }
+
+  String _requestActionLabel(String action) {
+    return switch (action) {
+      'aceptar' => 'Aceptar',
+      'rechazar' => 'Rechazar',
+      'cancelar' => 'Cancelar',
+      'confirmar' => 'Confirmar entrega',
+      _ => action,
+    };
+  }
 
   @override
   Widget build(BuildContext context) {
     final businessName = _connectionBusinessName(connection);
+    final requests = connection.requests;
     return SafeArea(
       child: Padding(
         padding: const EdgeInsets.all(18),
@@ -1909,6 +2193,129 @@ class _ConnectionDetailsSheet extends StatelessWidget {
               icon: const Icon(Icons.playlist_add_rounded),
               label: const Text('Solicitar abastecimiento'),
             ),
+            if (requests.isNotEmpty) ...[
+              const SizedBox(height: 16),
+              Text(
+                'Solicitudes con esta conexion',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+              ),
+              const SizedBox(height: 8),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxHeight: MediaQuery.sizeOf(context).height * 0.42,
+                ),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: requests.length,
+                  separatorBuilder: (_, __) => const SizedBox(height: 10),
+                  itemBuilder: (context, index) {
+                    final request = requests[index];
+                    final incoming = _isIncoming(request);
+                    final outgoing = _isOutgoing(request);
+                    final actions = request.allowedActions(
+                      incoming: incoming,
+                      outgoing: outgoing,
+                    );
+                    final priceLine = [
+                      if (request.proposedUnitPrice != null)
+                        'Precio unitario ${request.proposedUnitPrice!.toStringAsFixed(0)}',
+                      if (request.counterOffer != null)
+                        'Contraoferta ${request.counterOffer!.toStringAsFixed(0)}',
+                    ].join(' - ');
+                    return Card(
+                      margin: EdgeInsets.zero,
+                      child: Padding(
+                        padding: const EdgeInsets.all(12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    request.productName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w800,
+                                    ),
+                                  ),
+                                ),
+                                if (request.quantity != null)
+                                  Text(
+                                    '${request.quantity!.toStringAsFixed(0)}${request.unit == null || request.unit!.trim().isEmpty ? '' : ' ${request.unit!.trim()}'}',
+                                    style: Theme.of(
+                                      context,
+                                    ).textTheme.bodySmall,
+                                  ),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              request.statusLabel,
+                              style: Theme.of(context).textTheme.labelMedium
+                                  ?.copyWith(
+                                    color: request.isPendingRequest
+                                        ? Theme.of(
+                                            context,
+                                          ).colorScheme.secondary
+                                        : request.isAcceptedRequest
+                                        ? AppColors.greenLight
+                                        : Theme.of(
+                                            context,
+                                          ).colorScheme.onSurfaceVariant,
+                                  ),
+                            ),
+                            if (request.message?.isNotEmpty == true) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                request.message!,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                            if (priceLine.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                priceLine,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                            if (request.supplierResponse?.isNotEmpty ==
+                                true) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                'Respuesta: ${request.supplierResponse}',
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ],
+                            if (actions.isNotEmpty) ...[
+                              const SizedBox(height: 10),
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: actions
+                                    .map(
+                                      (action) => FilledButton.tonal(
+                                        onPressed: () {
+                                          Navigator.of(context).pop();
+                                          onRespondRequest(request, action);
+                                        },
+                                        child: Text(
+                                          _requestActionLabel(action),
+                                        ),
+                                      ),
+                                    )
+                                    .toList(),
+                              ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    );
+                  },
+                ),
+              ),
+            ],
             if (onAccept != null) ...[
               const SizedBox(height: 10),
               FilledButton.icon(
@@ -2302,7 +2709,7 @@ class _BusinessSearchPanel extends StatefulWidget {
   final ValueChanged<String> onChanged;
   final ValueChanged<BusinessModel> onConnect;
   final BusinessConnectionModel? Function(String businessId)
-      relationForBusinessId;
+  relationForBusinessId;
 
   @override
   State<_BusinessSearchPanel> createState() => _BusinessSearchPanelState();
@@ -2745,6 +3152,781 @@ class _EditConnectionSheetState extends State<_EditConnectionSheet> {
               },
               icon: const Icon(Icons.save_outlined),
               label: const Text('Guardar cambios'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _NetworkSuggestionItem {
+  const _NetworkSuggestionItem({
+    required this.business,
+    required this.score,
+    required this.reasons,
+    required this.sellsWholesale,
+    required this.wholesaleShowcase,
+    this.wholesaleDescription,
+  });
+
+  final BusinessModel business;
+  final int score;
+  final List<String> reasons;
+  final bool sellsWholesale;
+  final bool wholesaleShowcase;
+  final String? wholesaleDescription;
+
+  factory _NetworkSuggestionItem.fromJson(Map<String, dynamic> json) {
+    final rawBusiness = json['negocio'];
+    final businessMap = rawBusiness is Map
+        ? Map<String, dynamic>.from(rawBusiness)
+        : <String, dynamic>{};
+    final reasonRaw = json['motivos'];
+    return _NetworkSuggestionItem(
+      business: BusinessModel.fromJson(businessMap),
+      score: (json['score'] as num?)?.toInt() ?? 0,
+      reasons: reasonRaw is List
+          ? reasonRaw.map((item) => '$item').toList()
+          : const [],
+      sellsWholesale: businessMap['vendo_como_mayorista'] == true,
+      wholesaleShowcase: businessMap['es_escaparate_mayorista'] == true,
+      wholesaleDescription: businessMap['descripcion_mayorista']?.toString(),
+    );
+  }
+}
+
+class _NetworkMatch {
+  const _NetworkMatch({
+    required this.product,
+    this.buyTerm,
+    this.transferPrice,
+    this.currency,
+  });
+
+  final String product;
+  final String? buyTerm;
+  final double? transferPrice;
+  final String? currency;
+
+  factory _NetworkMatch.fromJson(Map<String, dynamic> json) {
+    return _NetworkMatch(
+      product: '${json['producto'] ?? ''}',
+      buyTerm: json['buscan']?.toString(),
+      transferPrice: double.tryParse('${json['precio_transferencia'] ?? ''}'),
+      currency: json['moneda']?.toString(),
+    );
+  }
+}
+
+class _NetworkOpportunityItem {
+  const _NetworkOpportunityItem({
+    required this.type,
+    required this.business,
+    required this.reason,
+    required this.matches,
+    required this.sellsWholesale,
+    required this.wholesaleShowcase,
+  });
+
+  final String type;
+  final BusinessModel business;
+  final String reason;
+  final List<_NetworkMatch> matches;
+  final bool sellsWholesale;
+  final bool wholesaleShowcase;
+
+  factory _NetworkOpportunityItem.fromJson(Map<String, dynamic> json) {
+    final rawBusiness = json['negocio'];
+    final businessMap = rawBusiness is Map
+        ? Map<String, dynamic>.from(rawBusiness)
+        : <String, dynamic>{};
+    final rawMatches = json['coincidencias'];
+    final matches = rawMatches is List
+        ? rawMatches
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    _NetworkMatch.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList()
+        : const <_NetworkMatch>[];
+    return _NetworkOpportunityItem(
+      type: '${json['tipo'] ?? 'vender'}',
+      business: BusinessModel.fromJson(businessMap),
+      reason: '${json['motivo'] ?? ''}',
+      matches: matches,
+      sellsWholesale: businessMap['vendo_como_mayorista'] == true,
+      wholesaleShowcase: businessMap['es_escaparate_mayorista'] == true,
+    );
+  }
+}
+
+class _OpportunitiesTab extends StatelessWidget {
+  const _OpportunitiesTab({
+    required this.loading,
+    required this.suggestions,
+    required this.opportunities,
+    required this.onOpenDemand,
+    required this.onOpenBusiness,
+    required this.onRequestProduct,
+    required this.relationForBusinessId,
+    this.error,
+  });
+
+  final bool loading;
+  final String? error;
+  final List<_NetworkSuggestionItem> suggestions;
+  final List<_NetworkOpportunityItem> opportunities;
+  final VoidCallback onOpenDemand;
+  final ValueChanged<BusinessModel> onOpenBusiness;
+  final ValueChanged<String> onRequestProduct;
+  final BusinessConnectionModel? Function(String businessId)
+  relationForBusinessId;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        if (loading && suggestions.isEmpty && opportunities.isEmpty)
+          const Padding(
+            padding: EdgeInsets.symmetric(vertical: 14),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        if (error != null)
+          Padding(
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            child: Text(
+              error!,
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: Theme.of(context).colorScheme.error,
+              ),
+            ),
+          ),
+        Expanded(
+          child: ListView(
+            primary: false,
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.only(top: 14),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Tu oferta o demanda',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w900),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Publica si vendes como mayorista o que productos buscas para abastecerte. La red te sugerira conexiones y oportunidades.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 10),
+                      Align(
+                        alignment: Alignment.centerLeft,
+                        child: FilledButton.tonalIcon(
+                          onPressed: onOpenDemand,
+                          icon: const Icon(Icons.campaign_outlined),
+                          label: const Text('Publicar o actualizar'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              if (suggestions.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Sugerencias para conectar',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Negocios cercanos o de tu misma categoria con los que conviene conectarte.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  height: 210,
+                  child: ListView.separated(
+                    scrollDirection: Axis.horizontal,
+                    itemCount: suggestions.length,
+                    separatorBuilder: (_, __) => const SizedBox(width: 10),
+                    itemBuilder: (context, index) {
+                      final item = suggestions[index];
+                      return _SuggestionCard(
+                        item: item,
+                        onOpen: () => onOpenBusiness(item.business),
+                      );
+                    },
+                  ),
+                ),
+              ],
+              if (opportunities.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Text(
+                  'Oportunidades de negocio',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Coincidencias entre lo que vendes o compras y lo que otros buscan u ofrecen.',
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                const SizedBox(height: 10),
+                ...opportunities.map(
+                  (item) => Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: _OpportunityCard(
+                      item: item,
+                      onOpen: () => onOpenBusiness(item.business),
+                      onRequest: item.business.id.isEmpty
+                          ? null
+                          : () => onRequestProduct(item.business.id),
+                      canRequest:
+                          relationForBusinessId(item.business.id)?.isActive ==
+                          true,
+                    ),
+                  ),
+                ),
+              ],
+              if (suggestions.isEmpty && opportunities.isEmpty) ...[
+                const SizedBox(height: 20),
+                Center(
+                  child: Text(
+                    loading
+                        ? 'Buscando oportunidades y sugerencias...'
+                        : 'Aun no hay oportunidades para tu negocio. Publica que vendes o que buscas.',
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context).textTheme.bodyMedium,
+                  ),
+                ),
+              ],
+              const SizedBox(height: 16),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _SuggestionCard extends StatelessWidget {
+  const _SuggestionCard({required this.item, required this.onOpen});
+
+  final _NetworkSuggestionItem item;
+  final VoidCallback onOpen;
+
+  @override
+  Widget build(BuildContext context) {
+    final business = item.business;
+    return SizedBox(
+      width: 230,
+      child: Card(
+        margin: EdgeInsets.zero,
+        child: InkWell(
+          borderRadius: BorderRadius.circular(16),
+          onTap: onOpen,
+          child: Padding(
+            padding: const EdgeInsets.all(12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    CircleAvatar(
+                      backgroundImage: business.logoUrl?.isNotEmpty == true
+                          ? NetworkImage(business.logoUrl!)
+                          : null,
+                      child: business.logoUrl?.isNotEmpty == true
+                          ? null
+                          : const Icon(Icons.storefront_rounded),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        business.name,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(fontWeight: FontWeight.w900),
+                      ),
+                    ),
+                    if (item.score > 0)
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        label: Text('${item.score}'),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  _businessLocation(business),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+                if (item.sellsWholesale || item.wholesaleShowcase) ...[
+                  const SizedBox(height: 6),
+                  const Wrap(
+                    children: [
+                      Chip(
+                        visualDensity: VisualDensity.compact,
+                        avatar: Icon(Icons.storefront_rounded, size: 16),
+                        label: Text('Mayorista'),
+                      ),
+                    ],
+                  ),
+                ],
+                const SizedBox(height: 8),
+                ...item.reasons
+                    .take(3)
+                    .map(
+                      (reason) => Padding(
+                        padding: const EdgeInsets.only(bottom: 2),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Icon(
+                              Icons.check_circle_outline_rounded,
+                              size: 16,
+                              color: AppColors.greenLight,
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                reason,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                const SizedBox(height: 8),
+                SizedBox(
+                  width: double.infinity,
+                  height: 40,
+                  child: FilledButton.tonalIcon(
+                    onPressed: onOpen,
+                    icon: const Icon(Icons.hub_outlined, size: 18),
+                    label: const Text('Conectar'),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OpportunityCard extends StatelessWidget {
+  const _OpportunityCard({
+    required this.item,
+    required this.onOpen,
+    required this.canRequest,
+    this.onRequest,
+  });
+
+  final _NetworkOpportunityItem item;
+  final VoidCallback onOpen;
+  final bool canRequest;
+  final VoidCallback? onRequest;
+
+  @override
+  Widget build(BuildContext context) {
+    final business = item.business;
+    final isVender = item.type == 'vender';
+    final accent = isVender ? AppColors.goldDark : AppColors.greenLight;
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: Padding(
+        padding: const EdgeInsets.all(14),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
+                  decoration: BoxDecoration(
+                    color: accent.withValues(alpha: 0.16),
+                    borderRadius: BorderRadius.circular(20),
+                  ),
+                  child: Text(
+                    isVender ? 'Te piden' : 'Te conviene comprar',
+                    style: TextStyle(
+                      color: accent,
+                      fontWeight: FontWeight.w900,
+                      fontSize: 12,
+                    ),
+                  ),
+                ),
+                const Spacer(),
+                CircleAvatar(
+                  radius: 18,
+                  backgroundImage: business.logoUrl?.isNotEmpty == true
+                      ? NetworkImage(business.logoUrl!)
+                      : null,
+                  child: business.logoUrl?.isNotEmpty == true
+                      ? null
+                      : const Icon(Icons.storefront_rounded, size: 18),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              business.name,
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            Text(
+              _businessLocation(business),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              item.reason,
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(fontWeight: FontWeight.w600),
+            ),
+            if (item.matches.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: item.matches.take(4).map((match) {
+                  final label = isVender
+                      ? 'Buscan ${match.buyTerm ?? match.product}'
+                      : match.transferPrice == null
+                      ? match.product
+                      : '${match.product} ${match.transferPrice!.toStringAsFixed(0)} ${match.currency ?? 'CUP'}';
+                  return InputChip(
+                    visualDensity: VisualDensity.compact,
+                    label: Text(label),
+                    onPressed: () {},
+                  );
+                }).toList(),
+              ),
+            ],
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.tonalIcon(
+                    onPressed: onOpen,
+                    icon: Icon(
+                      canRequest
+                          ? Icons.playlist_add_check_circle_outlined
+                          : Icons.hub_outlined,
+                      size: 18,
+                    ),
+                    label: Text(canRequest ? 'Ver conexion' : 'Conectar'),
+                  ),
+                ),
+                if (canRequest && onRequest != null) ...[
+                  const SizedBox(width: 8),
+                  IconButton.filled(
+                    onPressed: onRequest,
+                    tooltip: 'Solicitar producto',
+                    icon: const Icon(Icons.shopping_cart_checkout_rounded),
+                  ),
+                ],
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+String _businessLocation(BusinessModel business) {
+  final parts = [
+    business.municipality,
+    business.province,
+    business.businessTypeName,
+  ].whereType<String>().where((item) => item.trim().isNotEmpty);
+  final text = parts.join(' - ');
+  return text.isEmpty ? 'Sin ubicacion definida' : text;
+}
+
+class _DemandPayload {
+  const _DemandPayload({
+    required this.sellsAsWholesaler,
+    required this.showcase,
+    required this.wholesaleDescription,
+    required this.seekingProducts,
+    this.supplyRadiusKm,
+  });
+
+  final bool sellsAsWholesaler;
+  final bool showcase;
+  final String wholesaleDescription;
+  final List<String> seekingProducts;
+  final double? supplyRadiusKm;
+}
+
+class _DemandSheet extends StatefulWidget {
+  const _DemandSheet();
+
+  @override
+  State<_DemandSheet> createState() => _DemandSheetState();
+}
+
+class _DemandSheetState extends State<_DemandSheet> {
+  final _wholesaleDescriptionController = TextEditingController();
+  final _seekingController = TextEditingController();
+  final _radiusController = TextEditingController();
+  var _sellsAsWholesaler = false;
+  var _showcase = false;
+
+  @override
+  void dispose() {
+    _wholesaleDescriptionController.dispose();
+    _seekingController.dispose();
+    _radiusController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Publicar oferta o demanda',
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Indica como tu negocio participa en la red para recibir sugerencias y aparecer como oportunidad.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            const SizedBox(height: 12),
+            SwitchListTile(
+              contentPadding: EdgeInsets.zero,
+              value: _sellsAsWholesaler,
+              onChanged: (value) => setState(() => _sellsAsWholesaler = value),
+              title: const Text('Vendo como mayorista'),
+              subtitle: const Text(
+                'Ofrezco precios de transferencia por volumen a otros negocios.',
+              ),
+            ),
+            if (_sellsAsWholesaler) ...[
+              const SizedBox(height: 8),
+              TextField(
+                controller: _wholesaleDescriptionController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Descripcion mayorista',
+                  hintText:
+                      'Minimos, condiciones, zona de entrega, catalogo...',
+                ),
+              ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                value: _showcase,
+                onChanged: (value) => setState(() => _showcase = value),
+                title: const Text('Mostrar como escaparate mayorista'),
+                subtitle: const Text(
+                  'Tu tienda se resalta ante otros negocios como fuente de abastecimiento.',
+                ),
+              ),
+            ],
+            const SizedBox(height: 10),
+            TextField(
+              controller: _seekingController,
+              maxLines: 3,
+              decoration: const InputDecoration(
+                labelText: 'Productos que busco comprar',
+                hintText: 'arroz, aceite, pan, cerveza... separados por coma',
+              ),
+            ),
+            const SizedBox(height: 10),
+            TextField(
+              controller: _radiusController,
+              keyboardType: TextInputType.number,
+              decoration: const InputDecoration(
+                labelText: 'Radio de abastecimiento (km)',
+                hintText: 'Ej: 30',
+              ),
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () {
+                final seeking = _seekingController.text
+                    .split(',')
+                    .map((item) => item.trim())
+                    .where((item) => item.isNotEmpty)
+                    .toList();
+                final radius = double.tryParse(
+                  _radiusController.text.trim().replaceAll(',', '.'),
+                );
+                Navigator.of(context).pop(
+                  _DemandPayload(
+                    sellsAsWholesaler: _sellsAsWholesaler,
+                    showcase: _showcase,
+                    wholesaleDescription: _wholesaleDescriptionController.text
+                        .trim(),
+                    seekingProducts: seeking,
+                    supplyRadiusKm: radius,
+                  ),
+                );
+              },
+              icon: const Icon(Icons.publish_rounded),
+              label: const Text('Publicar senal'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RespondRequestPayload {
+  const _RespondRequestPayload({this.unitPrice, this.message = ''});
+
+  final double? unitPrice;
+  final String message;
+}
+
+class _RespondRequestSheet extends StatefulWidget {
+  const _RespondRequestSheet({required this.request, required this.action});
+
+  final BusinessConnectionRequestModel request;
+  final String action;
+
+  @override
+  State<_RespondRequestSheet> createState() => _RespondRequestSheetState();
+}
+
+class _RespondRequestSheetState extends State<_RespondRequestSheet> {
+  final _messageController = TextEditingController();
+  final _priceController = TextEditingController();
+
+  @override
+  void dispose() {
+    _messageController.dispose();
+    _priceController.dispose();
+    super.dispose();
+  }
+
+  String get _title {
+    return switch (widget.action) {
+      'aceptar' => 'Aceptar solicitud',
+      'rechazar' => 'Rechazar solicitud',
+      'cancelar' => 'Cancelar solicitud',
+      'confirmar' => 'Confirmar entrega',
+      _ => 'Responder solicitud',
+    };
+  }
+
+  String get _actionLabel {
+    return switch (widget.action) {
+      'aceptar' => 'Aceptar',
+      'rechazar' => 'Rechazar',
+      'cancelar' => 'Cancelar solicitud',
+      'confirmar' => 'Confirmar',
+      _ => 'Enviar',
+    };
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final response = widget.request.supplierResponse;
+    return SafeArea(
+      child: SingleChildScrollView(
+        padding: EdgeInsets.fromLTRB(16, 16, 16, bottom + 16),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              _title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${widget.request.productName}'
+              '${widget.request.quantity == null ? '' : ' (${widget.request.quantity!.toStringAsFixed(0)}${widget.request.unit == null || widget.request.unit!.trim().isEmpty ? '' : ' ${widget.request.unit!.trim()}'})'}',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (response?.isNotEmpty == true) ...[
+              const SizedBox(height: 4),
+              Text(
+                'Respuesta previa: $response',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            const SizedBox(height: 12),
+            if (widget.action == 'aceptar') ...[
+              TextField(
+                controller: _priceController,
+                keyboardType: TextInputType.number,
+                decoration: const InputDecoration(
+                  labelText: 'Precio por unidad',
+                  hintText: 'Ej: 120',
+                ),
+              ),
+              const SizedBox(height: 10),
+            ],
+            if (widget.action == 'aceptar' || widget.action == 'rechazar') ...[
+              TextField(
+                controller: _messageController,
+                maxLines: 3,
+                decoration: const InputDecoration(
+                  labelText: 'Mensaje o condiciones',
+                  hintText: 'Ej: disponible para entrega el miercoles.',
+                ),
+              ),
+              const SizedBox(height: 16),
+            ],
+            FilledButton.icon(
+              onPressed: () {
+                final price = widget.action == 'aceptar'
+                    ? double.tryParse(
+                        _priceController.text.trim().replaceAll(',', '.'),
+                      )
+                    : null;
+                Navigator.of(context).pop(
+                  _RespondRequestPayload(
+                    unitPrice: price,
+                    message: _messageController.text.trim(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.send_outlined),
+              label: Text(_actionLabel),
             ),
           ],
         ),

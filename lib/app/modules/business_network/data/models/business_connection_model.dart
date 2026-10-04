@@ -150,6 +150,10 @@ class BusinessConnectionRequestModel {
     this.message,
     this.currency,
     this.referencePrice,
+    this.proposedUnitPrice,
+    this.counterOffer,
+    this.supplierResponse,
+    this.neededBy,
     this.createdAt,
   });
 
@@ -164,7 +168,37 @@ class BusinessConnectionRequestModel {
   final String? message;
   final String? currency;
   final double? referencePrice;
+  final double? proposedUnitPrice;
+  final double? counterOffer;
+  final String? supplierResponse;
+  final DateTime? neededBy;
   final DateTime? createdAt;
+
+  bool get isPendingRequest => status == 'solicitada' || status == 'vista';
+
+  bool get isAcceptedRequest => status == 'aceptada';
+
+  bool get isSettledRequest =>
+      status == 'rechazada' || status == 'cancelada' || status == 'completada';
+
+  List<String> allowedActions({
+    required bool incoming,
+    required bool outgoing,
+  }) {
+    final actions = <String>[];
+    if (isPendingRequest) {
+      if (incoming) {
+        actions.add('aceptar');
+        actions.add('rechazar');
+      } else if (outgoing) {
+        actions.add('cancelar');
+      }
+    }
+    if (isAcceptedRequest) {
+      actions.add('confirmar');
+    }
+    return actions;
+  }
 
   String get statusLabel {
     return switch (status) {
@@ -191,6 +225,12 @@ class BusinessConnectionRequestModel {
       message: json['mensaje']?.toString(),
       currency: json['moneda']?.toString(),
       referencePrice: double.tryParse('${json['precio_referencia'] ?? ''}'),
+      proposedUnitPrice: double.tryParse(
+        '${json['propuesta_precio_por_unidad'] ?? ''}',
+      ),
+      counterOffer: double.tryParse('${json['precio_contraoferta'] ?? ''}'),
+      supplierResponse: json['respuesta_proveedor']?.toString(),
+      neededBy: DateTime.tryParse('${json['fecha_necesaria'] ?? ''}'),
       createdAt: DateTime.tryParse('${json['created_at'] ?? ''}'),
     );
   }

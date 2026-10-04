@@ -185,6 +185,18 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                           .where((value) => value != null && value.isNotEmpty)
                           .join(', '),
                     ),
+                    if (business.sellsAsWholesaler ||
+                        business.wholesaleShowcase) ...[
+                      const SizedBox(height: 12),
+                      _MayoristaEscaparateBanner(
+                        description: business.wholesaleDescription,
+                        supplyRadiusKm: business.supplyRadiusKm,
+                        transferProducts: state.products
+                            .where((product) => product.transferPrice != null)
+                            .take(4)
+                            .toList(),
+                      ),
+                    ],
                     const SizedBox(height: 14),
                     Row(
                       children: [
@@ -536,6 +548,100 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
       return true;
     }
     return false;
+  }
+}
+
+class _MayoristaEscaparateBanner extends StatelessWidget {
+  const _MayoristaEscaparateBanner({
+    required this.description,
+    required this.supplyRadiusKm,
+    required this.transferProducts,
+  });
+
+  final String? description;
+  final double? supplyRadiusKm;
+  final List<ProductModel> transferProducts;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AppColors.gold.withValues(alpha: 0.2),
+            AppColors.greenLight.withValues(alpha: 0.12),
+          ],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AppColors.gold.withValues(alpha: 0.55)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Row(
+            children: [
+              Icon(Icons.storefront_rounded, color: AppColors.goldDark),
+              SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Escaparate mayorista',
+                  style: TextStyle(fontWeight: FontWeight.w900, fontSize: 16),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            description?.trim().isNotEmpty == true
+                ? description!.trim()
+                : 'Vende por volumen a otros negocios con precios de transferencia.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+          if (supplyRadiusKm != null) ...[
+            const SizedBox(height: 6),
+            Row(
+              children: [
+                const Icon(Icons.radar_rounded, size: 16),
+                const SizedBox(width: 6),
+                Text(
+                  'Radio de abastecimiento: ${supplyRadiusKm!.toStringAsFixed(0)} km',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(fontWeight: FontWeight.w700),
+                ),
+              ],
+            ),
+          ],
+          if (transferProducts.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            Text(
+              'Precios mayoristas de referencia',
+              style: Theme.of(context).textTheme.labelLarge,
+            ),
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: transferProducts
+                  .map(
+                    (product) => InputChip(
+                      visualDensity: VisualDensity.compact,
+                      label: Text(
+                        '${product.name}: ${product.transferPrice!.toStringAsFixed(0)} ${product.currency ?? 'CUP'}',
+                      ),
+                      onPressed: () {},
+                    ),
+                  )
+                  .toList(),
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -1475,7 +1581,9 @@ class _SpecialBusinessOfferCardState extends State<_SpecialBusinessOfferCard> {
   Widget build(BuildContext context) {
     return _AccordionCard(
       title: _isFuel ? 'Combustibles disponibles' : 'Tasas de cambio',
-      icon: _isFuel ? Icons.local_gas_station_outlined : Icons.currency_exchange,
+      icon: _isFuel
+          ? Icons.local_gas_station_outlined
+          : Icons.currency_exchange,
       children: [
         FutureBuilder<List<Map<String, dynamic>>>(
           future: _items,
@@ -1507,10 +1615,8 @@ class _SpecialBusinessOfferCardState extends State<_SpecialBusinessOfferCard> {
               children: items
                   .where((item) => item['disponible'] != false)
                   .map(
-                    (item) => _SpecialBusinessOfferRow(
-                      item: item,
-                      isFuel: _isFuel,
-                    ),
+                    (item) =>
+                        _SpecialBusinessOfferRow(item: item, isFuel: _isFuel),
                   )
                   .toList(),
             );
@@ -1561,7 +1667,9 @@ class _SpecialBusinessOfferRow extends StatelessWidget {
   String _money(dynamic value) {
     final number = value is num ? value : num.tryParse('$value');
     if (number == null) return '-';
-    return number % 1 == 0 ? number.toStringAsFixed(0) : number.toStringAsFixed(2);
+    return number % 1 == 0
+        ? number.toStringAsFixed(0)
+        : number.toStringAsFixed(2);
   }
 
   String _stockLabel(dynamic value) {

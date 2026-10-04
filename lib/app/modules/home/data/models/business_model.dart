@@ -39,6 +39,11 @@ class BusinessModel {
     this.employeeRoleTitle,
     this.employeeIsDelivery = false,
     this.employeePermissions = const {},
+    this.sellsAsWholesaler = false,
+    this.wholesaleShowcase = false,
+    this.wholesaleDescription,
+    this.seekingProducts = const [],
+    this.supplyRadiusKm,
   });
 
   final String id;
@@ -80,6 +85,11 @@ class BusinessModel {
   final String? employeeRoleTitle;
   final bool employeeIsDelivery;
   final Map<String, bool> employeePermissions;
+  final bool sellsAsWholesaler;
+  final bool wholesaleShowcase;
+  final String? wholesaleDescription;
+  final List<String> seekingProducts;
+  final double? supplyRadiusKm;
 
   bool get isOwnerAccess => accessType != 'empleado';
 
@@ -140,6 +150,11 @@ class BusinessModel {
     String? employeeRoleTitle,
     bool? employeeIsDelivery,
     Map<String, bool>? employeePermissions,
+    bool? sellsAsWholesaler,
+    bool? wholesaleShowcase,
+    String? wholesaleDescription,
+    List<String>? seekingProducts,
+    double? supplyRadiusKm,
   }) {
     return BusinessModel(
       id: id,
@@ -183,6 +198,11 @@ class BusinessModel {
       employeeRoleTitle: employeeRoleTitle ?? this.employeeRoleTitle,
       employeeIsDelivery: employeeIsDelivery ?? this.employeeIsDelivery,
       employeePermissions: employeePermissions ?? this.employeePermissions,
+      sellsAsWholesaler: sellsAsWholesaler ?? this.sellsAsWholesaler,
+      wholesaleShowcase: wholesaleShowcase ?? this.wholesaleShowcase,
+      wholesaleDescription: wholesaleDescription ?? this.wholesaleDescription,
+      seekingProducts: seekingProducts ?? this.seekingProducts,
+      supplyRadiusKm: supplyRadiusKm ?? this.supplyRadiusKm,
     );
   }
 
@@ -235,7 +255,26 @@ class BusinessModel {
       employeeRoleTitle: access['cargo']?.toString(),
       employeeIsDelivery: access['es_delivery'] == true,
       employeePermissions: permissions,
+      sellsAsWholesaler: json['vendo_como_mayorista'] == true,
+      wholesaleShowcase: json['es_escaparate_mayorista'] == true,
+      wholesaleDescription: json['descripcion_mayorista']?.toString(),
+      seekingProducts: _parseStringList(json['busco_productos']),
+      supplyRadiusKm: double.tryParse(
+        '${json['radio_abastecimiento_km'] ?? ''}',
+      ),
     );
+  }
+
+  static List<String> _parseStringList(Object? value) {
+    if (value is! List) return const [];
+    return value
+        .map((item) {
+          if (item is String) return item.trim();
+          if (item is Map) return '${item['nombre'] ?? ''}'.trim();
+          return '';
+        })
+        .where((item) => item.isNotEmpty)
+        .toList();
   }
 
   static Map<String, String> _parseColors(Object? value) {
