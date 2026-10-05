@@ -217,7 +217,9 @@ class CreditsCubit extends Cubit<CreditsState> {
       '/creditos/cuenta-receptora',
       parser: (json) {
         if (json is Map) {
-          return WalletReceivingAccount.fromJson(Map<String, dynamic>.from(json));
+          return WalletReceivingAccount.fromJson(
+            Map<String, dynamic>.from(json),
+          );
         }
         throw const FormatException('La cuenta receptora no está disponible.');
       },
@@ -303,7 +305,7 @@ class CreditsCubit extends Cubit<CreditsState> {
       emit(
         state.copyWith(
           status: CreditStatus.failure,
-          message: 'La cantidad de granos debe ser mayor que cero.',
+          message: 'La cantidad de semillas debe ser mayor que cero.',
         ),
       );
       return;
@@ -323,7 +325,7 @@ class CreditsCubit extends Cubit<CreditsState> {
           status: CreditStatus.failure,
           message:
               result.error?.message ??
-              'No se pudo solicitar el retiro de granos.',
+              'No se pudo solicitar el retiro de semillas.',
         ),
       );
       return;
@@ -344,7 +346,7 @@ class CreditsCubit extends Cubit<CreditsState> {
       emit(
         state.copyWith(
           status: CreditStatus.failure,
-          message: 'La cantidad de granos debe ser mayor que cero.',
+          message: 'La cantidad de semillas debe ser mayor que cero.',
         ),
       );
       return;
@@ -371,7 +373,8 @@ class CreditsCubit extends Cubit<CreditsState> {
       emit(
         state.copyWith(
           status: CreditStatus.failure,
-          message: result.error?.message ?? 'No se pudo convertir los granos.',
+          message:
+              result.error?.message ?? 'No se pudo convertir las semillas.',
         ),
       );
       return;
@@ -382,8 +385,8 @@ class CreditsCubit extends Cubit<CreditsState> {
     final montoNeto = (data['monto_neto'] ?? 0).toDouble();
 
     final msg = comision > 0
-        ? 'Convertidos $grains granos a $montoNeto CUP (comisión: $comision CUP).'
-        : 'Convertidos $grains granos a $montoNeto CUP.';
+        ? 'Convertidos $grains semillas a $montoNeto CUP (comisión: $comision CUP).'
+        : 'Convertidos $grains semillas a $montoNeto CUP.';
 
     emit(state.copyWith(status: CreditStatus.success, message: msg));
     await load(force: true, negocioId: negocioId);

@@ -69,11 +69,14 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
   }
 
   String _keyFor(_Plan plan, String? businessId) {
-    final key = '${plan.id}:${businessId ?? 'personal'}:${_annual ? 'anual' : 'mensual'}';
+    final key =
+        '${plan.id}:${businessId ?? 'personal'}:${_annual ? 'anual' : 'mensual'}';
     return _idempotencyKeys.putIfAbsent(
       key,
-      () => 'plan-${DateTime.now().microsecondsSinceEpoch}-$key'
-          .replaceAll(RegExp(r'[^A-Za-z0-9._:-]'), '-'),
+      () => 'plan-${DateTime.now().microsecondsSinceEpoch}-$key'.replaceAll(
+        RegExp(r'[^A-Za-z0-9._:-]'),
+        '-',
+      ),
     );
   }
 
@@ -84,7 +87,7 @@ class _BusinessPlansScreenState extends State<BusinessPlansScreen> {
       builder: (dialogContext) => AlertDialog(
         title: const Text('Confirmar solicitud'),
         content: Text(
-          'Se reservarán ${plan.price(_annual).toStringAsFixed(0)} granos '
+          'Se reservarán ${plan.price(_annual).toStringAsFixed(0)} semillas '
           'de tu billetera $wallet hasta que SuperAdmin revise la solicitud.',
         ),
         actions: [
@@ -294,7 +297,7 @@ class _RequestCard extends StatelessWidget {
               children: [
                 Text('${request.planName} · ${request.period}'),
                 Text(
-                  '${request.price.toStringAsFixed(0)} granos reservados · ${request.wallet}',
+                  '${request.price.toStringAsFixed(0)} semillas reservadas · ${request.wallet}',
                   style: Theme.of(context).textTheme.bodySmall,
                 ),
                 Text(
@@ -371,7 +374,8 @@ class _PlanCard extends StatelessWidget {
                     ),
                   ),
                 ),
-                if (plan.badge?.isNotEmpty == true) Chip(label: Text(plan.badge!)),
+                if (plan.badge?.isNotEmpty == true)
+                  Chip(label: Text(plan.badge!)),
               ],
             ),
             if (plan.description?.isNotEmpty == true)
@@ -381,14 +385,14 @@ class _PlanCard extends StatelessWidget {
               ),
             const SizedBox(height: 12),
             Text(
-              '${price.toStringAsFixed(0)} granos',
+              '${price.toStringAsFixed(0)} semillas',
               style: Theme.of(
                 context,
               ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
             ),
             if (price != realPrice)
               Text(
-                '${realPrice.toStringAsFixed(0)} granos',
+                '${realPrice.toStringAsFixed(0)} semillas',
                 style: const TextStyle(decoration: TextDecoration.lineThrough),
               ),
             Text(annual ? 'por año' : 'por mes'),
@@ -458,8 +462,9 @@ class _Plan {
   final int? productLimit, postsLimit;
   final bool posts, promotions, banners, push, analytics, menu;
 
-  bool supports(bool personal) =>
-      personal ? audience == 'personal' || audience == 'ambos' : audience == 'negocio' || audience == 'ambos';
+  bool supports(bool personal) => personal
+      ? audience == 'personal' || audience == 'ambos'
+      : audience == 'negocio' || audience == 'ambos';
 
   bool get hasAnnual => annual != null;
 
@@ -514,9 +519,11 @@ double _number(dynamic value) => double.tryParse('${value ?? 0}') ?? 0;
 
 List<String> _strings(dynamic value) => value is List
     ? value
-          .map((item) => item is Map
-              ? item['nombre']?.toString() ?? item['label']?.toString() ?? ''
-              : item.toString())
+          .map(
+            (item) => item is Map
+                ? item['nombre']?.toString() ?? item['label']?.toString() ?? ''
+                : item.toString(),
+          )
           .where((item) => item.isNotEmpty)
           .toList()
     : const [];

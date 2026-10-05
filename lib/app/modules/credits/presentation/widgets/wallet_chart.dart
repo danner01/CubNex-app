@@ -12,7 +12,14 @@ const walletPeriodLabel = <WalletChartPeriod, String>{
   WalletChartPeriod.all: 'Todo',
 };
 
-enum WalletCategory { ganados, recargados, depositados, transferidos, retirados, gastados }
+enum WalletCategory {
+  ganados,
+  recargados,
+  depositados,
+  transferidos,
+  retirados,
+  gastados,
+}
 
 const walletCategoryLabel = <WalletCategory, String>{
   WalletCategory.ganados: 'Ganados',
@@ -104,9 +111,11 @@ class _WalletChartState extends State<WalletChart> {
         return date.hour;
       case WalletChartPeriod.week:
         final start = _periodStart(WalletChartPeriod.week, now);
-        return DateTime(date.year, date.month, date.day)
-            .difference(DateTime(start.year, start.month, start.day))
-            .inDays;
+        return DateTime(
+          date.year,
+          date.month,
+          date.day,
+        ).difference(DateTime(start.year, start.month, start.day)).inDays;
       case WalletChartPeriod.month:
         return date.day - 1;
       case WalletChartPeriod.year:
@@ -121,10 +130,12 @@ class _WalletChartState extends State<WalletChart> {
     final now = DateTime.now();
     final periodStart = _periodStart(_period, now);
     final filtered = widget.movements
-        .where((m) =>
-            m.createdAt != null &&
-            m.createdAt!.isAfter(periodStart) &&
-            _selected.contains(classifyMovement(m)))
+        .where(
+          (m) =>
+              m.createdAt != null &&
+              m.createdAt!.isAfter(periodStart) &&
+              _selected.contains(classifyMovement(m)),
+        )
         .toList();
 
     final bucketCount = switch (_period) {
@@ -162,10 +173,7 @@ class _WalletChartState extends State<WalletChart> {
       children: [
         Row(
           children: [
-            Text(
-              'Período',
-              style: Theme.of(context).textTheme.labelMedium,
-            ),
+            Text('Período', style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(width: 8),
             DropdownButton<WalletChartPeriod>(
               value: _period,
@@ -196,19 +204,24 @@ class _WalletChartState extends State<WalletChart> {
               materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
               padding: const EdgeInsets.symmetric(horizontal: 4),
               side: BorderSide(
-                color: selected ? walletCategoryColor(c, colors) : colors.outlineVariant,
+                color: selected
+                    ? walletCategoryColor(c, colors)
+                    : colors.outlineVariant,
                 width: selected ? 1.4 : 1,
               ),
               showCheckmark: false,
               checkmarkColor: colors.onSurface,
-              selectedColor: walletCategoryColor(c, colors).withValues(alpha: 0.16),
+              selectedColor: walletCategoryColor(
+                c,
+                colors,
+              ).withValues(alpha: 0.16),
               labelPadding: const EdgeInsets.symmetric(horizontal: 4),
               label: Text(
                 walletCategoryLabel[c]!,
                 style: Theme.of(context).textTheme.labelSmall?.copyWith(
-                      fontSize: 11,
-                      fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
-                    ),
+                  fontSize: 11,
+                  fontWeight: selected ? FontWeight.w600 : FontWeight.w400,
+                ),
               ),
               selected: selected,
               onSelected: (v) => setState(() {
@@ -236,7 +249,7 @@ class _WalletChartState extends State<WalletChart> {
         ),
         const SizedBox(height: 8),
         Text(
-          'Granos por período, según la selección. Cada color es una categoría.',
+          'Semillas por período, según la selección. Cada color es una categoría.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
@@ -266,10 +279,13 @@ class _WalletChartPainter extends CustomPainter {
     final chartWidth = size.width - leftPad - rightPad;
     final chartHeight = size.height - topPad - bottomPad;
 
-    final bucketTotals = bucketSlices.map(
-      (slices) => slices.fold<double>(0, (acc, s) => acc + s.value),
-    ).toList();
-    final maxValue = bucketTotals.fold<double>(1, (acc, b) => b > acc ? b : acc);
+    final bucketTotals = bucketSlices
+        .map((slices) => slices.fold<double>(0, (acc, s) => acc + s.value))
+        .toList();
+    final maxValue = bucketTotals.fold<double>(
+      1,
+      (acc, b) => b > acc ? b : acc,
+    );
     final labelStyle = TextStyle(color: theme.onSurfaceVariant, fontSize: 10);
     final tp = TextPainter(
       text: TextSpan(text: maxValue.toStringAsFixed(0), style: labelStyle),
@@ -282,7 +298,11 @@ class _WalletChartPainter extends CustomPainter {
       ..strokeWidth = 1;
     for (int i = 0; i <= 3; i++) {
       final y = topPad + chartHeight - (chartHeight * (i / 3));
-      canvas.drawLine(Offset(leftPad, y), Offset(leftPad + chartWidth, y), guidePaint);
+      canvas.drawLine(
+        Offset(leftPad, y),
+        Offset(leftPad + chartWidth, y),
+        guidePaint,
+      );
     }
 
     final hasData = bucketSlices.any((s) => s.isNotEmpty);
@@ -296,7 +316,10 @@ class _WalletChartPainter extends CustomPainter {
       )..layout();
       empty.paint(
         canvas,
-        Offset(leftPad + (chartWidth - empty.width) / 2, topPad + chartHeight / 2 - 8),
+        Offset(
+          leftPad + (chartWidth - empty.width) / 2,
+          topPad + chartHeight / 2 - 8,
+        ),
       );
       return;
     }
@@ -313,14 +336,8 @@ class _WalletChartPainter extends CustomPainter {
         final value = s.value;
         if (value <= 0) continue;
         final barH = (value / maxValue) * chartHeight;
-        final rect = Rect.fromLTRB(
-          x,
-          cursorY - barH,
-          x + barWidth,
-          cursorY,
-        );
-        final paint = Paint()
-          ..color = walletCategoryColor(s.cat, theme);
+        final rect = Rect.fromLTRB(x, cursorY - barH, x + barWidth, cursorY);
+        final paint = Paint()..color = walletCategoryColor(s.cat, theme);
         canvas.drawRRect(
           RRect.fromRectAndCorners(
             rect,
@@ -340,10 +357,22 @@ class _WalletChartPainter extends CustomPainter {
     for (int i = 0; i < n; i += step) {
       final x = leftPad + (chartWidth * i / n);
       final tpLabel = TextPainter(
-        text: TextSpan(text: _axisLabel(i, n), style: TextStyle(fontSize: 9, color: theme.onSurfaceVariant)),
+        text: TextSpan(
+          text: _axisLabel(i, n),
+          style: TextStyle(fontSize: 9, color: theme.onSurfaceVariant),
+        ),
         textDirection: TextDirection.ltr,
       )..layout();
-      tpLabel.paint(canvas, Offset((x - tpLabel.width / 2).clamp(leftPad, leftPad + chartWidth - tpLabel.width), topPad + chartHeight + 4));
+      tpLabel.paint(
+        canvas,
+        Offset(
+          (x - tpLabel.width / 2).clamp(
+            leftPad,
+            leftPad + chartWidth - tpLabel.width,
+          ),
+          topPad + chartHeight + 4,
+        ),
+      );
     }
   }
 
@@ -356,7 +385,20 @@ class _WalletChartPainter extends CustomPainter {
       case WalletChartPeriod.month:
         return '${i + 1}';
       case WalletChartPeriod.year:
-        const names = ['E', 'F', 'M', 'A', 'M', 'J', 'J', 'A', 'S', 'O', 'N', 'D'];
+        const names = [
+          'E',
+          'F',
+          'M',
+          'A',
+          'M',
+          'J',
+          'J',
+          'A',
+          'S',
+          'O',
+          'N',
+          'D',
+        ];
         return names[i];
       case WalletChartPeriod.all:
         return '${2000 + i}';

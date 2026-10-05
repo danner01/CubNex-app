@@ -342,7 +342,7 @@ class _CreditsView extends StatelessWidget {
               children: [
                 Text(
                   isBusiness
-                      ? 'Saldo de granos del negocio, movimientos y ventas recibidas.'
+                      ? 'Saldo de semillas del negocio, movimientos y ventas recibidas.'
                       : 'Saldo ConKkao, transferencias por alias o QR, recargas y movimientos.',
                   style: Theme.of(context).textTheme.bodyLarge,
                 ),
@@ -395,7 +395,7 @@ class _CreditsView extends StatelessWidget {
                                 ?.copyWith(fontWeight: FontWeight.w900),
                           ),
                           Text(
-                            summary == null ? '' : 'granos totales (saldo)',
+                            summary == null ? '' : 'semillas totales (saldo)',
                             style: Theme.of(context).textTheme.bodyMedium,
                           ),
                           if (summary?.alias != null &&
@@ -475,8 +475,8 @@ class _CreditsView extends StatelessWidget {
                           const SizedBox(height: 12),
                           Text(
                             isBusiness
-                                ? 'Granos de la billetera del negocio. 1 grano = 1 CUP. Se suman las ventas y recargas; se restan conversiones y transferencias.'
-                                : '1 grano = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con transferencias.',
+                                ? 'Semillas de la billetera del negocio. 1 semilla = 1 CUP. Se suman las ventas y recargas; se restan conversiones y transferencias.'
+                                : '1 semilla = 1 CUP. El saldo suma lo ganado, recargado y depositado; se resta con transferencias.',
                             style: Theme.of(context).textTheme.bodySmall,
                           ),
                         ],
@@ -490,7 +490,7 @@ class _CreditsView extends StatelessWidget {
                     child: TextButton.icon(
                       onPressed: onConvertGrains,
                       icon: const Icon(Icons.swap_horiz_rounded, size: 18),
-                      label: const Text('Convertir granos'),
+                      label: const Text('Convertir semillas'),
                     ),
                   ),
                   const SizedBox(height: 12),
@@ -690,7 +690,7 @@ class _WalletStatsCard extends StatelessWidget {
             Row(
               children: [
                 const Text(
-                  'Granos (saldo)',
+                  'Semillas (saldo)',
                   style: TextStyle(fontWeight: FontWeight.w900),
                 ),
                 const Spacer(),
@@ -716,7 +716,7 @@ class _WalletStatsCard extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              '1 grano = 1 CUP. Saldo = Ganados + Recargados + Depositados − Transferidos − Retirados − Gastados. CUP disponible = granos convertidos.',
+              '1 semilla = 1 CUP. Saldo = Ganados + Recargados + Depositados − Transferidos − Retirados − Gastados. CUP disponible = semillas convertidas.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
@@ -1200,7 +1200,7 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
                     _StatusLine(label: 'Destino', value: target),
                     _StatusLine(
                       label: 'Monto solicitado',
-                      value: '${_request!.amount} CUP / granos',
+                      value: '${_request!.amount} CUP / semillas',
                     ),
                   ],
                 ),
@@ -1237,10 +1237,12 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
           ),
           const SizedBox(height: 12),
           if (_loadingAccount)
-            const Center(child: Padding(
-              padding: EdgeInsets.all(20),
-              child: CircularProgressIndicator(),
-            ))
+            const Center(
+              child: Padding(
+                padding: EdgeInsets.all(20),
+                child: CircularProgressIndicator(),
+              ),
+            )
           else if (account == null) ...[
             Text(
               _accountError ?? 'No hay cuenta receptora configurada.',
@@ -1295,7 +1297,7 @@ class _RechargeCreditsSheetState extends State<_RechargeCreditsSheet> {
               keyboardType: TextInputType.number,
               decoration: const InputDecoration(
                 labelText: 'Cantidad en CUP',
-                helperText: '1 CUP = 1 grano',
+                helperText: '1 CUP = 1 semilla',
               ),
             ),
             const SizedBox(height: 12),
@@ -1344,7 +1346,10 @@ class _StatusLine extends StatelessWidget {
         children: [
           SizedBox(
             width: 122,
-            child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700)),
+            child: Text(
+              label,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
           Expanded(child: SelectableText(value)),
         ],
@@ -1381,7 +1386,7 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Retirar granos',
+            'Retirar semillas',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -1390,11 +1395,13 @@ class _SellCreditsSheetState extends State<_SellCreditsSheet> {
           TextField(
             controller: _amountController,
             keyboardType: TextInputType.number,
-            decoration: const InputDecoration(labelText: 'Cantidad de granos'),
+            decoration: const InputDecoration(
+              labelText: 'Cantidad de semillas',
+            ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Envía una solicitud para retirar o vender granos al superadmin si tiene fondos disponibles.',
+            'Envía una solicitud para retirar o vender semillas al superadmin si tiene fondos disponibles.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
@@ -1462,7 +1469,7 @@ class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Convertir granos a creditos',
+            'Convertir semillas a creditos',
             style: Theme.of(
               context,
             ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
@@ -1472,12 +1479,12 @@ class _ConvertGrainsSheetState extends State<_ConvertGrainsSheet> {
             controller: _amountController,
             keyboardType: TextInputType.number,
             decoration: const InputDecoration(
-              labelText: 'Cantidad de granos a convertir',
+              labelText: 'Cantidad de semillas a convertir',
             ),
           ),
           const SizedBox(height: 12),
           Text(
-            'Tus granos acumulados se convertiran en creditos disponibles en tu billetera. Se aplicara una comision segun la configuracion del sistema.',
+            'Tus semillas acumuladas se convertiran en creditos disponibles en tu billetera. Se aplicara una comision segun la configuracion del sistema.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
