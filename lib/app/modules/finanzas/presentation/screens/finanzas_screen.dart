@@ -138,13 +138,24 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
       tendencias[moneda.codigo] = moneda.tendencia;
     }
 
-    final monedas = referencia.tasas.entries.toList()
+    // El admin define en el panel de Finanzas que monedas y en que orden se ven.
+    final permitidas = _productos?.monedasVisibles ?? const <String>[];
+    final orden = permitidas.isNotEmpty
+        ? permitidas
+        : const <String>['USD', 'EUR', 'MLC', 'USDT'];
+    bool visible(String codigo) =>
+        permitidas.isEmpty || permitidas.contains(codigo.trim().toUpperCase());
+
+    final monedas = referencia.tasas.entries.where((e) => visible(e.key)).toList()
       ..sort((a, b) {
-        const orden = ['USD', 'EUR', 'MLC', 'USDT'];
-        final ia = orden.indexOf(a.key.toUpperCase());
-        final ib = orden.indexOf(b.key.toUpperCase());
+        final ia = orden.indexOf(a.key.trim().toUpperCase());
+        final ib = orden.indexOf(b.key.trim().toUpperCase());
         return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
       });
+
+    if (monedas.isEmpty) {
+      return const [_MensajeFinanzas(texto: 'No hay monedas activas configuradas.')];
+    }
 
     final filas = <Widget>[];
     for (final entry in monedas) {
@@ -166,6 +177,7 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
     final oficial = referencia.oficial;
     if (oficial.isNotEmpty) {
       for (final entry in oficial.entries) {
+        if (!visible(entry.key)) continue;
         final tasaLibre = referencia.tasas[entry.key];
         final valor = entry.value.venta ?? entry.value.compra;
         filas.add(
@@ -578,6 +590,11 @@ class _CategoriaCardState extends State<_CategoriaCard> {
                             ).colorScheme.onSurfaceVariant,
                           ),
                         ),
+                        if (categoria.alerta != null)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: _AlertaBadge(alerta: categoria.alerta!),
+                          ),
                       ],
                     ),
                   ),
@@ -686,6 +703,10 @@ class _CategoriaCardState extends State<_CategoriaCard> {
               ? null
               : tendencias.reduce((a, b) => a + b) / tendencias.length,
           productoRepresentante: miembros.first,
+          alerta: miembros
+              .map((producto) => producto.alerta)
+              .whereType<AlertaPrecioFinanzas>()
+              .firstOrNull,
         ),
       );
     }
@@ -705,6 +726,7 @@ class _VarianteFinanzas {
     required this.precioCup,
     required this.tendencia,
     required this.productoRepresentante,
+    this.alerta,
   });
 
   final String etiqueta;
@@ -712,6 +734,7 @@ class _VarianteFinanzas {
   final double? precioCup;
   final double? tendencia;
   final ProductoFinanzas productoRepresentante;
+  final AlertaPrecioFinanzas? alerta;
 }
 
 class _VarianteFila extends StatelessWidget {
@@ -735,11 +758,21 @@ class _VarianteFila extends StatelessWidget {
       ),
       subtitle: Padding(
         padding: const EdgeInsets.only(top: 2),
-        child: Text(
-          variante.productos > 1
-              ? 'Promedio de ${variante.productos} anuncios'
-              : 'Precio de 1 anuncio',
-          style: const TextStyle(fontSize: 11),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              variante.productos > 1
+                  ? 'Promedio de ${variante.productos} anuncios'
+                  : 'Precio de 1 anuncio',
+              style: const TextStyle(fontSize: 11),
+            ),
+            if (variante.alerta != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 3),
+                child: _AlertaBadge(alerta: variante.alerta!, denso: true),
+              ),
+          ],
         ),
       ),
       trailing: Row(
@@ -881,6 +914,11 @@ class _ProductoResultadoFila extends StatelessWidget {
                         fontFeatures: const [FontFeature.tabularFigures()],
                       ),
                     ),
+                    if (producto.alerta != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 3),
+                        child: _AlertaBadge(alerta: producto.alerta!, denso: true),
+                      ),
                   ],
                 ),
               ),
@@ -899,6 +937,61 @@ class _ProductoResultadoFila extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _AlertaBadge extends StatelessWidget {
+  const _AlertaBadge({required this.alerta, this.denso = false});
+
+  final AlertaPrecioFinanzas alerta;
+  final bool denso;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = alerta.esIncremento ? _subida : _bajada;
+    final icono = alerta.esIncremento
+        ? Icons.trending_up_rounded
+        : Icons.trending_down_rounded;
+    final ambito = switch (alerta.ambito) {
+      'categoria' => 'categoria',
+      'producto' => 'producto',
+      _ => 'global',
+    };
+    final texto =
+        '${alerta.esIncremento ? 'Sube' : 'Baja'} '
+        '${alerta.porcentajeUmbral.toStringAsFixed(0)}% '
+        '($ambito) - variacion real ${alerta.variacionPorcentual.toStringAsFixed(1)}%';
+
+    return Container(
+      padding: EdgeInsets.symmetric(
+        horizontal: denso ? 6 : 8,
+        vertical: denso ? 2 : 3,
+      ),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icono, size: denso ? 12 : 14, color: color),
+          const SizedBox(width: 4),
+          Flexible(
+            child: Text(
+              texto,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: denso ? 10.5 : 11.5,
+                fontWeight: FontWeight.w700,
+                color: color,
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

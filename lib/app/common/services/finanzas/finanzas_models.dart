@@ -12,6 +12,31 @@ class PuntoPrecioFinanzas {
   }
 }
 
+class AlertaPrecioFinanzas {
+  const AlertaPrecioFinanzas({
+    required this.ambito,
+    required this.tipo,
+    required this.porcentajeUmbral,
+    required this.variacionPorcentual,
+  });
+
+  final String ambito;
+  final String tipo;
+  final double porcentajeUmbral;
+  final double variacionPorcentual;
+
+  bool get esIncremento => tipo == 'incremento';
+
+  factory AlertaPrecioFinanzas.fromJson(Map<String, dynamic> json) {
+    return AlertaPrecioFinanzas(
+      ambito: json['ambito']?.toString() ?? 'global',
+      tipo: json['tipo']?.toString() ?? 'incremento',
+      porcentajeUmbral: _num(json['porcentaje_umbral']) ?? 0,
+      variacionPorcentual: _num(json['variacion_porcentual']) ?? 0,
+    );
+  }
+}
+
 class ProductoFinanzas {
   const ProductoFinanzas({
     required this.id,
@@ -23,6 +48,7 @@ class ProductoFinanzas {
     this.precioCup,
     this.tendenciaPorcentual,
     this.serie = const <PuntoPrecioFinanzas>[],
+    this.alerta,
   });
 
   final String id;
@@ -34,6 +60,7 @@ class ProductoFinanzas {
   final double? precioCup;
   final double? tendenciaPorcentual;
   final List<PuntoPrecioFinanzas> serie;
+  final AlertaPrecioFinanzas? alerta;
 
   double get precioEfectivo => precioOferta ?? precio ?? 0;
 
@@ -55,6 +82,11 @@ class ProductoFinanzas {
       precioCup: _num(json['precio_cup']),
       tendenciaPorcentual: _num(json['tendencia_porcentual']),
       serie: _listaSerie(json['serie']),
+      alerta: json['alerta'] is Map
+          ? AlertaPrecioFinanzas.fromJson(
+              Map<String, dynamic>.from(json['alerta'] as Map),
+            )
+          : null,
     );
   }
 }
@@ -67,6 +99,8 @@ class CategoriaFinanzas {
     required this.negocios,
     this.promedioCup,
     this.tendenciaPorcentual,
+    this.curada = false,
+    this.alerta,
     this.productos = const <ProductoFinanzas>[],
   });
 
@@ -76,6 +110,8 @@ class CategoriaFinanzas {
   final int negocios;
   final double? promedioCup;
   final double? tendenciaPorcentual;
+  final bool curada;
+  final AlertaPrecioFinanzas? alerta;
   final List<ProductoFinanzas> productos;
 
   factory CategoriaFinanzas.fromJson(Map<String, dynamic> json) {
@@ -89,6 +125,12 @@ class CategoriaFinanzas {
       negocios: (json['negocios'] is num) ? (json['negocios'] as num).toInt() : 0,
       promedioCup: _num(json['promedio_cup']),
       tendenciaPorcentual: _num(json['tendencia_porcentual']),
+      curada: json['curada'] == true,
+      alerta: json['alerta'] is Map
+          ? AlertaPrecioFinanzas.fromJson(
+              Map<String, dynamic>.from(json['alerta'] as Map),
+            )
+          : null,
       productos: rawProductos is List
           ? rawProductos
               .whereType<Map>()
@@ -109,6 +151,9 @@ class FinanzasProductos {
     required this.conversionCup,
     required this.monedaBase,
     this.totalCategorias = 0,
+    this.curado = false,
+    this.alertasActivas = 0,
+    this.monedasVisibles = const <String>[],
     this.categorias = const <CategoriaFinanzas>[],
   });
 
@@ -116,6 +161,9 @@ class FinanzasProductos {
   final bool conversionCup;
   final String monedaBase;
   final int totalCategorias;
+  final bool curado;
+  final int alertasActivas;
+  final List<String> monedasVisibles;
   final List<CategoriaFinanzas> categorias;
 
   static const vacio = FinanzasProductos(
@@ -125,6 +173,7 @@ class FinanzasProductos {
 
   factory FinanzasProductos.fromJson(Map<String, dynamic> json) {
     final rawCategorias = json['categorias'];
+    final rawMonedas = json['monedas_visibles'];
     return FinanzasProductos(
       generadoEn: json['generado_en']?.toString(),
       conversionCup: json['conversion_cup'] == true,
@@ -132,6 +181,17 @@ class FinanzasProductos {
       totalCategorias: (json['total_categorias'] is num)
           ? (json['total_categorias'] as num).toInt()
           : 0,
+      curado: json['curado'] == true,
+      alertasActivas: (json['alertas_activas'] is num)
+          ? (json['alertas_activas'] as num).toInt()
+          : 0,
+      monedasVisibles: rawMonedas is List
+          ? rawMonedas
+              .whereType<String>()
+              .map((moneda) => moneda.trim().toUpperCase())
+              .where((moneda) => moneda.isNotEmpty)
+              .toList()
+          : const <String>[],
       categorias: rawCategorias is List
           ? rawCategorias
               .whereType<Map>()
