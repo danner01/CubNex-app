@@ -15,7 +15,68 @@ class PromotionsCubit extends Cubit<PromotionsState> {
 
   final ApiClient _apiClient;
   static const _loadTimeout = Duration(seconds: 4);
+  static const _tamanoPagina = 10;
   int _loadSequence = 0;
+  String? _lastPath;
+  String? _lastBusinessId;
+
+  Future<void> loadMore() async {
+    final path = _lastPath;
+    if (path == null ||
+        state.status == PromotionsStatus.loading ||
+        state.isLoadingMore ||
+        !state.hasMore) {
+      return;
+    }
+    emit(state.copyWith(isLoadingMore: true, message: null));
+    final result = await _apiClient
+        .get<List<PromotionModel>>(
+          path,
+          queryParameters: {
+            'limit': '$_tamanoPagina',
+            'offset': '${state.items.length}',
+            'order': 'created_at.desc',
+            if (_lastBusinessId != null) 'negocio_id': _lastBusinessId,
+          },
+          parser: (json) {
+            return _asList(
+              json,
+            ).map((item) => PromotionModel.fromJson(item)).toList();
+          },
+        )
+        .timeout(
+          _loadTimeout,
+          onTimeout: () => const ApiResult.failure(
+            ApiFailure(
+              code: 'PROMOTIONS_TIMEOUT',
+              message: 'La carga de promociones esta tardando demasiado.',
+            ),
+          ),
+        );
+    if (isClosed) return;
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          message: result.error?.message ?? 'No se pudieron cargar mas.',
+        ),
+      );
+      return;
+    }
+
+    final nuevos = result.data ?? const [];
+    final ids = state.items.map((item) => item.id).toSet();
+    emit(
+      state.copyWith(
+        isLoadingMore: false,
+        items: [
+          ...state.items,
+          ...nuevos.where((item) => !ids.contains(item.id)),
+        ],
+        hasMore: nuevos.length == _tamanoPagina,
+      ),
+    );
+  }
 
   Future<void> loadPublic() async {
     if (state.items.isEmpty) {
@@ -72,7 +133,10 @@ class PromotionsCubit extends Cubit<PromotionsState> {
   Future<void> loadForBusiness(String businessId) async {
     if (state.items.isEmpty) {
       emit(
-        state.copyWith(status: PromotionsStatus.loading, businessId: businessId),
+        state.copyWith(
+          status: PromotionsStatus.loading,
+          businessId: businessId,
+        ),
       );
     } else {
       emit(state.copyWith(businessId: businessId));
@@ -221,11 +285,13 @@ class PromotionsCubit extends Cubit<PromotionsState> {
 
   Future<void> _load(String path, {String? businessId}) async {
     final loadSequence = ++_loadSequence;
+    _lastPath = path;
+    _lastBusinessId = businessId;
     final result = await _apiClient
         .get<List<PromotionModel>>(
           path,
           queryParameters: {
-            'limit': 20,
+            'limit': '$_tamanoPagina',
             'order': 'created_at.desc',
             if (businessId != null) 'negocio_id': businessId,
           },
@@ -258,10 +324,13 @@ class PromotionsCubit extends Cubit<PromotionsState> {
       return;
     }
 
+    final items = result.data ?? const [];
     emit(
       state.copyWith(
         status: PromotionsStatus.success,
-        items: result.data ?? const [],
+        items: items,
+        hasMore: items.length == _tamanoPagina,
+        isLoadingMore: false,
       ),
     );
   }

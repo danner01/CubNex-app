@@ -139,7 +139,8 @@ class _SupportTicketsViewState extends State<_SupportTicketsView> {
     return Scaffold(
       body: BlocConsumer<SupportTicketsCubit, SupportTicketsState>(
         listener: (context, state) {
-          if (state.message != null && state.status != SupportTicketsStatus.creating) {
+          if (state.message != null &&
+              state.status != SupportTicketsStatus.creating) {
             showSnackOrAuthDialog(context, state.message);
           }
         },
@@ -151,9 +152,9 @@ class _SupportTicketsViewState extends State<_SupportTicketsView> {
               children: [
                 Text(
                   'Tickets de soporte',
-                  style: Theme.of(
-                    context,
-                  ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w900),
+                  style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                    fontWeight: FontWeight.w900,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(
@@ -193,6 +194,49 @@ class _SupportTicketsViewState extends State<_SupportTicketsView> {
                       padding: const EdgeInsets.only(bottom: 12),
                       child: _TicketCard(ticket: ticket),
                     ),
+                  ),
+                if (state.hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: state.isLoadingMore
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: TextButton.icon(
+                              onPressed: () => context
+                                  .read<SupportTicketsCubit>()
+                                  .loadMore(),
+                              icon: const Icon(
+                                Icons.expand_more_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Cargar mas tickets'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                textStyle: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                minimumSize: const Size(0, 32),
+                              ),
+                            ),
+                          ),
                   ),
               ],
             ),
@@ -242,7 +286,8 @@ class _SupportTicketsViewState extends State<_SupportTicketsView> {
             textCapitalization: TextCapitalization.sentences,
             decoration: const InputDecoration(
               labelText: 'Describe el problema *',
-              hintText: 'Explica que ocurrio, cuando y que esperabas que pasara.',
+              hintText:
+                  'Explica que ocurrio, cuando y que esperabas que pasara.',
               alignLabelWithHint: true,
               border: OutlineInputBorder(),
             ),
@@ -251,9 +296,7 @@ class _SupportTicketsViewState extends State<_SupportTicketsView> {
           Row(
             children: [
               OutlinedButton.icon(
-                onPressed: submitting || _subiendoAdjunto
-                    ? null
-                    : _pickAdjunto,
+                onPressed: submitting || _subiendoAdjunto ? null : _pickAdjunto,
                 icon: _subiendoAdjunto
                     ? const SizedBox(
                         width: 16,
@@ -348,9 +391,9 @@ class _TicketCard extends StatelessWidget {
                     ticket.titulo?.isNotEmpty == true
                         ? ticket.titulo!
                         : 'Ticket ${ticket.numeroTicket != null ? '#${ticket.numeroTicket}' : 'sin numero'}',
-                    style: Theme.of(
-                      context,
-                    ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w800),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
                 Container(
@@ -392,24 +435,25 @@ class _TicketCard extends StatelessWidget {
               ticket.descripcion,
               maxLines: 3,
               overflow: TextOverflow.ellipsis,
-              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodyMedium?.copyWith(color: scheme.onSurfaceVariant),
             ),
             const SizedBox(height: 8),
             Text(
               _fechaLabel(ticket.createdAt),
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                color: scheme.onSurfaceVariant,
-              ),
+              style: Theme.of(
+                context,
+              ).textTheme.bodySmall?.copyWith(color: scheme.onSurfaceVariant),
             ),
-            if (ticket.estaAtendido && ticket.resolucion?.isNotEmpty == true) ...[
+            if (ticket.estaAtendido &&
+                ticket.resolucion?.isNotEmpty == true) ...[
               const SizedBox(height: 10),
               Text(
                 'Resolucion: ${ticket.resolucion}',
-                style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                  color: AppColors.goldDark,
-                ),
+                style: Theme.of(
+                  context,
+                ).textTheme.bodySmall?.copyWith(color: AppColors.goldDark),
               ),
             ],
           ],
@@ -463,7 +507,8 @@ class _TicketCard extends StatelessWidget {
                     ),
                   ),
                 ],
-                if (ticket.estaAtendido && ticket.resolucion?.isNotEmpty == true) ...[
+                if (ticket.estaAtendido &&
+                    ticket.resolucion?.isNotEmpty == true) ...[
                   const SizedBox(height: 12),
                   Text(
                     'Resolucion del equipo:',
@@ -510,9 +555,9 @@ class _EmptyTickets extends StatelessWidget {
           Text(
             'Aun no has creado tickets.',
             textAlign: TextAlign.center,
-            style: Theme.of(context).textTheme.titleSmall?.copyWith(
-              fontWeight: FontWeight.w800,
-            ),
+            style: Theme.of(
+              context,
+            ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w800),
           ),
           const SizedBox(height: 4),
           Text(

@@ -26,6 +26,8 @@ class FinanzasScreen extends StatefulWidget {
 }
 
 class _FinanzasScreenState extends State<FinanzasScreen> {
+  static const _tamanoPagina = 10;
+
   final FinanzasService _finanzas = sl<FinanzasService>();
   bool _cargando = true;
   String? _error;
@@ -33,6 +35,9 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
   FinanzasProductos? _productos;
   final TextEditingController _buscadorController = TextEditingController();
   String _busqueda = '';
+  int _monedasVisibles = _tamanoPagina;
+  int _categoriasVisibles = _tamanoPagina;
+  int _busquedaVisibles = _tamanoPagina;
 
   @override
   void initState() {
@@ -50,6 +55,9 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
     setState(() {
       _cargando = true;
       _error = null;
+      _monedasVisibles = _tamanoPagina;
+      _categoriasVisibles = _tamanoPagina;
+      _busquedaVisibles = _tamanoPagina;
     });
     try {
       final resultados = await Future.wait([
@@ -97,8 +105,10 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
                 const SizedBox(height: 10),
                 _ProductosBuscador(
                   controller: _buscadorController,
-                  onChanged: (valor) =>
-                      setState(() => _busqueda = valor.trim()),
+                  onChanged: (valor) => setState(() {
+                    _busqueda = valor.trim();
+                    _busquedaVisibles = _tamanoPagina;
+                  }),
                 ),
                 const SizedBox(height: 4),
                 if (_cargando)
@@ -176,9 +186,24 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
     }
 
     final widgets = <Widget>[];
-    for (var i = 0; i < filas.length; i++) {
+    final visibles = filas.take(_monedasVisibles).toList();
+    for (var i = 0; i < visibles.length; i++) {
       if (i > 0) widgets.add(const SizedBox(height: 6));
-      widgets.add(filas[i]);
+      widgets.add(visibles[i]);
+    }
+    if (filas.length > _monedasVisibles || _monedasVisibles > _tamanoPagina) {
+      final hayMas = filas.length > _monedasVisibles;
+      widgets.add(
+        _CargarMasTexto(
+          texto: hayMas
+              ? 'Ver mas monedas (${filas.length - _monedasVisibles})'
+              : 'Ver menos',
+          onTap: hayMas
+              ? () => setState(() => _monedasVisibles += _tamanoPagina)
+              : () => setState(() => _monedasVisibles = _tamanoPagina),
+          icono: hayMas ? Icons.expand_more_rounded : Icons.expand_less_rounded,
+        ),
+      );
     }
     return widgets;
   }
@@ -214,17 +239,53 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
         ),
         const SizedBox(height: 10),
       ];
-      for (var i = 0; i < resultados.length; i++) {
-        widgets.add(_ProductoResultadoFila(producto: resultados[i].producto));
+      final visiblesBusqueda = resultados.take(_busquedaVisibles).toList();
+      for (var i = 0; i < visiblesBusqueda.length; i++) {
+        widgets.add(
+          _ProductoResultadoFila(producto: visiblesBusqueda[i].producto),
+        );
         widgets.add(const SizedBox(height: 6));
+      }
+      if (resultados.length > _busquedaVisibles ||
+          _busquedaVisibles > _tamanoPagina) {
+        final hayMas = resultados.length > _busquedaVisibles;
+        widgets.add(
+          _CargarMasTexto(
+            texto: hayMas
+                ? 'Ver mas resultados (${resultados.length - _busquedaVisibles})'
+                : 'Ver menos',
+            onTap: hayMas
+                ? () => setState(() => _busquedaVisibles += _tamanoPagina)
+                : () => setState(() => _busquedaVisibles = _tamanoPagina),
+            icono: hayMas
+                ? Icons.expand_more_rounded
+                : Icons.expand_less_rounded,
+          ),
+        );
       }
       return widgets;
     }
 
     final widgets = <Widget>[];
-    for (final categoria in productos.categorias) {
+    final visibles = productos.categorias.take(_categoriasVisibles).toList();
+    for (final categoria in visibles) {
       widgets.add(_CategoriaCard(categoria: categoria));
       widgets.add(const SizedBox(height: 10));
+    }
+    if (productos.categorias.length > _categoriasVisibles ||
+        _categoriasVisibles > _tamanoPagina) {
+      final hayMas = productos.categorias.length > _categoriasVisibles;
+      widgets.add(
+        _CargarMasTexto(
+          texto: hayMas
+              ? 'Ver mas categorias (${productos.categorias.length - _categoriasVisibles})'
+              : 'Ver menos',
+          onTap: hayMas
+              ? () => setState(() => _categoriasVisibles += _tamanoPagina)
+              : () => setState(() => _categoriasVisibles = _tamanoPagina),
+          icono: hayMas ? Icons.expand_more_rounded : Icons.expand_less_rounded,
+        ),
+      );
     }
     if (!productos.conversionCup) {
       widgets.add(
@@ -837,6 +898,39 @@ class _ProductoResultadoFila extends StatelessWidget {
               const Icon(Icons.chevron_right_rounded, size: 20),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CargarMasTexto extends StatelessWidget {
+  const _CargarMasTexto({
+    required this.texto,
+    required this.onTap,
+    this.icono = Icons.expand_more_rounded,
+  });
+
+  final String texto;
+  final VoidCallback? onTap;
+  final IconData icono;
+
+  @override
+  Widget build(BuildContext context) {
+    if (onTap == null) return const SizedBox.shrink();
+    return Center(
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: Icon(icono, size: 18),
+        label: Text(texto),
+        style: TextButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.primary,
+          textStyle: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          minimumSize: const Size(0, 32),
         ),
       ),
     );

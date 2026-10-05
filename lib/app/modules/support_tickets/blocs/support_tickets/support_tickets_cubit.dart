@@ -12,12 +12,13 @@ class SupportTicketsCubit extends Cubit<SupportTicketsState> {
       super(const SupportTicketsState());
 
   final ApiClient _apiClient;
+  static const _tamanoPagina = 10;
 
   Future<void> load() async {
     emit(state.copyWith(status: SupportTicketsStatus.loading));
     final result = await _apiClient.get<List<SoporteTicketModel>>(
       '/tickets',
-      queryParameters: {'limit': 100, 'order': 'created_at.desc'},
+      queryParameters: {'limit': '$_tamanoPagina', 'order': 'created_at.desc'},
       parser: (json) {
         if (json is List) {
           return json
@@ -37,16 +38,74 @@ class SupportTicketsCubit extends Cubit<SupportTicketsState> {
       emit(
         state.copyWith(
           status: SupportTicketsStatus.failure,
-          message: result.error?.message ?? 'No se pudieron cargar tus tickets.',
+          message:
+              result.error?.message ?? 'No se pudieron cargar tus tickets.',
         ),
       );
       return;
     }
 
+    final tickets = result.data ?? const [];
     emit(
       state.copyWith(
         status: SupportTicketsStatus.success,
-        tickets: result.data ?? const [],
+        tickets: tickets,
+        hasMore: tickets.length == _tamanoPagina,
+        isLoadingMore: false,
+      ),
+    );
+  }
+
+  Future<void> loadMore() async {
+    if (state.status == SupportTicketsStatus.loading ||
+        state.isLoadingMore ||
+        !state.hasMore) {
+      return;
+    }
+    emit(state.copyWith(isLoadingMore: true, message: null));
+    final result = await _apiClient.get<List<SoporteTicketModel>>(
+      '/tickets',
+      queryParameters: {
+        'limit': '$_tamanoPagina',
+        'offset': '${state.tickets.length}',
+        'order': 'created_at.desc',
+      },
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) => SoporteTicketModel.fromJson(
+                  Map<String, dynamic>.from(item),
+                ),
+              )
+              .toList();
+        }
+        return const [];
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          message:
+              result.error?.message ?? 'No se pudieron cargar mas tickets.',
+        ),
+      );
+      return;
+    }
+
+    final nuevos = result.data ?? const [];
+    final ids = state.tickets.map((item) => item.id).toSet();
+    emit(
+      state.copyWith(
+        isLoadingMore: false,
+        tickets: [
+          ...state.tickets,
+          ...nuevos.where((item) => !ids.contains(item.id)),
+        ],
+        hasMore: nuevos.length == _tamanoPagina,
       ),
     );
   }
@@ -85,7 +144,11 @@ class SupportTicketsCubit extends Cubit<SupportTicketsState> {
     return result.data;
   }
 
-  Future<String?> uploadAttachment(String filename, String contentType, String base64Data) async {
+  Future<String?> uploadAttachment(
+    String filename,
+    String contentType,
+    String base64Data,
+  ) async {
     final result = await _apiClient.post<Map<String, dynamic>>(
       '/storage/subir',
       data: {

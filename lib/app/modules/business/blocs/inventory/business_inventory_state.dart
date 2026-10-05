@@ -11,27 +11,42 @@ class BusinessInventoryState extends Equatable {
     this.business,
     this.products = const [],
     this.message,
+    this.hasMore = false,
+    this.isLoadingMore = false,
   });
 
   final BusinessInventoryStatus status;
   final BusinessModel? business;
   final List<ProductModel> products;
   final String? message;
+  final bool hasMore;
+  final bool isLoadingMore;
 
   BusinessInventoryState copyWith({
     BusinessInventoryStatus? status,
     BusinessModel? business,
     List<ProductModel>? products,
     String? message,
+    bool? hasMore,
+    bool? isLoadingMore,
   }) {
     return BusinessInventoryState(
       status: status ?? this.status,
       business: business ?? this.business,
       products: products ?? this.products,
       message: message,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 
   @override
-  List<Object?> get props => [status, business, products, message];
+  List<Object?> get props => [
+    status,
+    business,
+    products,
+    message,
+    hasMore,
+    isLoadingMore,
+  ];
 }

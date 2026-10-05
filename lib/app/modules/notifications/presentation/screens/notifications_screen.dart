@@ -119,6 +119,48 @@ class _NotificationsViewState extends State<_NotificationsView> {
                   ...visibleItems.map(
                     (item) => _NotificationTile(notification: item),
                   ),
+                if (state.hasMore && visibleItems.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: state.isLoadingMore
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  context.read<NotificationsCubit>().loadMore(),
+                              icon: const Icon(
+                                Icons.expand_more_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Cargar mas notificaciones'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                textStyle: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                minimumSize: const Size(0, 32),
+                              ),
+                            ),
+                          ),
+                  ),
               ],
             ),
           );

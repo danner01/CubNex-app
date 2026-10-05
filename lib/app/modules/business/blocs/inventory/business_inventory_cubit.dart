@@ -13,6 +13,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       super(const BusinessInventoryState());
 
   final ApiClient _apiClient;
+  static const _tamanoPagina = 10;
 
   Future<void> load({BusinessModel? selectedBusiness}) async {
     emit(state.copyWith(status: BusinessInventoryStatus.loading));
@@ -53,7 +54,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
   Future<void> _loadProductsForBusiness(BusinessModel business) async {
     final productsResult = await _apiClient.get<List<ProductModel>>(
       '/negocios/${business.id}/productos',
-      queryParameters: {'limit': 50, 'order': 'created_at.desc'},
+      queryParameters: {'limit': '$_tamanoPagina', 'order': 'created_at.desc'},
       parser: (json) {
         if (json is List) {
           return json
@@ -80,11 +81,68 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       return;
     }
 
+    final products = productsResult.data ?? const [];
     emit(
       state.copyWith(
         status: BusinessInventoryStatus.success,
         business: business,
-        products: productsResult.data ?? const [],
+        products: products,
+        hasMore: products.length == _tamanoPagina,
+        isLoadingMore: false,
+      ),
+    );
+  }
+
+  Future<void> loadMore() async {
+    final business = state.business;
+    if (business == null ||
+        state.status == BusinessInventoryStatus.loading ||
+        state.isLoadingMore ||
+        !state.hasMore) {
+      return;
+    }
+    emit(state.copyWith(isLoadingMore: true, message: null));
+    final productsResult = await _apiClient.get<List<ProductModel>>(
+      '/negocios/${business.id}/productos',
+      queryParameters: {
+        'limit': '$_tamanoPagina',
+        'offset': '${state.products.length}',
+        'order': 'created_at.desc',
+      },
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    ProductModel.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList();
+        }
+        return const [];
+      },
+    );
+
+    if (!productsResult.isSuccess) {
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          message: productsResult.error?.message ?? 'No se pudo cargar mas.',
+        ),
+      );
+      return;
+    }
+
+    final nuevos = productsResult.data ?? const [];
+    final ids = state.products.map((item) => item.id).toSet();
+    emit(
+      state.copyWith(
+        isLoadingMore: false,
+        products: [
+          ...state.products,
+          ...nuevos.where((item) => !ids.contains(item.id)),
+        ],
+        hasMore: nuevos.length == _tamanoPagina,
       ),
     );
   }
@@ -287,7 +345,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       result = await _apiClient.post<ProductLabelDetection>(
         '/vision-ia/detectar-etiqueta',
         data: {
-          if (frontImageBase64 != null) 'imagen_frente_base64': frontImageBase64,
+          if (frontImageBase64 != null)
+            'imagen_frente_base64': frontImageBase64,
           if (backImageBase64 != null) 'imagen_reverso_base64': backImageBase64,
           if (business != null) 'negocio_id': business.id,
           'guardar_imagenes': saveImages,
@@ -310,7 +369,8 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
       emit(
         state.copyWith(
           status: BusinessInventoryStatus.success,
-          message: 'No se pudo analizar la imagen con IA. Ingresa los datos manualmente.',
+          message:
+              'No se pudo analizar la imagen con IA. Ingresa los datos manualmente.',
         ),
       );
       return const ProductLabelDetection();

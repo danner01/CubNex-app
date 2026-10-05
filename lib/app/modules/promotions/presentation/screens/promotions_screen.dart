@@ -60,6 +60,14 @@ class _PromotionsView extends StatelessWidget {
                 )
               else
                 ...state.items.map((item) => _PromotionCard(item: item)),
+              if (state.hasMore)
+                Padding(
+                  padding: const EdgeInsets.only(top: 2),
+                  child: _CargarMasPromociones(
+                    cargando: state.isLoadingMore,
+                    onTap: () => context.read<PromotionsCubit>().loadMore(),
+                  ),
+                ),
             ],
           ),
         ),
@@ -218,6 +226,14 @@ class _BusinessPromotionsView extends StatelessWidget {
                     (item) =>
                         _PromotionCard(item: item, showClientActions: false),
                   ),
+                  if (state.hasMore)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: _CargarMasPromociones(
+                        cargando: state.isLoadingMore,
+                        onTap: () => context.read<PromotionsCubit>().loadMore(),
+                      ),
+                    ),
                 ],
               ],
             ),
@@ -766,6 +782,45 @@ class _ValidateRedemptionSheetState extends State<_ValidateRedemptionSheet> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _CargarMasPromociones extends StatelessWidget {
+  const _CargarMasPromociones({required this.cargando, required this.onTap});
+
+  final bool cargando;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cargando) {
+      return const Padding(
+        padding: EdgeInsets.all(16),
+        child: Center(
+          child: SizedBox(
+            width: 22,
+            height: 22,
+            child: CircularProgressIndicator(strokeWidth: 2.5),
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: TextButton.icon(
+        onPressed: onTap,
+        icon: const Icon(Icons.expand_more_rounded, size: 18),
+        label: const Text('Cargar mas promociones'),
+        style: TextButton.styleFrom(
+          foregroundColor: Theme.of(context).colorScheme.primary,
+          textStyle: const TextStyle(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w700,
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          minimumSize: const Size(0, 32),
         ),
       ),
     );

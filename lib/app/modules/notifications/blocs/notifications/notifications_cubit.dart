@@ -16,11 +16,13 @@ class NotificationsCubit extends Cubit<NotificationsState> {
   final ApiClient _apiClient;
   final PushNotificationService _pushNotificationService;
 
+  static const _tamanoPagina = 10;
+
   Future<void> load() async {
     emit(state.copyWith(status: NotificationsStatus.loading));
     final result = await _apiClient.get<List<NotificationModel>>(
       '/notificaciones',
-      queryParameters: {'limit': 80, 'order': 'created_at.desc'},
+      queryParameters: {'limit': '$_tamanoPagina', 'order': 'created_at.desc'},
       parser: (json) {
         if (json is List) {
           return json
@@ -45,10 +47,66 @@ class NotificationsCubit extends Cubit<NotificationsState> {
       return;
     }
 
+    final items = result.data ?? const [];
     emit(
       state.copyWith(
         status: NotificationsStatus.success,
-        items: result.data ?? const [],
+        items: items,
+        hasMore: items.length == _tamanoPagina,
+        isLoadingMore: false,
+      ),
+    );
+    _pushNotificationService.notifyNotificationsChanged();
+  }
+
+  Future<void> loadMore() async {
+    if (state.status == NotificationsStatus.loading ||
+        state.isLoadingMore ||
+        !state.hasMore) {
+      return;
+    }
+    emit(state.copyWith(isLoadingMore: true, message: null));
+    final result = await _apiClient.get<List<NotificationModel>>(
+      '/notificaciones',
+      queryParameters: {
+        'limit': '$_tamanoPagina',
+        'offset': '${state.items.length}',
+        'order': 'created_at.desc',
+      },
+      parser: (json) {
+        if (json is List) {
+          return json
+              .whereType<Map>()
+              .map(
+                (item) =>
+                    NotificationModel.fromJson(Map<String, dynamic>.from(item)),
+              )
+              .toList();
+        }
+        return const [];
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          message: result.error?.message ?? 'No se pudieron cargar mas avisos.',
+        ),
+      );
+      return;
+    }
+
+    final nuevos = result.data ?? const [];
+    final ids = state.items.map((item) => item.id).toSet();
+    emit(
+      state.copyWith(
+        isLoadingMore: false,
+        items: [
+          ...state.items,
+          ...nuevos.where((item) => !ids.contains(item.id)),
+        ],
+        hasMore: nuevos.length == _tamanoPagina,
       ),
     );
     _pushNotificationService.notifyNotificationsChanged();

@@ -10,12 +10,13 @@ class PostsCubit extends Cubit<PostsState> {
       super(const PostsState());
 
   final ApiClient _apiClient;
+  static const _tamanoPagina = 10;
 
   Future<void> loadFeed() async {
     emit(state.copyWith(status: PostsStatus.loading, message: null));
     final result = await _apiClient.get<List<BusinessPostModel>>(
       '/publicaciones/feed',
-      queryParameters: {'limit': 30, 'order': 'created_at.desc'},
+      queryParameters: {'limit': '$_tamanoPagina', 'order': 'created_at.desc'},
       parser: _parsePosts,
     );
 
@@ -29,10 +30,53 @@ class PostsCubit extends Cubit<PostsState> {
       return;
     }
 
+    final items = result.data ?? const [];
     emit(
       state.copyWith(
         status: PostsStatus.success,
-        items: result.data ?? const [],
+        items: items,
+        hasMore: items.length == _tamanoPagina,
+        isLoadingMore: false,
+      ),
+    );
+  }
+
+  Future<void> loadMoreFeed() async {
+    if (state.status == PostsStatus.loading ||
+        state.isLoadingMore ||
+        !state.hasMore) {
+      return;
+    }
+    emit(state.copyWith(isLoadingMore: true, message: null));
+    final result = await _apiClient.get<List<BusinessPostModel>>(
+      '/publicaciones/feed',
+      queryParameters: {
+        'limit': '$_tamanoPagina',
+        'offset': '${state.items.length}',
+        'order': 'created_at.desc',
+      },
+      parser: _parsePosts,
+    );
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          isLoadingMore: false,
+          message: result.error?.message ?? 'No se pudieron cargar mas.',
+        ),
+      );
+      return;
+    }
+
+    final nuevos = result.data ?? const [];
+    final ids = state.items.map((item) => item.id).toSet();
+    emit(
+      state.copyWith(
+        isLoadingMore: false,
+        items: [
+          ...state.items,
+          ...nuevos.where((item) => !ids.contains(item.id)),
+        ],
+        hasMore: nuevos.length == _tamanoPagina,
       ),
     );
   }

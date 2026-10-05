@@ -112,6 +112,49 @@ class _BusinessInventoryView extends StatelessWidget {
                   ...state.products.map(
                     (product) => _InventoryProductCard(product: product),
                   ),
+                if (state.hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: state.isLoadingMore
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: TextButton.icon(
+                              onPressed: () => context
+                                  .read<BusinessInventoryCubit>()
+                                  .loadMore(),
+                              icon: const Icon(
+                                Icons.expand_more_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Cargar mas productos'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                textStyle: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                minimumSize: const Size(0, 32),
+                              ),
+                            ),
+                          ),
+                  ),
               ],
             ),
           ),
@@ -579,7 +622,8 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                       _priceController.text = suggestion.price.toStringAsFixed(
                         2,
                       );
-                      if (suggestion.source == 'patrones' && suggestion.id != null) {
+                      if (suggestion.source == 'patrones' &&
+                          suggestion.id != null) {
                         _sendPatronFeedback(suggestion.id!, true);
                       }
                       setState(() {});
@@ -985,11 +1029,13 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   }
 
   void _sendPatronFeedback(String patronId, bool acerto) {
-    sl<ApiClient>().post<Map<String, dynamic>>(
-      '/productos/patron-feedback',
-      data: {'patron_id': patronId, 'acerto': acerto},
-      parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
-    ).catchError((_) {});
+    sl<ApiClient>()
+        .post<Map<String, dynamic>>(
+          '/productos/patron-feedback',
+          data: {'patron_id': patronId, 'acerto': acerto},
+          parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+        )
+        .catchError((_) {});
   }
 }
 

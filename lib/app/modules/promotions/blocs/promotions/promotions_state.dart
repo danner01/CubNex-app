@@ -22,7 +22,11 @@ class PromotionRedemption extends Equatable {
   factory PromotionRedemption.fromJson(Map<String, dynamic> json) {
     final promotion = json['promociones'];
     final data = json['datos_promocion'];
-    final promotionMap = promotion is Map ? promotion : data is Map ? data : null;
+    final promotionMap = promotion is Map
+        ? promotion
+        : data is Map
+        ? data
+        : null;
     return PromotionRedemption(
       id: '${json['id'] ?? ''}',
       token: '${json['token'] ?? ''}',
@@ -43,6 +47,8 @@ class PromotionsState extends Equatable {
     this.businessId,
     this.message,
     this.redemption,
+    this.hasMore = false,
+    this.isLoadingMore = false,
   });
 
   final PromotionsStatus status;
@@ -50,6 +56,8 @@ class PromotionsState extends Equatable {
   final String? businessId;
   final String? message;
   final PromotionRedemption? redemption;
+  final bool hasMore;
+  final bool isLoadingMore;
 
   PromotionsState copyWith({
     PromotionsStatus? status,
@@ -57,6 +65,8 @@ class PromotionsState extends Equatable {
     String? businessId,
     String? message,
     PromotionRedemption? redemption,
+    bool? hasMore,
+    bool? isLoadingMore,
     bool clearRedemption = false,
   }) {
     return PromotionsState(
@@ -65,9 +75,19 @@ class PromotionsState extends Equatable {
       businessId: businessId ?? this.businessId,
       message: message,
       redemption: clearRedemption ? null : redemption ?? this.redemption,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
     );
   }
 
   @override
-  List<Object?> get props => [status, items, businessId, message, redemption];
+  List<Object?> get props => [
+    status,
+    items,
+    businessId,
+    message,
+    redemption,
+    hasMore,
+    isLoadingMore,
+  ];
 }

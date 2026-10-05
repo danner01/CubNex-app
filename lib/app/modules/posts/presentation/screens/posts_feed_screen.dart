@@ -48,13 +48,17 @@ class _PostsFeedView extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 4),
-                const Text('Publicaciones premium de negocios, ofertas y novedades.'),
+                const Text(
+                  'Publicaciones premium de negocios, ofertas y novedades.',
+                ),
                 const SizedBox(height: 16),
                 if (state.status == PostsStatus.loading && state.items.isEmpty)
-                  const Center(child: Padding(
-                    padding: EdgeInsets.all(28),
-                    child: CircularProgressIndicator(),
-                  ))
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(28),
+                      child: CircularProgressIndicator(),
+                    ),
+                  )
                 else if (state.items.isEmpty)
                   const Card(
                     child: Padding(
@@ -64,6 +68,48 @@ class _PostsFeedView extends StatelessWidget {
                   )
                 else
                   ...state.items.map((post) => _PostCard(post: post)),
+                if (state.hasMore)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: state.isLoadingMore
+                        ? const Center(
+                            child: Padding(
+                              padding: EdgeInsets.all(16),
+                              child: SizedBox(
+                                width: 22,
+                                height: 22,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 2.5,
+                                ),
+                              ),
+                            ),
+                          )
+                        : Center(
+                            child: TextButton.icon(
+                              onPressed: () =>
+                                  context.read<PostsCubit>().loadMoreFeed(),
+                              icon: const Icon(
+                                Icons.expand_more_rounded,
+                                size: 18,
+                              ),
+                              label: const Text('Cargar mas publicaciones'),
+                              style: TextButton.styleFrom(
+                                foregroundColor: Theme.of(
+                                  context,
+                                ).colorScheme.primary,
+                                textStyle: const TextStyle(
+                                  fontSize: 12.5,
+                                  fontWeight: FontWeight.w700,
+                                ),
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                minimumSize: const Size(0, 32),
+                              ),
+                            ),
+                          ),
+                  ),
               ],
             ),
           );
@@ -95,7 +141,9 @@ class _PostCard extends StatelessWidget {
           ListTile(
             contentPadding: const EdgeInsets.fromLTRB(14, 8, 14, 4),
             leading: CircleAvatar(
-              backgroundColor: theme.colorScheme.primary.withValues(alpha: 0.16),
+              backgroundColor: theme.colorScheme.primary.withValues(
+                alpha: 0.16,
+              ),
               backgroundImage: business?.logoUrl?.isNotEmpty == true
                   ? NetworkImage(business!.logoUrl!)
                   : null,
@@ -107,7 +155,9 @@ class _PostCard extends StatelessWidget {
               business?.name ?? 'Negocio',
               style: const TextStyle(fontWeight: FontWeight.w900),
             ),
-            subtitle: Text([business?.province, post.type].whereType<String>().join(' · ')),
+            subtitle: Text(
+              [business?.province, post.type].whereType<String>().join(' · '),
+            ),
             trailing: Container(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
               decoration: BoxDecoration(
@@ -119,7 +169,9 @@ class _PostCard extends StatelessWidget {
                 style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12),
               ),
             ),
-            onTap: business == null ? null : () => context.go(AppRoutes.store(business.id)),
+            onTap: business == null
+                ? null
+                : () => context.go(AppRoutes.store(business.id)),
           ),
           if (imageUrl != null && imageUrl.isNotEmpty)
             AspectRatio(
@@ -155,13 +207,17 @@ class _PostCard extends StatelessWidget {
                       icon: Icons.ios_share_rounded,
                       label: '${post.sharesCount}',
                       onTap: () async {
-                        final link =
-                            await context.read<PostsCubit>().share(post.id);
+                        final link = await context.read<PostsCubit>().share(
+                          post.id,
+                        );
                         final title =
-                            post.title ?? business?.name ?? 'Publicacion ConKkao';
+                            post.title ??
+                            business?.name ??
+                            'Publicacion ConKkao';
                         final text = [
                           title,
-                          if (post.content.trim().isNotEmpty) post.content.trim(),
+                          if (post.content.trim().isNotEmpty)
+                            post.content.trim(),
                           if (link != null && link.isNotEmpty) link,
                         ].join('\n');
                         await Share.share(
@@ -185,7 +241,9 @@ class _PostCard extends StatelessWidget {
                 if (post.title?.isNotEmpty == true)
                   Text(
                     post.title!,
-                    style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                    style: theme.textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
                   ),
                 if (post.title?.isNotEmpty == true) const SizedBox(height: 4),
                 Text(post.content),
@@ -213,9 +271,7 @@ class _PostCard extends StatelessWidget {
                             post.type == 'promocion'
                                 ? 'Promocion de ${post.business?.name ?? 'negocio'}'
                                 : 'Precio del producto',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w800,
-                            ),
+                            style: const TextStyle(fontWeight: FontWeight.w800),
                           ),
                         ),
                         Text(
@@ -346,7 +402,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
               const SizedBox(height: 14),
               Text(
                 'Comentarios',
-                style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
+                style: Theme.of(
+                  context,
+                ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w900),
               ),
               const SizedBox(height: 12),
               ConstrainedBox(
@@ -365,7 +423,8 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                           return ListTile(
                             contentPadding: EdgeInsets.zero,
                             leading: CircleAvatar(
-                              backgroundImage: comment.avatarUrl?.isNotEmpty == true
+                              backgroundImage:
+                                  comment.avatarUrl?.isNotEmpty == true
                                   ? NetworkImage(comment.avatarUrl!)
                                   : null,
                               child: comment.avatarUrl?.isNotEmpty == true
@@ -374,7 +433,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                             ),
                             title: Text(
                               comment.userName ?? 'Usuario',
-                              style: const TextStyle(fontWeight: FontWeight.w900),
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w900,
+                              ),
                             ),
                             subtitle: Text(comment.comment),
                           );
@@ -387,7 +448,9 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                   Expanded(
                     child: TextField(
                       controller: _controller,
-                      decoration: const InputDecoration(hintText: 'Escribe un comentario'),
+                      decoration: const InputDecoration(
+                        hintText: 'Escribe un comentario',
+                      ),
                       minLines: 1,
                       maxLines: 3,
                     ),
@@ -397,7 +460,10 @@ class _CommentsSheetState extends State<_CommentsSheet> {
                     onPressed: state.status == PostsStatus.saving
                         ? null
                         : () {
-                            context.read<PostsCubit>().comment(widget.post.id, _controller.text);
+                            context.read<PostsCubit>().comment(
+                              widget.post.id,
+                              _controller.text,
+                            );
                             _controller.clear();
                           },
                     child: const Icon(Icons.send_rounded),
