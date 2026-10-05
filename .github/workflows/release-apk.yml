@@ -78,7 +78,10 @@ jobs:
           cat > upload-blob.mjs << 'EOF'
           import { put } from "@vercel/blob";
           import fs from "node:fs";
+          import path from "node:path";
           const outputPath = process.env.GITHUB_OUTPUT;
+          const token = process.env.BLOB_READ_WRITE_TOKEN;
+          const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
           const files = [
             "Cubanex-arm64-v8a.apk",
             "Cubanex-armeabi-v7a.apk",
@@ -89,20 +92,38 @@ jobs:
             "Cubanex-armeabi-v7a.apk": "armeabi_v7a_url",
             "Cubanex-x86_64.apk": "x86_64_url",
           };
+
+          // Blob upload is best effort: the GitHub release uses dist/ assets, so a Blob
+          // failure must not block the release. Retry each file with a FRESH stream because
+          // @vercel/blob cannot re-send an already consumed ReadStream ("Response body
+          // object should not be disturbed or locked").
           const urls = {};
-          const token = process.env.BLOB_READ_WRITE_TOKEN;
           for (const fileName of files) {
-            const stream = fs.createReadStream(`dist/${fileName}`);
-            const blob = await put(fileName, stream, {
-              access: "public",
-              addRandomSuffix: false,
-              allowOverwrite: true,
-              token,
-            });
-            console.log(`${fileName}: ${blob.url}`);
-            urls[fileName] = blob.url;
+            let uploaded = null;
+            for (let attempt = 1; attempt <= 4; attempt += 1) {
+              try {
+                uploaded = await put(fileName, fs.createReadStream(path.join("dist", fileName)), {
+                  access: "public",
+                  addRandomSuffix: false,
+                  allowOverwrite: true,
+                  token,
+                  disableRetry: true,
+                });
+                break;
+              } catch (error) {
+                const message = error?.message ?? String(error);
+                console.error(`${fileName}: attempt ${attempt} failed: ${message}`);
+                if (attempt < 4) await sleep(5000 * attempt);
+              }
+            }
+            if (!uploaded) {
+              console.error(`${fileName}: giving up after 4 attempts.`);
+              continue;
+            }
+            console.log(`${fileName}: ${uploaded.url}`);
+            urls[outputKeys[fileName]] = uploaded.url;
             if (outputPath) {
-              fs.appendFileSync(outputPath, `${outputKeys[fileName]}=${blob.url}\n`);
+              fs.appendFileSync(outputPath, `${outputKeys[fileName]}=${uploaded.url}\n`);
             }
           }
           const primaryDownloadUrl =
