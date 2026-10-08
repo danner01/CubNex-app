@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
+import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +15,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../home/data/models/product_model.dart';
 import '../../blocs/inventory/business_inventory_cubit.dart';
 import '../../blocs/inventory/business_inventory_state.dart';
+import '../../data/models/business_product_cost.dart';
 import '../../data/services/local_product_ocr_service.dart';
 import '../widgets/business_switcher.dart';
 
@@ -110,7 +112,10 @@ class _BusinessInventoryView extends StatelessWidget {
                   )
                 else
                   ...state.products.map(
-                    (product) => _InventoryProductCard(product: product),
+                    (product) => _InventoryProductCard(
+                      product: product,
+                      costo: state.costos[product.id],
+                    ),
                   ),
                 if (state.hasMore)
                   Padding(
@@ -165,15 +170,17 @@ class _BusinessInventoryView extends StatelessWidget {
 }
 
 class _InventoryProductCard extends StatelessWidget {
-  const _InventoryProductCard({required this.product});
+  const _InventoryProductCard({required this.product, this.costo});
 
   final ProductModel product;
+  final BusinessProductCost? costo;
 
   @override
   Widget build(BuildContext context) {
     final category = product.features['categoria']?.toString();
     final image = product.imageUrl;
     final visible = product.canBuy;
+    final margen = costo?.margenPct;
 
     return Card(
       margin: const EdgeInsets.only(bottom: 14),
@@ -236,6 +243,20 @@ class _InventoryProductCard extends StatelessWidget {
                               ),
                             ),
                             PopupMenuButton<String>(
+                              itemBuilder: (context) => const [
+                                PopupMenuItem(
+                                  value: 'edit',
+                                  child: Text('Editar'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'profitability',
+                                  child: Text('Rentabilidad'),
+                                ),
+                                PopupMenuItem(
+                                  value: 'delete',
+                                  child: Text('Eliminar'),
+                                ),
+                              ],
                               onSelected: (value) {
                                 if (value == 'edit') {
                                   showModalBottomSheet<void>(
@@ -246,24 +267,18 @@ class _InventoryProductCard extends StatelessWidget {
                                           .read<BusinessInventoryCubit>(),
                                       child: _ProductFormSheet(
                                         product: product,
+                                        costo: costo,
                                       ),
                                     ),
                                   );
+                                }
+                                if (value == 'profitability') {
+                                  _openProfitability(context);
                                 }
                                 if (value == 'delete') {
                                   _confirmDelete(context);
                                 }
                               },
-                              itemBuilder: (context) => const [
-                                PopupMenuItem(
-                                  value: 'edit',
-                                  child: Text('Editar'),
-                                ),
-                                PopupMenuItem(
-                                  value: 'delete',
-                                  child: Text('Eliminar'),
-                                ),
-                              ],
                             ),
                           ],
                         ),
@@ -328,6 +343,32 @@ class _InventoryProductCard extends StatelessWidget {
                                 ?.copyWith(fontWeight: FontWeight.w800),
                           ),
                         ],
+                        const SizedBox(height: 6),
+                        Wrap(
+                          spacing: 8,
+                          runSpacing: 6,
+                          crossAxisAlignment: WrapCrossAlignment.center,
+                          children: [
+                            if (costo != null && costo!.tieneCosto)
+                              _MiniStatusChip(
+                                icon: Icons.payments_outlined,
+                                label:
+                                    'Costo ${costo!.costo?.toStringAsFixed(0) ?? '0'} ${costo!.costoMoneda ?? 'CUP'}',
+                              )
+                            else
+                              const _MiniStatusChip(
+                                icon: Icons.payments_outlined,
+                                label: 'Sin costo',
+                                active: false,
+                              ),
+                            if (margen != null)
+                              _MiniStatusChip(
+                                icon: Icons.trending_up_outlined,
+                                label: 'Margen ${margen.toStringAsFixed(1)}%',
+                                active: margen > 0,
+                              ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -336,6 +377,17 @@ class _InventoryProductCard extends StatelessWidget {
             ),
           ),
         ),
+      ),
+    );
+  }
+
+  void _openProfitability(BuildContext context) {
+    showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (_) => BlocProvider.value(
+        value: context.read<BusinessInventoryCubit>(),
+        child: _ProfitabilitySheet(product: product),
       ),
     );
   }
@@ -361,6 +413,391 @@ class _InventoryProductCard extends StatelessWidget {
     if (accepted == true && context.mounted) {
       context.read<BusinessInventoryCubit>().deleteProduct(product);
     }
+  }
+}
+
+class _ProfitabilitySheet extends StatefulWidget {
+  const _ProfitabilitySheet({required this.product});
+
+  final ProductModel product;
+
+  @override
+  State<_ProfitabilitySheet> createState() => _ProfitabilitySheetState();
+}
+
+class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
+  BusinessProductProfitability? _data;
+  bool _loading = true;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() {
+      _loading = true;
+      _error = null;
+    });
+    final cubit = context.read<BusinessInventoryCubit>();
+    final data = await cubit.loadRentabilidad(widget.product.id);
+    if (!mounted) return;
+    setState(() {
+      _data = data;
+      _loading = false;
+      _error = data == null ? 'No se pudo cargar la rentabilidad.' : null;
+    });
+  }
+
+  String _fmt(double? value, {int decimals = 1}) {
+    if (value == null) return '--';
+    return value.toStringAsFixed(decimals);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(
+        left: 18,
+        right: 18,
+        top: 14,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 18,
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.trending_up_outlined),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  widget.product.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.w900,
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: _load,
+                icon: const Icon(Icons.refresh_outlined),
+                tooltip: 'Actualizar',
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          if (_loading)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 40),
+              child: Center(child: CircularProgressIndicator()),
+            )
+          else if (_error != null && _data == null)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 30),
+              child: Column(
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 40,
+                    color: Theme.of(context).colorScheme.error,
+                  ),
+                  const SizedBox(height: 10),
+                  Text(_error!, textAlign: TextAlign.center),
+                ],
+              ),
+            )
+          else if (_data != null)
+            ..._buildContent(context),
+        ],
+      ),
+    );
+  }
+
+  List<Widget> _buildContent(BuildContext context) {
+    final data = _data!;
+    final theme = Theme.of(context);
+    final nominalOffset = data.margenNominalActualPct ?? 0.0;
+    final indexadoOffset = data.margenActualPct ?? 0.0;
+
+    return [
+      Wrap(
+        spacing: 16,
+        runSpacing: 8,
+        children: [
+          _StatChip(
+            label: 'Precio',
+            value: '${_fmt(data.precioCup, decimals: 0)} CUP',
+            icon: Icons.sell_outlined,
+          ),
+          _StatChip(
+            label: 'Costo',
+            value: data.tieneCosto
+                ? '${_fmt(data.costo, decimals: 0)} ${data.costoMoneda ?? 'CUP'}'
+                : 'Sin costo',
+            icon: Icons.payments_outlined,
+            active: data.tieneCosto,
+          ),
+          _StatChip(
+            label: 'Margen actual',
+            value: '${_fmt(indexadoOffset)}%',
+            icon: indexadoOffset >= 0
+                ? Icons.arrow_upward_rounded
+                : Icons.arrow_downward_rounded,
+            active: indexadoOffset >= 0,
+          ),
+          _StatChip(
+            label: 'Margen nominal',
+            value: '${_fmt(nominalOffset)}%',
+            icon: Icons.trending_flat,
+          ),
+        ],
+      ),
+      const SizedBox(height: 10),
+      if (!data.tieneCosto)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 6),
+          child: Text(
+            'Este producto no tiene costo registrado. Editalo para agregarlo.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
+      const SizedBox(height: 8),
+      if (data.serie.isEmpty)
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 24),
+          child: Center(
+            child: Text(
+              data.tieneCosto
+                  ? 'Sin historial suficiente para graficar.'
+                  : 'La grafica de margen aparecera al guardar el costo.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ),
+        )
+      else ...[
+        SizedBox(
+          height: 200,
+          child: _MarginChart(data: data),
+        ),
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Expanded(
+              child: _StatChip(
+                label: 'Mejor margen',
+                value: '${_fmt(data.mejorMargenPct)}%',
+                icon: Icons.workspace_premium_outlined,
+              ),
+            ),
+            Expanded(
+              child: _StatChip(
+                label: 'Peor margen',
+                value: '${_fmt(data.peorMargenPct)}%',
+                icon: Icons.trending_down_rounded,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
+        Text(
+          'Nominal usa la tasa de hoy sobre toda la serie; '
+          'indexado convierte cada fecha con su propia tasa.',
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+      ],
+    ];
+  }
+}
+
+class _StatChip extends StatelessWidget {
+  const _StatChip({
+    required this.label,
+    required this.value,
+    required this.icon,
+    this.active = true,
+  });
+
+  final String label;
+  final String value;
+  final IconData icon;
+  final bool active;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = active
+        ? Theme.of(context).colorScheme.primary
+        : Theme.of(context).colorScheme.outline;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: Theme.of(context).textTheme.labelSmall?.copyWith(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+        ),
+        const SizedBox(height: 2),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 15, color: color),
+            const SizedBox(width: 4),
+            Text(
+              value,
+              style: TextStyle(
+                fontWeight: FontWeight.w800,
+                fontSize: 13,
+                color: color,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _MarginChart extends StatelessWidget {
+  const _MarginChart({required this.data});
+
+  final BusinessProductProfitability data;
+
+  @override
+  Widget build(BuildContext context) {
+    List<double> serieDe(
+      double? Function(BusinessProfitabilityPoint p) selector,
+    ) {
+      return data.serie
+          .map(selector)
+          .whereType<double>()
+          .toList();
+    }
+
+    final indexado = serieDe((p) => p.margenIndexadoPct);
+    final nominal = serieDe((p) => p.margenNominalPct);
+    final values = [...indexado, ...nominal];
+
+    final indexadoSpots = <FlSpot>[
+      for (var i = 0; i < indexado.length; i++)
+        FlSpot(i.toDouble(), indexado[i]),
+    ];
+    final nominalSpots = <FlSpot>[
+      for (var i = 0; i < nominal.length; i++)
+        FlSpot(i.toDouble(), nominal[i]),
+    ];
+
+    double? minY;
+    double? maxY;
+    for (final v in values) {
+      minY = minY == null ? v : (v < minY ? v : minY);
+      maxY = maxY == null ? v : (v > maxY ? v : maxY);
+    }
+    final hasY = minY != null && maxY != null && maxY > minY;
+    final yMin = hasY ? (minY - 2).toDouble() : -5.0;
+    final yMax = hasY ? (maxY + 2).toDouble() : 15.0;
+
+    final theme = Theme.of(context);
+    final green = theme.colorScheme.primary;
+    final orange = Colors.orange;
+
+    return LineChart(
+      LineChartData(
+        minX: 0,
+        maxX: data.serie.length > 1 ? (data.serie.length - 1).toDouble() : 1,
+        minY: yMin,
+        maxY: yMax,
+        gridData: FlGridData(
+          show: true,
+          drawVerticalLine: false,
+          getDrawingHorizontalLine: (value) => FlLine(
+            color: theme.colorScheme.outlineVariant.withValues(alpha: 0.5),
+            strokeWidth: 1,
+          ),
+        ),
+        titlesData: FlTitlesData(
+          topTitles: const AxisTitles(),
+          rightTitles: const AxisTitles(),
+          leftTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: true,
+              reservedSize: 40,
+              getTitlesWidget: (value, meta) => Text(
+                value.toStringAsFixed(0),
+                style: const TextStyle(fontSize: 10),
+              ),
+            ),
+          ),
+          bottomTitles: AxisTitles(
+            sideTitles: SideTitles(
+              showTitles: data.serie.length < 32,
+              reservedSize: 22,
+              getTitlesWidget: (value, meta) {
+                final index = value.toInt();
+                if (index < 0 || index >= data.serie.length) {
+                  return const SizedBox.shrink();
+                }
+                return Text(
+                  data.serie[index].fecha.length >= 10
+                      ? data.serie[index].fecha.substring(5, 10)
+                      : data.serie[index].fecha,
+                  style: const TextStyle(fontSize: 9),
+                );
+              },
+            ),
+          ),
+        ),
+        borderData: FlBorderData(show: false),
+        lineTouchData: LineTouchData(
+          touchTooltipData: LineTouchTooltipData(
+            getTooltipItems: (touchedSpots) {
+              return touchedSpots.map((spot) {
+                final index = spot.x.toInt();
+                final label = index >= 0 && index < data.serie.length
+                    ? data.serie[index].fecha
+                    : '';
+                return LineTooltipItem(
+                  '$label\n${spot.y.toStringAsFixed(1)}%',
+                  const TextStyle(color: Colors.white, fontSize: 11),
+                );
+              }).toList();
+            },
+          ),
+        ),
+        lineBarsData: [
+          if (indexadoSpots.isNotEmpty)
+            LineChartBarData(
+              spots: indexadoSpots,
+              isCurved: true,
+              curveSmoothness: 0.25,
+              color: green,
+              barWidth: 2.5,
+              dotData: const FlDotData(show: false),
+              belowBarData: BarAreaData(
+                show: true,
+                color: green.withValues(alpha: 0.10),
+              ),
+            ),
+          if (nominalSpots.isNotEmpty)
+            LineChartBarData(
+              spots: nominalSpots,
+              isCurved: true,
+              curveSmoothness: 0.25,
+              color: orange,
+              barWidth: 2,
+              dotData: const FlDotData(show: false),
+            ),
+        ],
+      ),
+    );
   }
 }
 
@@ -406,9 +843,10 @@ class _MiniStatusChip extends StatelessWidget {
 }
 
 class _ProductFormSheet extends StatefulWidget {
-  const _ProductFormSheet({this.product});
+  const _ProductFormSheet({this.product, this.costo});
 
   final ProductModel? product;
+  final BusinessProductCost? costo;
 
   @override
   State<_ProductFormSheet> createState() => _ProductFormSheetState();
@@ -423,11 +861,13 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   final _transferPriceController = TextEditingController();
   final _transferPercentController = TextEditingController();
   final _stockController = TextEditingController();
+  final _costController = TextEditingController();
   final _categoryController = TextEditingController();
   final _image1Controller = TextEditingController();
   final _image2Controller = TextEditingController();
   final _image3Controller = TextEditingController();
   String _currency = 'CUP';
+  String _costCurrency = 'CUP';
   bool _inInventory = true;
   bool _purchasable = true;
   bool _detecting = false;
@@ -461,6 +901,11 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
     _currency = product.currency ?? 'CUP';
     _inInventory = product.inInventory;
     _purchasable = product.purchasable && product.available;
+    final costo = widget.costo;
+    if (costo != null && costo.tieneCosto && costo.costo != null) {
+      _costController.text = costo.costo!.toStringAsFixed(2);
+      _costCurrency = costo.costoMoneda ?? 'CUP';
+    }
     if (product.imageUrls.isNotEmpty) {
       _image1Controller.text = product.imageUrls.elementAtOrNull(0) ?? '';
       _image2Controller.text = product.imageUrls.elementAtOrNull(1) ?? '';
@@ -479,6 +924,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
     _transferPriceController.dispose();
     _transferPercentController.dispose();
     _stockController.dispose();
+    _costController.dispose();
     _categoryController.dispose();
     _image1Controller.dispose();
     _image2Controller.dispose();
@@ -610,6 +1056,55 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                     ),
                   ],
                 ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _costController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Costo (privado)',
+                          hintText: 'Cuanto te costo comprarlo',
+                        ),
+                        validator: (value) {
+                          final text = value?.trim() ?? '';
+                          if (text.isEmpty) return null;
+                          final parsed = double.tryParse(text);
+                          if (parsed == null || parsed < 0) {
+                            return 'Costo invalido';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 112,
+                      child: DropdownButtonFormField<String>(
+                        initialValue: _costCurrency,
+                        decoration: const InputDecoration(labelText: 'Moneda'),
+                        items: const [
+                          DropdownMenuItem(value: 'CUP', child: Text('CUP')),
+                          DropdownMenuItem(value: 'MLC', child: Text('MLC')),
+                          DropdownMenuItem(value: 'USD', child: Text('USD')),
+                        ],
+                        onChanged: (value) =>
+                            setState(() => _costCurrency = value ?? 'CUP'),
+                      ),
+                    ),
+                  ],
+                ),
+                if (_costController.text.trim().isEmpty &&
+                    _isEditing &&
+                    widget.costo?.tieneCosto == true)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Dejarlo vacio quita el costo de este producto.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
                 if (_loadingPriceSuggestions) ...[
                   const SizedBox(height: 8),
                   const LinearProgressIndicator(),
@@ -763,6 +1258,22 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
           inInventory: _inInventory,
           purchasable: _purchasable,
         );
+        final costValue = _nullableDouble(_costController.text);
+        if (costValue != null) {
+          final creado = cubit.state.products
+              .where(
+                (item) =>
+                    item.name.trim() == _nameController.text.trim(),
+              )
+              .toList();
+          if (creado.isNotEmpty) {
+            await cubit.guardarCosto(
+              productoId: creado.first.id,
+              costo: costValue,
+              moneda: _costCurrency,
+            );
+          }
+        }
       } else {
         await cubit.updateProduct(
           product: product,
@@ -780,6 +1291,16 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
           inInventory: _inInventory,
           purchasable: _purchasable,
         );
+        final costValue = _nullableDouble(_costController.text);
+        if (costValue != null) {
+          await cubit.guardarCosto(
+            productoId: product.id,
+            costo: costValue,
+            moneda: _costCurrency,
+          );
+        } else if (widget.costo?.tieneCosto == true) {
+          await cubit.quitarCosto(product.id);
+        }
       }
       if (mounted) Navigator.of(context).pop();
     } finally {

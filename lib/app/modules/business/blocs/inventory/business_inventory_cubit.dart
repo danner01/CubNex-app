@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
+import '../../data/models/business_product_cost.dart';
 import '../../data/models/product_label_detection.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../../home/data/models/product_model.dart';
@@ -91,6 +92,139 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         isLoadingMore: false,
       ),
     );
+
+    await _loadCostos(business, products);
+  }
+
+  Future<void> _loadCostos(
+    BusinessModel business,
+    List<ProductModel> products,
+  ) async {
+    if (products.isEmpty) return;
+
+    final ids = products.map((product) => product.id).join(',');
+    final result = await _apiClient.get<Map<String, dynamic>>(
+      '/costos-producto',
+      queryParameters: {'negocio_id': business.id, 'producto_ids': ids},
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return const <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess || result.data == null) return;
+
+    final filas = result.data!['productos'];
+    if (filas is! List) return;
+
+    final nuevos = <String, BusinessProductCost>{};
+    for (final fila in filas) {
+      if (fila is! Map) continue;
+      final costo = BusinessProductCost.fromJson(Map<String, dynamic>.from(fila));
+      if (costo.productoId.isEmpty) continue;
+      nuevos[costo.productoId] = costo;
+    }
+    if (nuevos.isEmpty) return;
+
+    emit(state.copyWith(costos: {...state.costos, ...nuevos}));
+  }
+
+  Future<void> guardarCosto({
+    required String productoId,
+    required double costo,
+    String? moneda,
+  }) async {
+    final business = state.business;
+    if (business == null) return;
+
+    emit(state.copyWith(status: BusinessInventoryStatus.saving));
+    final result = await _apiClient.put<Map<String, dynamic>>(
+      '/costos-producto',
+      data: {
+        'negocio_id': business.id,
+        'producto_id': productoId,
+        'costo': costo,
+        if (moneda != null && moneda.isNotEmpty) 'costo_moneda': moneda,
+      },
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return const <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: BusinessInventoryStatus.failure,
+          message: result.error?.message ?? 'No se pudo guardar el costo.',
+        ),
+      );
+      return;
+    }
+
+    await _loadCostos(business, [
+      ProductModel(id: productoId, name: ''),
+    ]);
+    emit(
+      state.copyWith(
+        status: BusinessInventoryStatus.success,
+        message: 'Costo actualizado.',
+      ),
+    );
+  }
+
+  Future<void> quitarCosto(String productoId) async {
+    final business = state.business;
+    if (business == null) return;
+
+    emit(state.copyWith(status: BusinessInventoryStatus.saving));
+    final query = Uri(queryParameters: {
+      'negocio_id': business.id,
+      'producto_id': productoId,
+    }).query;
+    final result = await _apiClient.delete<dynamic>('/costos-producto?$query');
+
+    if (!result.isSuccess) {
+      emit(
+        state.copyWith(
+          status: BusinessInventoryStatus.failure,
+          message: result.error?.message ?? 'No se pudo quitar el costo.',
+        ),
+      );
+      return;
+    }
+
+    final costos = {...state.costos};
+    costos.remove(productoId);
+    emit(
+      state.copyWith(
+        status: BusinessInventoryStatus.success,
+        costos: costos,
+        message: 'Costo eliminado.',
+      ),
+    );
+  }
+
+  Future<BusinessProductProfitability?> loadRentabilidad(
+    String productoId,
+  ) async {
+    final result = await _apiClient.get<Map<String, dynamic>>(
+      '/costos-producto/rentabilidad',
+      queryParameters: {'producto_id': productoId, 'dias': '90'},
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return const <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess || result.data == null) return null;
+    return BusinessProductProfitability.fromJson(result.data!);
   }
 
   Future<void> loadMore() async {
@@ -145,6 +279,10 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         hasMore: nuevos.length == _tamanoPagina,
       ),
     );
+
+    if (nuevos.isNotEmpty) {
+      await _loadCostos(business, nuevos);
+    }
   }
 
   Future<void> createProduct({
