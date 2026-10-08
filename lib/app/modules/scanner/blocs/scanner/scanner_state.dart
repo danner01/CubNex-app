@@ -1,5 +1,7 @@
 import 'package:equatable/equatable.dart';
 
+import '../../../business/data/models/product_label_detection.dart';
+
 enum ScannerStatus { initial, scanning, resolving, success, failure }
 
 class ScannerState extends Equatable {
@@ -16,6 +18,10 @@ class ScannerState extends Equatable {
     this.orderId,
     this.previousStatus,
     this.nextStatus,
+    this.productDetection,
+    this.productDetectedLocally = false,
+    this.productQuery,
+    this.productImagePath,
   });
 
   final ScannerStatus status;
@@ -31,6 +37,12 @@ class ScannerState extends Equatable {
   final String? previousStatus;
   final String? nextStatus;
 
+  /// Deteccion del producto escaneado (IA + OCR local).
+  final ProductLabelDetection? productDetection;
+  final bool productDetectedLocally;
+  final String? productQuery;
+  final String? productImagePath;
+
   ScannerState copyWith({
     ScannerStatus? status,
     String? code,
@@ -44,8 +56,13 @@ class ScannerState extends Equatable {
     String? orderId,
     String? previousStatus,
     String? nextStatus,
+    ProductLabelDetection? productDetection,
+    bool? productDetectedLocally,
+    String? productQuery,
+    String? productImagePath,
     bool clearRawCodeFallback = false,
     bool clearOrderResult = false,
+    bool clearProductResult = false,
   }) {
     return ScannerState(
       status: status ?? this.status,
@@ -63,6 +80,18 @@ class ScannerState extends Equatable {
           ? null
           : (previousStatus ?? this.previousStatus),
       nextStatus: clearOrderResult ? null : (nextStatus ?? this.nextStatus),
+      productDetection: clearProductResult
+          ? null
+          : (productDetection ?? this.productDetection),
+      productDetectedLocally:
+          (clearProductResult ? false : productDetectedLocally) ??
+              this.productDetectedLocally,
+      productQuery: clearProductResult
+          ? null
+          : (productQuery ?? this.productQuery),
+      productImagePath: clearProductResult
+          ? null
+          : (productImagePath ?? this.productImagePath),
     );
   }
 
@@ -80,5 +109,9 @@ class ScannerState extends Equatable {
     orderId,
     previousStatus,
     nextStatus,
+    productDetection,
+    productDetectedLocally,
+    productQuery,
+    productImagePath,
   ];
 }

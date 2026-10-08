@@ -1,8 +1,11 @@
+import 'dart:convert';
 import 'dart:math' as math;
 
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../business/data/models/product_label_detection.dart';
+import '../../../business/data/services/local_product_ocr_service.dart';
 import 'scanner_state.dart';
 
 class ScannerCubit extends Cubit<ScannerState> {
@@ -23,7 +26,9 @@ class ScannerCubit extends Cubit<ScannerState> {
         status: ScannerStatus.resolving,
         code: code,
         orderQrValidated: false,
+        walletQrDetected: false,
         clearOrderResult: true,
+        clearProductResult: true,
       ),
     );
     await _saveScan(code);
@@ -221,6 +226,118 @@ class ScannerCubit extends Cubit<ScannerState> {
   void restart() {
     _processing = false;
     emit(const ScannerState());
+  }
+
+  /// Escanea un producto capturado con la camara:
+  /// reconoce tipo/marca/categoria (OCR local + IA del backend)
+  /// y prepara la consulta para buscar en la base de datos.
+  Future<void> detectProductImage({
+    required String? imagePath,
+    List<int>? imageBytes,
+  }) async {
+    if (_processing || (imagePath == null && imageBytes == null)) return;
+
+    _processing = true;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.resolving,
+        orderQrValidated: false,
+        walletQrDetected: false,
+        clearOrderResult: true,
+        clearRawCodeFallback: true,
+        clearProductResult: true,
+        productImagePath: imagePath,
+        productDetectedLocally: false,
+        productQuery: null,
+        productDetection: null,
+        message: 'Reconociendo producto...',
+      ),
+    );
+
+    ProductLabelDetection? detection;
+    var detectedLocally = false;
+
+    try {
+      if (imagePath != null && imagePath.trim().isNotEmpty) {
+        detection = await const LocalProductOcrService().detectPackage(
+          frontImagePath: imagePath,
+        );
+        final solidName = detection?.name?.trim().isNotEmpty == true;
+        final solidBrand = detection?.brand?.trim().isNotEmpty == true;
+        detectedLocally = solidName && solidBrand;
+      }
+
+      if (!detectedLocally && imageBytes != null) {
+        final base64 = base64Encode(imageBytes);
+        final result = await _apiClient.post<ProductLabelDetection>(
+          '/vision-ia/detectar-etiqueta',
+          data: {
+            'imagen_frente_base64': base64,
+            'guardar_imagenes': false,
+          },
+          parser: (json) => json is Map
+              ? ProductLabelDetection.fromJson(Map<String, dynamic>.from(json))
+              : const ProductLabelDetection(),
+          timeout: const Duration(seconds: 15),
+        );
+        if (result.isSuccess) {
+          detection = result.data ?? detection;
+        }
+      }
+    } finally {
+      _processing = false;
+    }
+
+    if (detection == null) {
+      emit(
+        state.copyWith(
+          status: ScannerStatus.failure,
+          productDetection: null,
+          productQuery: null,
+          productImagePath: imagePath ?? state.productImagePath,
+          message:
+              'No pudimos reconocer el producto. Apunta mejor a la etiqueta y escanea de nuevo, o busca por texto.',
+        ),
+      );
+      return;
+    }
+
+    final query = _buildProductQuery(detection);
+    if (query.isEmpty) {
+      emit(
+        state.copyWith(
+          status: ScannerStatus.failure,
+          productDetection: detection,
+          productQuery: detection.barcode?.trim(),
+          productImagePath: imagePath ?? state.productImagePath,
+          message:
+              'No detectamos nombre ni marca. Revisa el dato detectado o escanea de nuevo.',
+        ),
+      );
+      return;
+    }
+
+    emit(
+      state.copyWith(
+        status: ScannerStatus.success,
+        productDetection: detection,
+        productQuery: query,
+        message: detectedLocally
+            ? 'Producto reconocido localmente.'
+            : 'Producto reconocido con IA.',
+      ),
+    );
+  }
+
+  static String _buildProductQuery(ProductLabelDetection detection) {
+    final parts = <String>[];
+    final name = detection.name?.trim() ?? '';
+    final brand = detection.brand?.trim() ?? '';
+    final category = detection.category?.trim() ?? '';
+    if (name.isNotEmpty) parts.add(name);
+    if (brand.isNotEmpty && !parts.contains(brand)) parts.add(brand);
+    if (category.isNotEmpty && !parts.contains(category)) parts.add(category);
+    return parts.join(' ').trim();
   }
 
   Future<void> _saveScan(String code) async {

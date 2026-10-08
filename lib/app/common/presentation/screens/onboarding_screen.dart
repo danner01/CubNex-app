@@ -21,6 +21,17 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
   int _index = 0;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      // El onboarding se ofrece SOLO una vez por instalacion: se marca como
+      // visto en cuanto se muestra, aunque el usuario cierre la app a mitad.
+      context.read<AppSessionCubit>().markOnboardingSeen();
+    });
+  }
+
+  @override
   void dispose() {
     _controller.dispose();
     super.dispose();
@@ -99,7 +110,18 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
               const SizedBox(height: 20),
               FilledButton(
                 onPressed: _index == _pages.length - 1 ? _goLogin : _next,
-                child: Text(_index == _pages.length - 1 ? 'Comenzar' : 'Siguiente'),
+                child: Text(
+                  _index == _pages.length - 1 ? 'Comenzar' : 'Siguiente',
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                '${_index + 1} / ${_pages.length}',
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 1.6,
+                ),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
@@ -157,7 +179,7 @@ class _OnboardingPage extends StatelessWidget {
           ),
         ],
       ),
-      child: Column(
+child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
@@ -180,6 +202,15 @@ class _OnboardingPage extends StatelessWidget {
               fontWeight: FontWeight.w700,
               height: 1.35,
             ),
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final feature in page.features)
+                _FeatureChip(label: feature, color: page.color),
+            ],
           ),
         ],
       ),
@@ -205,6 +236,7 @@ class _OnboardingContent {
     required this.icon,
     required this.color,
     required this.scene,
+    this.features = const [],
   });
 
   final String title;
@@ -212,6 +244,41 @@ class _OnboardingContent {
   final IconData icon;
   final Color color;
   final _OnboardingSceneType scene;
+  final List<String> features;
+}
+
+class _FeatureChip extends StatelessWidget {
+  const _FeatureChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 11, vertical: 7),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(color: color.withValues(alpha: 0.45)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(Icons.check_circle_rounded, size: 14, color: Colors.white),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: TextStyle(
+              color: Colors.white.withValues(alpha: 0.9),
+              fontSize: 12,
+              fontWeight: FontWeight.w800,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 enum _OnboardingSceneType { market, business, intelligence, rewards }
@@ -592,6 +659,11 @@ const _pages = [
     icon: Icons.travel_explore_rounded,
     color: AppColors.gold,
     scene: _OnboardingSceneType.market,
+    features: [
+      'Busqueda por categoria',
+      'Pedidos con reparto',
+      'Mapa en tiempo real',
+    ],
   ),
   _OnboardingContent(
     title: 'Conecta tu negocio',
@@ -600,6 +672,11 @@ const _pages = [
     icon: Icons.handshake_rounded,
     color: AppColors.blue,
     scene: _OnboardingSceneType.business,
+    features: [
+      'Tienda con QR y menu',
+      'Inventario con costo',
+      'Red de proveedores',
+    ],
   ),
   _OnboardingContent(
     title: 'Gestiona con inteligencia',
@@ -608,6 +685,11 @@ const _pages = [
     icon: Icons.auto_awesome_rounded,
     color: AppColors.green,
     scene: _OnboardingSceneType.intelligence,
+    features: [
+      'Escaneo con IA',
+      'Alertas de precio',
+      'Paneles por rol',
+    ],
   ),
   _OnboardingContent(
     title: 'Impacto y recompensas',
@@ -616,5 +698,10 @@ const _pages = [
     icon: Icons.emoji_events_rounded,
     color: AppColors.warning,
     scene: _OnboardingSceneType.rewards,
+    features: [
+      'Semillas y cashback',
+      'Sorteos y cupones',
+      'Retos y puntos',
+    ],
   ),
 ];
