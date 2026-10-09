@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../config/environment/app_environment.dart';
 import '../../config/http/api_client.dart';
 import '../../config/injection/injection.dart';
 import '../../modules/credits/blocs/credits_cubit.dart';
@@ -30,7 +31,6 @@ class PushNotificationService {
       _notificationsChangedController.stream;
 
   Future<void> init() async {
-    if (kIsWeb) return;
     if (_initialized) return;
     _initialized = true;
 
@@ -69,7 +69,11 @@ class PushNotificationService {
 
   Future<void> _syncCurrentToken() async {
     try {
-      final token = await _firebaseMessaging.getToken();
+      final token = kIsWeb
+          ? await _firebaseMessaging.getToken(
+              vapidKey: AppEnvironment.firebaseWebVapidKey,
+            )
+          : await _firebaseMessaging.getToken();
       if (token != null && token.isNotEmpty) {
         await _syncToken(token);
       }

@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 
+import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
 import '../models/auth_session_model.dart';
@@ -270,8 +271,11 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
 
   Future<void> _syncFcmToken(ApiResult<AuthSessionModel> result) async {
     if (!result.isSuccess) return;
-    if (kIsWeb) return;
-    final token = await _firebaseMessaging.getToken();
+    final token = kIsWeb
+        ? await _firebaseMessaging.getToken(
+            vapidKey: AppEnvironment.firebaseWebVapidKey,
+          )
+        : await _firebaseMessaging.getToken();
     if (token != null) {
       await _apiClient.put('/auth/fcm-token', data: {'fcm_token': token});
     }

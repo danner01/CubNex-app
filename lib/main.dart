@@ -31,15 +31,17 @@ Future<void> _ensureFirebaseInitialized() async {
 }
 
 Future<void> _initializeFirebase() async {
-  if (Firebase.apps.isNotEmpty) return;
-
   // On web there are no native config files: FirebaseOptions are required.
+  // Do not read Firebase.apps before this initialization: Firebase Core Web
+  // loads its JavaScript SDK lazily during initializeApp.
   if (kIsWeb) {
     await Firebase.initializeApp(
       options: DefaultFirebaseOptions.currentPlatform,
     );
     return;
   }
+
+  if (Firebase.apps.isNotEmpty) return;
 
   // Prefer native firebase config first (google-services/plist).
   await Firebase.initializeApp();
@@ -161,17 +163,16 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 }
 
 Future<void> _initializeForegroundServices() async {
-  if (kIsWeb) return;
-
   try {
     final push = sl<PushNotificationService>();
     await push.init();
 
     FirebaseMessaging.onMessageOpenedApp.listen(push.refreshWalletIfNeeded);
-    final initial =
-        await FirebaseMessaging.instance.getInitialMessage();
-    if (initial != null) {
-      push.refreshWalletIfNeeded(initial);
+    if (!kIsWeb) {
+      final initial = await FirebaseMessaging.instance.getInitialMessage();
+      if (initial != null) {
+        push.refreshWalletIfNeeded(initial);
+      }
     }
   } catch (_) {
     // Startup must not be blocked by optional services.

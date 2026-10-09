@@ -32,4 +32,12 @@ class AppEnvironment {
   );
 
   static const appScheme = 'cubnex';
+
+  // Web Push certificate (VAPID) del proyecto Firebase, requerida para que el
+  // navegador pueda suscribirse a las notificaciones push en la PWA.
+  static const firebaseWebVapidKey = String.fromEnvironment(
+    'FIREBASE_WEB_VAPID_KEY',
+    defaultValue:
+        'BHdAFWT-a5WvXq9RkOKr3VasuODkm5oJgUuXGaqxBwTGkpsWxekzEG75fT_E1K1CbPKix12rlsEdBH4EE8oeUTM',
+  );
 }
