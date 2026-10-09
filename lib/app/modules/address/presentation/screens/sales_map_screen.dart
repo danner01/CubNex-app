@@ -1,11 +1,12 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -101,6 +102,9 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
           ),
         ),
       );
+    }
+    if (kIsWeb) {
+      return const WebMapUnavailable();
     }
     return MapWidget(
       // ignore: deprecated_member_use

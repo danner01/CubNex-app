@@ -5,6 +5,9 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -702,7 +705,9 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
               children: [
                 if (_hasToken)
                   Positioned.fill(
-                    child: MapWidget(
+                    child: kIsWeb
+                      ? const WebMapUnavailable()
+                      : MapWidget(
                       // ignore: deprecated_member_use
                       cameraOptions: CameraOptions(
                         center: initialCenter,

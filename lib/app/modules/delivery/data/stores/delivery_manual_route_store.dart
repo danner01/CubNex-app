@@ -57,6 +57,8 @@ class DeliveryManualRouteStore {
   }
 
   static Future<File?> _file() async {
+    if (kIsWeb) return null;
+
     try {
       final dir = await getApplicationDocumentsDirectory();
       return File('${dir.path}${Platform.pathSeparator}$_fileName');

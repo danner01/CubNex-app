@@ -8,7 +8,9 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart' as picker;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -2569,7 +2571,9 @@ class _WizardPackagePhotoButton extends StatelessWidget {
           image: image == null
               ? null
               : DecorationImage(
-                  image: FileImage(File(image!.path)),
+                  image: kIsWeb
+                      ? NetworkImage(image!.path)
+                      : FileImage(File(image!.path)),
                   fit: BoxFit.cover,
                 ),
         ),
@@ -2679,7 +2683,9 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                 child: _tokenReady
                     ? Stack(
                         children: [
-                          MapWidget(
+                          kIsWeb
+                              ? const WebMapUnavailable()
+                              : MapWidget(
                             viewport: CameraViewportState(
                               center: Point(
                                 coordinates: Position(_longitude, _latitude),

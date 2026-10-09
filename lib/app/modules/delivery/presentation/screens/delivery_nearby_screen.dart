@@ -3,7 +3,9 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/http/api_client.dart';
 import '../../data/models/delivery_activo_model.dart';
@@ -302,7 +304,9 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
                     )
                   : Stack(
                       children: [
-                        MapWidget(
+                        kIsWeb
+                            ? const WebMapUnavailable()
+                            : MapWidget(
                           // ignore: deprecated_member_use
                           cameraOptions: CameraOptions(
                             center: _myLat != null && _myLng != null

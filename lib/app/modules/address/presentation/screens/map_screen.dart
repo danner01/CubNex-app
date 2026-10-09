@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -7,6 +6,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
+
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -406,7 +408,9 @@ class _MapCanvas extends StatelessWidget {
         child: Stack(
           children: [
             Positioned.fill(
-              child: tokenReady
+              child: kIsWeb
+                  ? const WebMapUnavailable()
+                  : tokenReady
                   ? MapWidget(
                       // ignore: deprecated_member_use
                       cameraOptions: CameraOptions(

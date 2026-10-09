@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -1035,7 +1036,24 @@ class _WalletQrScanPageState extends State<_WalletQrScanPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(title: const Text('Escanear QR de billetera')),
-      body: Stack(
+      body: kIsWeb
+          ? const Center(
+              child: Padding(
+                padding: EdgeInsets.all(24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.qr_code_scanner_outlined, size: 44),
+                    SizedBox(height: 12),
+                    Text(
+                      'El escaner solo esta disponible en la app movil.',
+                      textAlign: TextAlign.center,
+                    ),
+                  ],
+                ),
+              ),
+            )
+          : Stack(
         fit: StackFit.expand,
         children: [
           MobileScanner(

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -94,7 +96,9 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
               borderRadius: BorderRadius.circular(18),
               child: SizedBox(
                 height: 360,
-                child: _tokenReady
+                child: kIsWeb
+                    ? const WebMapUnavailable()
+                    : _tokenReady
                     ? Stack(
                         children: [
                           MapWidget(

@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1939,7 +1940,9 @@ class _PackagePhotoButton extends StatelessWidget {
           border: Border.all(color: Theme.of(context).colorScheme.outline),
           image: image != null
               ? DecorationImage(
-                  image: FileImage(File(image!.path)),
+                  image: kIsWeb
+                      ? NetworkImage(image!.path)
+                      : FileImage(File(image!.path)),
                   fit: BoxFit.cover,
                 )
               : null,
@@ -2045,7 +2048,9 @@ class _ProductImageTile extends StatelessWidget {
             fit: StackFit.expand,
             children: [
               if (file != null)
-                Image.file(File(file!.path), fit: BoxFit.cover)
+                kIsWeb
+                    ? Image.network(file!.path, fit: BoxFit.cover)
+                    : Image.file(File(file!.path), fit: BoxFit.cover)
               else if (url?.isNotEmpty ?? false)
                 CachedNetworkImage(
                   imageUrl: url!,

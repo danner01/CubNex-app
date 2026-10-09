@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../config/environment/app_environment.dart';
@@ -49,6 +50,14 @@ class ApkUpdateService {
   }
 
   Future<ApkUpdateStatus> checkForUpdateStatus() async {
+    if (kIsWeb) {
+      return ApkUpdateStatus(
+        currentVersion: '',
+        latest: null,
+        hasUpdate: false,
+      );
+    }
+
     final current = await PackageInfo.fromPlatform();
     final response = await _dio.get<Map<String, dynamic>>(
       AppEnvironment.apkUpdateManifestUrl,

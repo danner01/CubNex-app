@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -83,7 +84,9 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 
     try {
       await _ensureFirebaseInitialized().timeout(const Duration(seconds: 12));
-      FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      if (!kIsWeb) {
+        FirebaseMessaging.onBackgroundMessage(firebaseMessagingBackgroundHandler);
+      }
 
       await Hive.initFlutter().timeout(const Duration(seconds: 8));
       await Hive.openBox<dynamic>(
@@ -161,6 +164,8 @@ class _BootstrapAppState extends State<_BootstrapApp> {
 }
 
 Future<void> _initializeForegroundServices() async {
+  if (kIsWeb) return;
+
   try {
     final push = sl<PushNotificationService>();
     await push.init();

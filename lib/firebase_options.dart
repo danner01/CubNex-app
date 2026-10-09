@@ -8,10 +8,24 @@ class DefaultFirebaseOptions {
         return android;
       case TargetPlatform.iOS:
         return ios;
-      default:
-        throw UnsupportedError('ConKkao solo admite Android e iOS por ahora.');
+      case TargetPlatform.windows:
+      case TargetPlatform.macOS:
+      case TargetPlatform.linux:
+      case TargetPlatform.fuchsia:
+        return web;
     }
   }
+
+  // En la web ConKkao corre como PWA. La apiKey debe ser la llave web del
+  // proyecto de Firebase (Project settings > Your apps > Web app > apiKey).
+  static const FirebaseOptions web = FirebaseOptions(
+    apiKey: 'AIzaSyBcyLlU6iSXsORdCYKDrfJ2xJPzELrN7pA',
+    appId: '1:182405994803:web:889e8d1ba69064b581c646',
+    messagingSenderId: '182405994803',
+    projectId: 'supermarkercuba',
+    authDomain: 'supermarkercuba.firebaseapp.com',
+    storageBucket: 'supermarkercuba.firebasestorage.app',
+  );
 
   static const FirebaseOptions android = FirebaseOptions(
     apiKey: 'AIzaSyCW_4Gjwjclyswl-PP6V1no66C30Xx_OL0',

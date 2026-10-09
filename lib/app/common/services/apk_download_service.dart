@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:apk_installer/apk_installer.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import 'package:path_provider/path_provider.dart';
 
 class ApkDownloadProgress {
@@ -26,6 +27,12 @@ class ApkDownloadService {
     required String url,
     void Function(ApkDownloadProgress)? onProgress,
   }) async {
+    if (kIsWeb) {
+      throw Exception(
+        'Las actualizaciones de la APK solo estan disponibles en la app movil.',
+      );
+    }
+
     _cancelToken = CancelToken();
 
     final dir = await getTemporaryDirectory();
@@ -109,6 +116,10 @@ class ApkDownloadService {
   bool get isDownloading => _cancelToken != null;
 
   Future<void> installApk(File apkFile) async {
+    if (kIsWeb) {
+      throw Exception('La instalacion de APK no esta disponible en la web.');
+    }
+
     if (!await apkFile.exists()) {
       throw Exception('El archivo APK no existe.');
     }

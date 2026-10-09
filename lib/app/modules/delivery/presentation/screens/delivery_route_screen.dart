@@ -4,7 +4,9 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
+import 'package:flutter/foundation.dart';
 
+import '../../../../common/presentation/widgets/web_map_unavailable.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -1169,7 +1171,9 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
           return Stack(
             children: [
               Positioned.fill(
-                child: MapWidget(
+                child: kIsWeb
+                    ? const WebMapUnavailable()
+                    : MapWidget(
                   // ignore: deprecated_member_use
                   cameraOptions: CameraOptions(center: mapCenter, zoom: 12),
                   onMapCreated: _onMapCreated,
