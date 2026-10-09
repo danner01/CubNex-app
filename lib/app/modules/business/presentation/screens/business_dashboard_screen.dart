@@ -16,6 +16,16 @@ import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
 import '../widgets/business_switcher.dart';
 
+String _formatCompact(int value) {
+  if (value >= 1000000) {
+    return '${(value / 1000000).toStringAsFixed(value % 1000000 == 0 ? 0 : 1)}M';
+  }
+  if (value >= 1000) {
+    return '${(value / 1000).toStringAsFixed(value % 1000 == 0 ? 0 : 1)}K';
+  }
+  return '$value';
+}
+
 class BusinessDashboardScreen extends StatelessWidget {
   const BusinessDashboardScreen({super.key});
 
@@ -114,10 +124,10 @@ class _BusinessDashboardView extends StatelessWidget {
                       references: state.operationalReferences,
                     ),
                     const SizedBox(height: 14),
-                    _MetricsGrid(summary: state.summary!),
+                    _CustomerInsightPanel(summary: state.summary!),
                     const SizedBox(height: 18),
                     Text(
-                      'Gestion',
+                      'Gestion del negocio',
                       style: Theme.of(context).textTheme.titleLarge?.copyWith(
                         fontWeight: FontWeight.w900,
                       ),
@@ -229,6 +239,13 @@ class _HeroSummary extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
+            Text(
+              '${_formatCompact(summary.sales)} ventas acumuladas',
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
+              ),
+            ),
+            const SizedBox(height: 12),
             LinearProgressIndicator(value: summary.completeness),
             const SizedBox(height: 8),
             Text(
@@ -242,129 +259,103 @@ class _HeroSummary extends StatelessWidget {
   }
 }
 
-class _MetricsGrid extends StatelessWidget {
-  const _MetricsGrid({required this.summary});
+class _CustomerInsightPanel extends StatelessWidget {
+  const _CustomerInsightPanel({required this.summary});
 
   final BusinessDashboardSummary summary;
 
   @override
   Widget build(BuildContext context) {
-    final metrics = _metricsForBusiness(summary);
-
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: metrics.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.sizeOf(context).width > 520 ? 4 : 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.55,
-      ),
-      itemBuilder: (context, index) {
-        final metric = metrics[index];
-        return Card(
-          child: InkWell(
-            onTap: () => context.go(metric.route),
-            borderRadius: BorderRadius.circular(16),
-            child: Padding(
-              padding: const EdgeInsets.all(14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    metric.icon,
-                    color: Theme.of(context).colorScheme.secondary,
+    final theme = Theme.of(context);
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.groups_2_outlined,
+                  color: theme.colorScheme.secondary,
+                ),
+                const SizedBox(width: 8),
+                Text(
+                  'Clientes y crecimiento',
+                  style: theme.textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w900,
                   ),
-                  const SizedBox(height: 8),
-                  Text(metric.label),
-                  Text(
-                    '${metric.value}',
-                    style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
-                ],
-              ),
+                ),
+              ],
             ),
-          ),
-        );
-      },
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: _CustomerInsight(
+                    icon: Icons.favorite_outline_rounded,
+                    label: 'Suscritos',
+                    value: summary.subscribers,
+                    caption: 'Reciben novedades voluntariamente',
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: _CustomerInsight(
+                    icon: Icons.person_search_outlined,
+                    label: 'Potenciales',
+                    value: summary.potentialCustomers,
+                    caption: 'Interes agregado en tu zona',
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              summary.orders > 0
+                  ? '${_formatCompact(summary.orders)} pedidos o reservas registrados.'
+                  : 'Activa suscripciones y oportunidades para conocer tu demanda local.',
+              style: theme.textTheme.bodySmall,
+            ),
+          ],
+        ),
+      ),
     );
   }
+}
 
-  List<_BusinessMetric> _metricsForBusiness(BusinessDashboardSummary summary) {
-    final category = summary.business.businessParentCategory;
-    final metrics = [
-      ('Productos', summary.products, Icons.inventory_2_outlined),
-      ('Resenas', summary.reviews, Icons.star_border_rounded),
-      ('Promos', summary.promotions, Icons.campaign_outlined),
-      ('Ventas', summary.sales, Icons.payments_outlined),
-    ];
-    final result = metrics
-        .map(
-          (item) => _BusinessMetric(
-            item.$1,
-            item.$2,
-            item.$3,
-            _routeForMetric(item.$1),
-          ),
-        )
-        .toList();
+class _CustomerInsight extends StatelessWidget {
+  const _CustomerInsight({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.caption,
+  });
 
-    if (category == 'gastronomia') {
-      result.add(
-        _BusinessMetric(
-          'Menus',
-          summary.menus,
-          Icons.restaurant_menu_outlined,
-          AppRoutes.businessMenus,
-        ),
-      );
-    }
-    if (category == 'inmobiliaria') {
-      result.add(
-        _BusinessMetric(
-          'Propiedades',
-          summary.properties,
-          Icons.home_work_outlined,
-          AppRoutes.businessProperties,
-        ),
-      );
-    }
-    if (category == 'transporte') {
-      result.add(
-        _BusinessMetric(
-          'Transporte',
-          summary.transport,
-          Icons.local_shipping_outlined,
-          AppRoutes.businessTransport,
-        ),
-      );
-    }
-    if (category == 'servicio') {
-      result.add(
-        _BusinessMetric(
-          'Reservas',
-          summary.sales,
-          Icons.event_available_outlined,
-          AppRoutes.businessOrders,
-        ),
-      );
-    }
+  final IconData icon;
+  final String label;
+  final int value;
+  final String caption;
 
-    return result;
-  }
-
-  String _routeForMetric(String label) {
-    return switch (label) {
-      'Productos' => AppRoutes.businessInventory,
-      'Promos' => AppRoutes.businessPromotions,
-      'Ventas' || 'Resenas' => AppRoutes.businessOrders,
-      _ => AppRoutes.businessDashboard,
-    };
-  }
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(12),
+    decoration: BoxDecoration(
+      color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(12),
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 20),
+        const SizedBox(height: 8),
+        Text('$value', style: Theme.of(context).textTheme.headlineSmall),
+        Text(label, style: Theme.of(context).textTheme.titleSmall),
+        const SizedBox(height: 2),
+        Text(caption, style: Theme.of(context).textTheme.bodySmall),
+      ],
+    ),
+  );
 }
 
 class _PerformancePanel extends StatelessWidget {
@@ -810,15 +801,6 @@ class _BusinessAction {
   const _BusinessAction(this.label, this.icon, this.route);
 
   final String label;
-  final IconData icon;
-  final String route;
-}
-
-class _BusinessMetric {
-  const _BusinessMetric(this.label, this.value, this.icon, this.route);
-
-  final String label;
-  final int value;
   final IconData icon;
   final String route;
 }

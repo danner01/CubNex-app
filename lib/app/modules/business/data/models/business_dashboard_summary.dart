@@ -11,6 +11,9 @@ class BusinessDashboardSummary {
     this.menus = 0,
     this.points = 0,
     this.sales = 0,
+    this.orders = 0,
+    this.subscribers = 0,
+    this.potentialCustomers = 0,
     this.level = 'bronce',
   });
 
@@ -23,6 +26,9 @@ class BusinessDashboardSummary {
   final int menus;
   final int points;
   final int sales;
+  final int orders;
+  final int subscribers;
+  final int potentialCustomers;
   final String level;
 
   BusinessDashboardSummary copyWith({
@@ -35,6 +41,9 @@ class BusinessDashboardSummary {
     int? menus,
     int? points,
     int? sales,
+    int? orders,
+    int? subscribers,
+    int? potentialCustomers,
     String? level,
   }) {
     return BusinessDashboardSummary(
@@ -47,6 +56,9 @@ class BusinessDashboardSummary {
       menus: menus ?? this.menus,
       points: points ?? this.points,
       sales: sales ?? this.sales,
+      orders: orders ?? this.orders,
+      subscribers: subscribers ?? this.subscribers,
+      potentialCustomers: potentialCustomers ?? this.potentialCustomers,
       level: level ?? this.level,
     );
   }
