@@ -3,6 +3,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../business/presentation/widgets/service_price_history_sheet.dart';
 import '../../blocs/menus/menus_cubit.dart';
 import '../../blocs/menus/menus_state.dart';
 import '../../data/models/menu_model.dart';
@@ -139,6 +140,13 @@ class _MenuCard extends StatelessWidget {
             ...items.map(
               (item) => ListTile(
                 contentPadding: EdgeInsets.zero,
+                onTap: () => showServicePriceHistorySheet(
+                  context,
+                  coleccion: 'menu_items',
+                  itemId: item.id,
+                  nombre: item.name,
+                  mostrarSecundaria: false,
+                ),
                 title: Text(item.name),
                 subtitle: Text(item.category ?? item.description ?? 'Sin categoria'),
                 trailing: Text(

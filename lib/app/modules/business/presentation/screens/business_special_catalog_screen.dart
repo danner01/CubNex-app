@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../home/data/models/business_model.dart';
+import '../widgets/service_price_history_sheet.dart';
 
 class BusinessSpecialCatalogScreen extends StatefulWidget {
   const BusinessSpecialCatalogScreen({required this.business, super.key});
@@ -186,14 +187,31 @@ class _BusinessSpecialCatalogScreenState
                           ? '${_number(item['precio_cup'])} CUP/L  |  ${_number(item['stock_litros'])} L'
                           : 'Compra ${_number(item['tasa_compra_cup'])} CUP | Venta ${_number(item['tasa_venta_cup'])} CUP',
                     ),
-                    trailing: PopupMenuButton<String>(
-                      onSelected: (action) {
-                        if (action == 'editar') _edit(item);
-                        if (action == 'eliminar') _delete(item);
-                      },
-                      itemBuilder: (context) => const [
-                        PopupMenuItem(value: 'editar', child: Text('Editar')),
-                        PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                    trailing: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        if (_isFuel)
+                          IconButton(
+                            tooltip: 'Historico de precios',
+                            icon: const Icon(Icons.insights_outlined),
+                            onPressed: () => showServicePriceHistorySheet(
+                              context,
+                              coleccion: 'combustibles_negocio',
+                              itemId: '${item['id'] ?? ''}',
+                              nombre: '${item['nombre'] ?? 'Combustible'}',
+                              mostrarSecundaria: false,
+                            ),
+                          ),
+                        PopupMenuButton<String>(
+                          onSelected: (action) {
+                            if (action == 'editar') _edit(item);
+                            if (action == 'eliminar') _delete(item);
+                          },
+                          itemBuilder: (context) => const [
+                            PopupMenuItem(value: 'editar', child: Text('Editar')),
+                            PopupMenuItem(value: 'eliminar', child: Text('Eliminar')),
+                          ],
+                        ),
                       ],
                     ),
                   ),

@@ -5,17 +5,29 @@ import '../../data/models/product_price_history.dart';
 
 /// Grafico de linea del historico de precios de un producto:
 /// precio de venta y precio de compra (promedio por dia).
+///
+/// Tambien se reutiliza para el historico de precios de servicios
+/// (menu_items, transporte, propiedades, combustibles): la serie principal
+/// llega en [ProductPricePoint.precioVenta] y la serie secundaria
+/// (p. ej. precio/km) en [ProductPricePoint.precioCompra], con etiquetas
+/// configurables por catalogo.
 class ProductPriceHistoryChart extends StatelessWidget {
   const ProductPriceHistoryChart({
     required this.serie,
     this.moneda = 'CUP',
     this.height = 210,
+    this.labelPrimaria = 'Venta',
+    this.labelSecundaria = 'Compra',
+    this.mostrarSecundaria = true,
     super.key,
   });
 
   final List<ProductPricePoint> serie;
   final String moneda;
   final double height;
+  final String labelPrimaria;
+  final String labelSecundaria;
+  final bool mostrarSecundaria;
 
   @override
   Widget build(BuildContext context) {
@@ -61,9 +73,11 @@ class ProductPriceHistoryChart extends StatelessWidget {
       children: [
         Row(
           children: [
-            _LegendItem(color: ventaColor, label: 'Venta'),
-            const SizedBox(width: 14),
-            _LegendItem(color: compraColor, label: 'Compra'),
+            _LegendItem(color: ventaColor, label: labelPrimaria),
+            if (mostrarSecundaria) ...[
+              const SizedBox(width: 14),
+              _LegendItem(color: compraColor, label: labelSecundaria),
+            ],
           ],
         ),
         const SizedBox(height: 8),
@@ -144,7 +158,7 @@ class ProductPriceHistoryChart extends StatelessWidget {
                       color: ventaColor.withValues(alpha: 0.10),
                     ),
                   ),
-                if (compraSpots.length > 1)
+                if (mostrarSecundaria && compraSpots.length > 1)
                   LineChartBarData(
                     spots: compraSpots,
                     isCurved: true,

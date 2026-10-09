@@ -6,6 +6,7 @@ import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../address/presentation/widgets/location_picker_sheet.dart';
+import '../../../business/presentation/widgets/service_price_history_sheet.dart';
 import '../../../search/data/models/search_results_model.dart';
 import '../../blocs/properties/properties_cubit.dart';
 import '../../blocs/properties/properties_state.dart';
@@ -122,7 +123,18 @@ class _BusinessPropertiesView extends StatelessWidget {
               else if (state.items.isEmpty)
                 const _EmptyAsset(message: 'Aun no tienes publicaciones.')
               else
-                ...state.items.map((item) => _AssetCard(item: item)),
+                ...state.items.map(
+                  (item) => _AssetCard(
+                    item: item,
+                    onTap: () => showServicePriceHistorySheet(
+                      context,
+                      coleccion: 'propiedades',
+                      itemId: item.id,
+                      nombre: item.title,
+                      mostrarSecundaria: false,
+                    ),
+                  ),
+                ),
             ],
           ),
         ),

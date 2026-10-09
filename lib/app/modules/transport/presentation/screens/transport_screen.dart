@@ -6,6 +6,7 @@ import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../address/presentation/widgets/location_picker_sheet.dart';
+import '../../../business/presentation/widgets/service_price_history_sheet.dart';
 import '../../../search/data/models/search_results_model.dart';
 import '../../blocs/transport/transport_cubit.dart';
 import '../../blocs/transport/transport_state.dart';
@@ -145,7 +146,18 @@ class _BusinessTransportView extends StatelessWidget {
                   ),
                 )
               else
-                ...state.items.map((item) => _TransportCard(item: item)),
+                ...state.items.map(
+                  (item) => _TransportCard(
+                    item: item,
+                    onTap: () => showServicePriceHistorySheet(
+                      context,
+                      coleccion: 'servicios_transporte',
+                      itemId: item.id,
+                      nombre: item.title,
+                      labelSecundaria: 'Precio/km',
+                    ),
+                  ),
+                ),
             ],
           ),
         ),
