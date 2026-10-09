@@ -20,11 +20,12 @@ class DefaultFirebaseOptions {
   // proyecto de Firebase (Project settings > Your apps > Web app > apiKey).
   static const FirebaseOptions web = FirebaseOptions(
     apiKey: 'AIzaSyBcyLlU6iSXsORdCYKDrfJ2xJPzELrN7pA',
-    appId: '1:182405994803:web:889e8d1ba69064b581c646',
+    appId: '1:182405994803:web:1c60a96012584f4081c646',
     messagingSenderId: '182405994803',
     projectId: 'supermarkercuba',
     authDomain: 'supermarkercuba.firebaseapp.com',
     storageBucket: 'supermarkercuba.firebasestorage.app',
+    measurementId: 'G-CLW9FWTF67',
   );
 
   static const FirebaseOptions android = FirebaseOptions(
