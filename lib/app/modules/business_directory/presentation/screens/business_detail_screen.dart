@@ -7,7 +7,6 @@ import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/entities/user_role.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
-import '../../../../common/presentation/widgets/cambio_hoy_card.dart';
 import '../../../../common/presentation/widgets/market_cards.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../common/services/credit_service.dart';
@@ -299,7 +298,6 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                     const SizedBox(height: 12),
                     _OperationalInfoCard(business: business),
                     const SizedBox(height: 12),
-                    const CambioHoyCard(),
                     if (business.isFuelBusiness ||
                         business.isCurrencyExchangeBusiness) ...[
                       const SizedBox(height: 12),

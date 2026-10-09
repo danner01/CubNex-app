@@ -8,7 +8,6 @@ import 'package:go_router/go_router.dart';
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/services/contact_service.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
-import '../../../../common/presentation/widgets/cup_equivalente.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
 import '../../../../config/injection/injection.dart';
@@ -1587,11 +1586,6 @@ class _ConnectionCard extends StatelessWidget {
                                     fontWeight: FontWeight.w900,
                                     color: AppColors.greenLight,
                                   ),
-                                ),
-                                CupEquivalente(
-                                  precio: product.currentPrice,
-                                  moneda: product.currency,
-                                  prefix: '≈',
                                 ),
                               ],
                             ),

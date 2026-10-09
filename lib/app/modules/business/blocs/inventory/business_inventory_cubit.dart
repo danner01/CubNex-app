@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
+import '../../../product/data/models/product_price_history.dart';
 import '../../data/models/business_product_cost.dart';
 import '../../data/models/product_label_detection.dart';
 import '../../../home/data/models/business_model.dart';
@@ -225,6 +226,22 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
 
     if (!result.isSuccess || result.data == null) return null;
     return BusinessProductProfitability.fromJson(result.data!);
+  }
+
+  Future<ProductPriceHistory?> loadPriceHistory(String productoId) async {
+    final result = await _apiClient.get<Map<String, dynamic>>(
+      '/productos/$productoId/estadisticas-precio',
+      queryParameters: {'dias': '365'},
+      parser: (json) {
+        if (json is Map) {
+          return Map<String, dynamic>.from(json);
+        }
+        return const <String, dynamic>{};
+      },
+    );
+
+    if (!result.isSuccess || result.data == null) return null;
+    return ProductPriceHistory.fromJson(result.data!);
   }
 
   Future<void> loadMore() async {

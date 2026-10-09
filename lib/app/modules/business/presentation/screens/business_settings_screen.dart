@@ -6,7 +6,6 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
-import '../../../../common/presentation/widgets/cambio_hoy_card.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/store_brand_theme.dart';
@@ -96,8 +95,6 @@ class _BusinessSettingsView extends StatelessWidget {
                 _SocialSection(business: state.business, saving: saving),
                 const SizedBox(height: 12),
                 _OperationsSection(business: state.business, saving: saving),
-                const SizedBox(height: 12),
-                const CambioHoyCard(),
                 const SizedBox(height: 12),
                 if (state.business?.isFuelBusiness == true ||
                     state.business?.isCurrencyExchangeBusiness == true) ...[

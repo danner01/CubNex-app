@@ -13,6 +13,8 @@ import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../home/data/models/product_model.dart';
+import '../../../product/data/models/product_price_history.dart';
+import '../../../product/presentation/widgets/product_price_history_chart.dart';
 import '../../blocs/inventory/business_inventory_cubit.dart';
 import '../../blocs/inventory/business_inventory_state.dart';
 import '../../data/models/business_product_cost.dart';
@@ -427,6 +429,7 @@ class _ProfitabilitySheet extends StatefulWidget {
 
 class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
   BusinessProductProfitability? _data;
+  ProductPriceHistory? _priceHistory;
   bool _loading = true;
   String? _error;
 
@@ -442,12 +445,17 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
       _error = null;
     });
     final cubit = context.read<BusinessInventoryCubit>();
-    final data = await cubit.loadRentabilidad(widget.product.id);
+    final results = await Future.wait<Object?>([
+      cubit.loadRentabilidad(widget.product.id),
+      cubit.loadPriceHistory(widget.product.id),
+    ]);
     if (!mounted) return;
     setState(() {
-      _data = data;
+      _data = results[0] as BusinessProductProfitability?;
+      _priceHistory = results[1] as ProductPriceHistory?;
       _loading = false;
-      _error = data == null ? 'No se pudo cargar la rentabilidad.' : null;
+      _error =
+          _data == null ? 'No se pudo cargar la rentabilidad.' : null;
     });
   }
 
@@ -465,10 +473,11 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
         top: 14,
         bottom: MediaQuery.of(context).viewInsets.bottom + 18,
       ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
+      child: SingleChildScrollView(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
           Row(
             children: [
               const Icon(Icons.trending_up_outlined),
@@ -515,6 +524,7 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
           else if (_data != null)
             ..._buildContent(context),
         ],
+        ),
       ),
     );
   }
@@ -614,6 +624,34 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
           ),
         ),
       ],
+      const SizedBox(height: 18),
+      Text(
+        'Historico de precios (1 anio)',
+        style: theme.textTheme.titleMedium?.copyWith(
+          fontWeight: FontWeight.w900,
+        ),
+      ),
+      const SizedBox(height: 4),
+      Text(
+        'Promedio por dia del precio de venta y de compra.',
+        style: theme.textTheme.bodySmall,
+      ),
+      const SizedBox(height: 10),
+      if (_priceHistory != null &&
+          _priceHistory!.serie.isNotEmpty &&
+          (_priceHistory!.tieneVenta || _priceHistory!.tieneCompra))
+        ProductPriceHistoryChart(
+          serie: _priceHistory!.serie,
+          moneda: _priceHistory!.monedaActual,
+        )
+      else
+        Padding(
+          padding: const EdgeInsets.symmetric(vertical: 18),
+          child: Text(
+            'Aun no hay historico. Aparecera al guardar precios y costos del producto.',
+            style: theme.textTheme.bodySmall,
+          ),
+        ),
     ];
   }
 }
