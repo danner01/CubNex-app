@@ -627,7 +627,7 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
       ],
       const SizedBox(height: 18),
       Text(
-        'Historico de precios (1 anio)',
+        'Historico de precios (1 año)',
         style: theme.textTheme.titleMedium?.copyWith(
           fontWeight: FontWeight.w900,
         ),

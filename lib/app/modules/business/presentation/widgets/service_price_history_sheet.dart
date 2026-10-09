@@ -96,7 +96,7 @@ class _ServicePriceHistorySheetState extends State<ServicePriceHistorySheet> {
             ),
             const SizedBox(height: 4),
             Text(
-              'Historico de precios (1 anio)',
+              'Historico de precios (1 año)',
               style: Theme.of(context).textTheme.bodySmall?.copyWith(
                 color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
