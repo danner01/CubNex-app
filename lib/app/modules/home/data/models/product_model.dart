@@ -19,6 +19,7 @@ class ProductModel {
     this.stock,
     this.minimumStock = 0,
     this.publishedPostsCount = 0,
+    this.isPublished = false,
     this.available = true,
     this.inInventory = true,
     this.purchasable = true,
@@ -45,6 +46,7 @@ class ProductModel {
   final int? stock;
   final int minimumStock;
   final int publishedPostsCount;
+  final bool isPublished;
   final bool available;
   final bool inInventory;
   final bool purchasable;
@@ -82,6 +84,7 @@ class ProductModel {
     int? stock,
     int? minimumStock,
     int? publishedPostsCount,
+    bool? isPublished,
     bool? available,
     bool? inInventory,
     bool? purchasable,
@@ -108,6 +111,7 @@ class ProductModel {
       stock: stock ?? this.stock,
       minimumStock: minimumStock ?? this.minimumStock,
       publishedPostsCount: publishedPostsCount ?? this.publishedPostsCount,
+      isPublished: isPublished ?? this.isPublished,
       available: available ?? this.available,
       inInventory: inInventory ?? this.inInventory,
       purchasable: purchasable ?? this.purchasable,
@@ -154,7 +158,8 @@ class ProductModel {
       stock: int.tryParse('${json['stock'] ?? ''}'),
       minimumStock: int.tryParse('${json['stock_minimo'] ?? ''}') ?? 0,
       publishedPostsCount:
-          int.tryParse('${json['publicaciones_count'] ?? ''}') ?? 0,
+          int.tryParse('${json['publicaciones_activas_count'] ?? ''}') ?? 0,
+      isPublished: json['publicado'] == true,
       available: json['disponible'] != false,
       inInventory: json['en_inventario'] != false,
       purchasable: json['comprable'] != false,
@@ -187,6 +192,7 @@ class ProductModel {
       'stock': stock,
       'stock_minimo': minimumStock,
       'publicaciones_count': publishedPostsCount,
+      'publicado': isPublished,
       'disponible': available,
       'en_inventario': inInventory,
       'comprable': purchasable,

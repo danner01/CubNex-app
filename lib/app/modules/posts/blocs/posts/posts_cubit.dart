@@ -132,7 +132,7 @@ class PostsCubit extends Cubit<PostsState> {
       'media_urls': mediaUrls,
       'media_tipo': mediaType,
       'tags': tags,
-      'producto_id': productId,
+      'producto_vinculado_id': productId,
       'precio': precio,
       'enlace_url': linkUrl?.trim(),
       'cta_texto': ctaText?.trim(),
@@ -140,15 +140,15 @@ class PostsCubit extends Cubit<PostsState> {
       'estado': saveAsDraft ? 'borrador' : 'pendiente_revision',
     }..removeWhere((_, value) => value == null || value == '');
     final result = postId == null
-        ? await _apiClient.post<List<BusinessPostModel>>(
+        ? await _apiClient.post<Map<String, dynamic>>(
             '/publicaciones',
             data: data,
-            parser: _parsePosts,
+            parser: _parsePublicationSave,
           )
-        : await _apiClient.put<List<BusinessPostModel>>(
+        : await _apiClient.put<Map<String, dynamic>>(
             '/publicaciones/$postId',
             data: data,
-            parser: _parsePosts,
+            parser: _parsePublicationSave,
           );
     if (!result.isSuccess) {
       emit(
@@ -161,6 +161,22 @@ class PostsCubit extends Cubit<PostsState> {
       return false;
     }
     await loadBusinessPosts(businessId);
+    final usage = result.data?['uso_publicacion'];
+    if (postId == null && !saveAsDraft && usage is Map) {
+      final applied = usage['aplicado'] == true;
+      final grains = _number(usage['granos']);
+      final credits = _number(usage['creditos']);
+      final balanceGrains = _number(usage['saldo_granos']);
+      final balanceCredits = _number(usage['saldo_creditos']);
+      final message = applied
+          ? 'Publicación creada. Se descontaron '
+              '${grains == 0 ? '' : '$grains granos'}'
+              '${grains > 0 && credits > 0 ? ' y ' : ''}'
+              '${credits == 0 ? '' : '${credits.toStringAsFixed(2)} créditos'}. '
+              'Saldo: $balanceGrains granos · ${balanceCredits.toStringAsFixed(2)} créditos.'
+          : 'Publicación creada. Tu plan no tiene un cargo adicional por publicación.';
+      emit(state.copyWith(status: PostsStatus.success, message: message));
+    }
     return true;
   }
 
@@ -192,6 +208,16 @@ class PostsCubit extends Cubit<PostsState> {
           (item) => BusinessPostModel.fromJson(Map<String, dynamic>.from(item)),
         )
         .toList();
+  }
+
+  Map<String, dynamic> _parsePublicationSave(dynamic json) {
+    if (json is Map) return Map<String, dynamic>.from(json);
+    return const {};
+  }
+
+  double _number(Object? value) {
+    if (value is num) return value.toDouble();
+    return double.tryParse('$value') ?? 0;
   }
 
   Future<void> like(String postId) async {

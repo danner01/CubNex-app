@@ -335,6 +335,14 @@ class _InventoryProductCard extends StatelessWidget {
                               label: visible ? 'Visible' : 'Oculto',
                               active: visible,
                             ),
+                            if (product.isPublished)
+                              _MiniStatusChip(
+                                icon: Icons.public_rounded,
+                                label: product.publishedPostsCount > 1
+                                    ? '${product.publishedPostsCount} publicaciones'
+                                    : 'Publicado',
+                                active: true,
+                              ),
                             if (!product.inInventory)
                               const _MiniStatusChip(
                                 icon: Icons.remove_shopping_cart_outlined,
