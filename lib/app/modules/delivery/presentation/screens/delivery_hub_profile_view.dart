@@ -71,6 +71,8 @@ class DeliveryHubProfileView extends StatelessWidget {
                 'Vehiculo, tarifas, avatar, color del marcador y disponibilidad.',
               ),
               const SizedBox(height: 16),
+              _buildDeliveryModeCard(context),
+              const SizedBox(height: 16),
               if (state.status == DeliveryStatus.loading && profile == null)
                 const Padding(
                   padding: EdgeInsets.symmetric(vertical: 40),
@@ -84,8 +86,6 @@ class DeliveryHubProfileView extends StatelessWidget {
                 _buildAvailabilityCard(context, state),
                 const SizedBox(height: 12),
                 DeliveryProfileSummaryCard(profile: profile),
-                const SizedBox(height: 12),
-                _buildDeliveryModeCard(context, state),
                 const SizedBox(height: 18),
                 _buildManagementLists(context, profile),
               ],
@@ -96,7 +96,7 @@ class DeliveryHubProfileView extends StatelessWidget {
     );
   }
 
-  Widget _buildDeliveryModeCard(BuildContext context, DeliveryState state) {
+  Widget _buildDeliveryModeCard(BuildContext context) {
     final theme = Theme.of(context);
     final roleMode = context.watch<RoleModeCubit>().state;
     final deliveryActive = roleMode.activeMode == RoleMode.delivery;
