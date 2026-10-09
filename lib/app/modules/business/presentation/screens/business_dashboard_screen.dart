@@ -14,6 +14,7 @@ import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
 import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
+import '../../data/models/business_opportunity.dart';
 import '../widgets/business_switcher.dart';
 
 String _formatCompact(int value) {
@@ -125,6 +126,12 @@ class _BusinessDashboardView extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     _CustomerInsightPanel(summary: state.summary!),
+                    if (state.nearbyOpportunities.isNotEmpty) ...[
+                      const SizedBox(height: 14),
+                      _NearbyOpportunitiesCarousel(
+                        opportunities: state.nearbyOpportunities,
+                      ),
+                    ],
                     const SizedBox(height: 18),
                     Text(
                       'Gestion del negocio',
@@ -356,6 +363,90 @@ class _CustomerInsight extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _NearbyOpportunitiesCarousel extends StatelessWidget {
+  const _NearbyOpportunitiesCarousel({required this.opportunities});
+
+  final List<BusinessOpportunity> opportunities;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Oportunidades cerca de ti',
+          style: theme.textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Basadas en una zona aproximada y demanda agregada.',
+          style: theme.textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        SizedBox(
+          height: 164,
+          child: ListView.separated(
+            scrollDirection: Axis.horizontal,
+            itemCount: opportunities.length,
+            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            itemBuilder: (context, index) {
+              final opportunity = opportunities[index];
+              return SizedBox(
+                width: 250,
+                child: Card(
+                  clipBehavior: Clip.antiAlias,
+                  child: InkWell(
+                    onTap: () => context.go(AppRoutes.businessNetwork),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            children: [
+                              CircleAvatar(
+                                child: Icon(
+                                  Icons.storefront_outlined,
+                                  color: theme.colorScheme.primary,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Text(
+                                  opportunity.name,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.w900,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const Spacer(),
+                          Text(opportunity.type),
+                          const SizedBox(height: 4),
+                          Text(
+                            '${_formatCompact(opportunity.potentialDemand)} personas con interes agregado',
+                            style: theme.textTheme.bodySmall,
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    );
+  }
 }
 
 class _PerformancePanel extends StatelessWidget {

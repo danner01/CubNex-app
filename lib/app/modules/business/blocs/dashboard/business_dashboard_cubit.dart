@@ -5,6 +5,7 @@ import '../../../home/data/models/business_model.dart';
 import '../../../plans/data/models/plan_status.dart';
 import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
+import '../../data/models/business_opportunity.dart';
 import 'business_dashboard_state.dart';
 
 class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
@@ -67,8 +68,15 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
       ]);
       if (isClosed) return;
 
-      final activePlan = await _loadActivePlan(business.id);
+      final values = await Future.wait([
+        _loadActivePlan(business.id),
+        _loadOpportunityMetrics(business.id),
+        _loadNearbyOpportunities(),
+      ]);
       if (isClosed) return;
+      final activePlan = values[0] as ActiveSubscription?;
+      final opportunityMetrics = values[1] as Map<String, dynamic>;
+      final nearbyOpportunities = values[2] as List<BusinessOpportunity>;
 
       _safeEmit(
         state.copyWith(
@@ -76,6 +84,7 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
           needsWizard: false,
           operationalReferences: remoteRefs,
           activePlan: activePlan,
+          nearbyOpportunities: nearbyOpportunities,
           summary: baseSummary.copyWith(
             products: counts[0],
             reviews: counts[1],
@@ -86,8 +95,13 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
             points: _int(stats['puntos_acumulados']),
             sales: _int(stats['total_ventas']),
             orders: _int(stats['total_pedidos'] ?? stats['total_reservas']),
-            subscribers: _int(stats['suscriptores']),
-            potentialCustomers: _int(stats['clientes_potenciales']),
+            subscribers: _int(
+              opportunityMetrics['suscriptores_total'] ?? stats['suscriptores'],
+            ),
+            potentialCustomers: _int(
+              opportunityMetrics['demanda_potencial_total'] ??
+                  stats['clientes_potenciales'],
+            ),
             level: '${stats['nivel'] ?? 'bronce'}',
           ),
         ),
@@ -134,6 +148,38 @@ class BusinessDashboardCubit extends Cubit<BusinessDashboardState> {
     } catch (_) {
       return null;
     }
+  }
+
+  Future<Map<String, dynamic>> _loadOpportunityMetrics(
+    String businessId,
+  ) async {
+    final result = await _apiClient
+        .get<Map<String, dynamic>?>(
+          '/oportunidades/negocios/$businessId/metricas',
+          parser: (json) => json is Map ? Map<String, dynamic>.from(json) : null,
+        )
+        .timeout(const Duration(seconds: 8));
+    return result.data ?? const {};
+  }
+
+  Future<List<BusinessOpportunity>> _loadNearbyOpportunities() async {
+    final result = await _apiClient
+        .get<List<BusinessOpportunity>>(
+          '/oportunidades/cercanas',
+          parser: (json) {
+            if (json is! List) return const [];
+            return json
+                .whereType<Map>()
+                .map(
+                  (item) => BusinessOpportunity.fromJson(
+                    Map<String, dynamic>.from(item),
+                  ),
+                )
+                .toList();
+          },
+        )
+        .timeout(const Duration(seconds: 8));
+    return result.data ?? const [];
   }
 
   Future<Map<String, dynamic>> _loadStats(String businessId) async {

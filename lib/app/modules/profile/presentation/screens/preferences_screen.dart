@@ -442,6 +442,8 @@ class _PrivacySectionState extends State<_PrivacySection> {
 
   @override
   Widget build(BuildContext context) {
+    final state = context.watch<PreferencesCubit>().state;
+    final saving = state.status == PreferencesStatus.saving;
     return Card(
       key: const ValueKey('privacy-content'),
       child: Padding(
@@ -457,7 +459,7 @@ class _PrivacySectionState extends State<_PrivacySection> {
             ),
             const SizedBox(height: 6),
             const Text(
-              'Activa o desactiva como se usan tus datos dentro de la app. Estos ajustes se guardan en este dispositivo.',
+              'Activa o desactiva como se usan tus datos dentro de la app. Las oportunidades cercanas se sincronizan con tu cuenta y usan una zona aproximada.',
             ),
             const SizedBox(height: 12),
             _PrivacyToggleTile(
@@ -489,6 +491,31 @@ class _PrivacySectionState extends State<_PrivacySection> {
                 value: value,
                 update: () => _marketing = value,
               ),
+            ),
+            const Divider(height: 28),
+            _PrivacyToggleTile(
+              value: state.opportunitiesLocationEnabled,
+              title: const Text('Oportunidades cercanas'),
+              subtitle: const Text(
+                'Usa una zona aproximada, nunca tu ubicacion exacta, para mostrar negocios relevantes.',
+              ),
+              onChanged: saving
+                  ? null
+                  : (value) => context
+                      .read<PreferencesCubit>()
+                      .setNearbyOpportunities(value),
+            ),
+            _PrivacyToggleTile(
+              value: state.nearbyOpportunityNotificationsEnabled,
+              title: const Text('Avisos de oportunidades cercanas'),
+              subtitle: const Text(
+                'Recibe avisos cuando haya una oportunidad comercial relevante cerca.',
+              ),
+              onChanged: saving || !state.opportunitiesLocationEnabled
+                  ? null
+                  : (value) => context
+                      .read<PreferencesCubit>()
+                      .setNearbyOpportunityNotifications(value),
             ),
             const SizedBox(height: 12),
             const _PushPermissionTile(),
@@ -545,7 +572,7 @@ class _PrivacyToggleTile extends StatelessWidget {
   final bool value;
   final Widget title;
   final Widget subtitle;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
