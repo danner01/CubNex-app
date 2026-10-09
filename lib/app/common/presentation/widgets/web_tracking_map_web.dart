@@ -39,6 +39,7 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
   late final String _viewType;
   late final String _mapId;
   late final web.HTMLIFrameElement _iframe;
+  late String _document;
   StreamSubscription<html.MessageEvent>? _messages;
 
   @override
@@ -46,8 +47,9 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
     super.initState();
     _viewType = 'delivery-tracking-map-${_nextViewId++}';
     _mapId = _viewType;
+    _document = _mapDocument(widget.latitude, widget.longitude);
     _iframe = web.HTMLIFrameElement()
-      ..srcdoc = _mapDocument(widget.latitude, widget.longitude).toJS
+      ..srcdoc = _document.toJS
       ..style.border = '0'
       ..style.height = '100%'
       ..style.width = '100%'
@@ -60,11 +62,10 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
   @override
   void didUpdateWidget(covariant WebTrackingMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.latitude != widget.latitude ||
-        oldWidget.longitude != widget.longitude ||
-        oldWidget.markers != widget.markers ||
-        oldWidget.routes != widget.routes) {
-      _iframe.srcdoc = _mapDocument(widget.latitude, widget.longitude).toJS;
+    final document = _mapDocument(widget.latitude, widget.longitude);
+    if (document != _document) {
+      _document = document;
+      _iframe.srcdoc = document.toJS;
     }
     if (oldWidget.interactive != widget.interactive) {
       _iframe.style.pointerEvents = widget.interactive ? 'auto' : 'none';

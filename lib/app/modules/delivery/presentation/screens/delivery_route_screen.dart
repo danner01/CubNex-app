@@ -1333,11 +1333,15 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 ),
               Positioned.fill(
                 child: DraggableScrollableSheet(
-                  initialChildSize: _manualMode ? 0.32 : 0.27,
-                  minChildSize: 0.22,
+                  initialChildSize: kIsWeb
+                      ? (_manualMode ? 0.50 : 0.42)
+                      : (_manualMode ? 0.32 : 0.27),
+                  minChildSize: kIsWeb ? 0.32 : 0.22,
                   maxChildSize: maxSheetSize,
                   snap: true,
-                  snapSizes: [0.22, 0.32, 0.55, maxSheetSize],
+                  snapSizes: kIsWeb
+                      ? [0.32, 0.42, 0.55, maxSheetSize]
+                      : [0.22, 0.32, 0.55, maxSheetSize],
                   builder: (context, sheetController) => PointerInterceptor(
                     child: DeliverySheetPanel(
                       controller: sheetController,
