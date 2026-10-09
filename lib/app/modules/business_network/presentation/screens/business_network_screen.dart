@@ -3795,7 +3795,7 @@ class _DemandSheetState extends State<_DemandSheet> {
                 );
               },
               icon: const Icon(Icons.publish_rounded),
-              label: const Text('Publicar senal'),
+              label: const Text('Publicar'),
             ),
           ],
         ),
