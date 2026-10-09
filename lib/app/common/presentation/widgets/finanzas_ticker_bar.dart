@@ -190,7 +190,6 @@ class _TickerMarquee extends StatefulWidget {
 class _TickerMarqueeState extends State<_TickerMarquee>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
-  final GlobalKey _rowKey = GlobalKey();
 
   @override
   void initState() {
@@ -209,8 +208,7 @@ class _TickerMarqueeState extends State<_TickerMarquee>
 
   @override
   Widget build(BuildContext context) {
-    final rowWidth = _rowKey.currentContext?.size?.width ?? 0;
-    final medio = rowWidth / 2;
+    final contentWidth = _contentWidth;
     return ClipRect(
       child: OverflowBox(
         alignment: Alignment.centerLeft,
@@ -219,11 +217,10 @@ class _TickerMarqueeState extends State<_TickerMarquee>
         child: AnimatedBuilder(
           animation: _controller,
           builder: (context, _) {
-            final dx = medio <= 0 ? 0.0 : _controller.value * medio;
+            final dx = _controller.value * contentWidth;
             return Transform.translate(
               offset: Offset(-dx, 0),
               child: Row(
-                key: _rowKey,
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   ..._contenido,
@@ -238,10 +235,16 @@ class _TickerMarqueeState extends State<_TickerMarquee>
     );
   }
 
+  double get _contentWidth {
+    if (widget.cargando) return 220;
+    return widget.items.length * _TickerCell.width + 40;
+  }
+
   List<Widget> get _contenido {
     if (widget.cargando) {
       return [
         const SizedBox(
+          width: 180,
           height: 25,
           child: Center(
             child: Text(
@@ -265,6 +268,8 @@ class _TickerMarqueeState extends State<_TickerMarquee>
 class _TickerCell extends StatelessWidget {
   const _TickerCell({required this.item});
 
+  static const width = 132.0;
+
   final _TickItem item;
 
   @override
@@ -273,10 +278,9 @@ class _TickerCell extends StatelessWidget {
     final alza = tendencia == null || tendencia >= 0;
     final led = alza ? _ledVerde : _ledRojo;
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 14),
+    return SizedBox(
+      width: width,
       child: Row(
-        mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             item.codigo,

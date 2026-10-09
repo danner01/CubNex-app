@@ -34,13 +34,20 @@ class PushNotificationService {
     if (_initialized) return;
     _initialized = true;
 
-    await _firebaseMessaging.requestPermission(
-      alert: true,
-      badge: true,
-      sound: true,
-    );
+    // En nativo se pide permiso al arranque. En web el navegador exige un gesto
+    // del usuario, por eso el permiso se solicita desde enablePush().
+    if (!kIsWeb) {
+      await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+    }
 
-    await _syncCurrentToken();
+    if (await isPushGranted()) {
+      await _syncCurrentToken();
+    }
+
     _tokenSubscription = _firebaseMessaging.onTokenRefresh.listen(
       (token) => _syncToken(token),
     );
@@ -48,6 +55,41 @@ class PushNotificationService {
     _foregroundSubscription = FirebaseMessaging.onMessage.listen(
       _showForegroundMessage,
     );
+  }
+
+  Future<bool> isPushGranted() async {
+    try {
+      final settings = await _firebaseMessaging.getNotificationSettings();
+      return settings.authorizationStatus == AuthorizationStatus.authorized ||
+          settings.authorizationStatus == AuthorizationStatus.provisional;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Solicita permiso (debe llamarse desde un gesto del usuario; obligatorio en
+  /// web) y sincroniza el token FCM. Devuelve true si quedo habilitado.
+  Future<bool> enablePush() async {
+    try {
+      final settings = await _firebaseMessaging.requestPermission(
+        alert: true,
+        badge: true,
+        sound: true,
+      );
+      final granted =
+          settings.authorizationStatus == AuthorizationStatus.authorized ||
+              settings.authorizationStatus == AuthorizationStatus.provisional;
+      if (!granted) return false;
+
+      if (!_initialized) {
+        await init();
+      } else {
+        await _syncCurrentToken();
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
   }
 
   Future<void> dispose() async {
@@ -85,11 +127,19 @@ class PushNotificationService {
   Future<void> _syncToken(String token) async {
     try {
       await _apiClient
-          .put('/auth/fcm-token', data: {'fcm_token': token})
+          .put(
+            '/auth/fcm-token',
+            data: {'fcm_token': token, 'plataforma': _platformLabel},
+          )
           .timeout(const Duration(seconds: 6));
     } catch (_) {
       // Token refresh can happen without an active API session.
     }
+  }
+
+  String get _platformLabel {
+    if (kIsWeb) return 'web';
+    return defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android';
   }
 
   void _showForegroundMessage(RemoteMessage message) {

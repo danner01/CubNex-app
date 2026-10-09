@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -267,7 +267,18 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
                           ),
                         )
                       : kIsWeb
-                      ? const WebMapUnavailable()
+                      ? WebTrackingMap(
+                          latitude: point[1],
+                          longitude: point[0],
+                          markers: [
+                            WebMapMarker(
+                              id: 'delivery',
+                              latitude: point[1],
+                              longitude: point[0],
+                              color: '#${(_markerColor ?? Colors.blue).toARGB32().toRadixString(16).substring(2)}',
+                            ),
+                          ],
+                        )
                       : MapWidget(
                           // ignore: deprecated_member_use
                           cameraOptions: CameraOptions(

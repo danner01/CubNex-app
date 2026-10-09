@@ -5,7 +5,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/http/api_client.dart';
 import '../../data/models/delivery_activo_model.dart';
@@ -305,7 +305,40 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
                   : Stack(
                       children: [
                         kIsWeb
-                            ? const WebMapUnavailable()
+                            ? WebTrackingMap(
+                                latitude:
+                                    _myLat ??
+                                    _items
+                                        .map((item) => item.ultimaUbicacion?.lat)
+                                        .whereType<double>()
+                                        .firstOrNull ??
+                                    _defaultCenter.lat.toDouble(),
+                                longitude:
+                                    _myLng ??
+                                    _items
+                                        .map((item) => item.ultimaUbicacion?.lng)
+                                        .whereType<double>()
+                                        .firstOrNull ??
+                                    _defaultCenter.lng.toDouble(),
+                                markers: [
+                                  if (_myLat != null && _myLng != null)
+                                    WebMapMarker(
+                                      id: 'current-user',
+                                      latitude: _myLat!,
+                                      longitude: _myLng!,
+                                      color: '#00ACC1',
+                                    ),
+                                  for (var i = 0; i < _items.length; i++)
+                                    if (_items[i].ultimaUbicacion?.lat != null &&
+                                        _items[i].ultimaUbicacion?.lng != null)
+                                      WebMapMarker(
+                                        id: _items[i].id,
+                                        latitude: _items[i].ultimaUbicacion!.lat!,
+                                        longitude: _items[i].ultimaUbicacion!.lng!,
+                                        color: '#${_markerColor(_items[i], i).toARGB32().toRadixString(16).substring(2)}',
+                                      ),
+                                ],
+                              )
                             : MapWidget(
                           // ignore: deprecated_member_use
                           cameraOptions: CameraOptions(

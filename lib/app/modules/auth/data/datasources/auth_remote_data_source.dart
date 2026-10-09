@@ -277,7 +277,13 @@ class AuthRemoteDataSourceImpl implements AuthRemoteDataSource {
           )
         : await _firebaseMessaging.getToken();
     if (token != null) {
-      await _apiClient.put('/auth/fcm-token', data: {'fcm_token': token});
+      final plataforma = kIsWeb
+          ? 'web'
+          : (defaultTargetPlatform == TargetPlatform.iOS ? 'ios' : 'android');
+      await _apiClient.put(
+        '/auth/fcm-token',
+        data: {'fcm_token': token, 'plataforma': plataforma},
+      );
     }
   }
 

@@ -1,5 +1,6 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get_it/get_it.dart';
 import 'package:google_sign_in/google_sign_in.dart';
 import 'package:hive/hive.dart';
@@ -86,8 +87,8 @@ Future<void> configureDependencies() async {
       () => PushNotificationService(firebaseMessaging: sl(), apiClient: sl()),
     )
     ..registerLazySingleton(
-      () => AppEnvironment.googleWebClientId.isEmpty
-          ? GoogleSignIn()
+      () => kIsWeb
+          ? GoogleSignIn(clientId: AppEnvironment.googleWebClientId)
           : GoogleSignIn(serverClientId: AppEnvironment.googleWebClientId),
     )
     ..registerLazySingleton<AuthRemoteDataSource>(

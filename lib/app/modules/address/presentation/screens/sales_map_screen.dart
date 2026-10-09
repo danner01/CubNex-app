@@ -6,7 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -104,7 +104,24 @@ class _SalesMapScreenState extends State<SalesMapScreen> {
       );
     }
     if (kIsWeb) {
-      return const WebMapUnavailable();
+      return WebTrackingMap(
+        latitude: 21.6,
+        longitude: -79.4,
+        markers: [
+          for (final negocio in _negocios)
+            if (negocio.lat != null && negocio.lng != null)
+              WebMapMarker(
+                id: negocio.id,
+                latitude: negocio.lat!,
+                longitude: negocio.lng!,
+                color: negocio.themeColor ?? '#B8860B',
+              ),
+        ],
+        onMarkerTap: (id) {
+          final negocio = _negocios.where((item) => item.id == id).firstOrNull;
+          if (negocio != null) unawaited(_openNegocio(negocio));
+        },
+      );
     }
     return MapWidget(
       // ignore: deprecated_member_use

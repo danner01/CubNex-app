@@ -3,7 +3,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -97,7 +97,14 @@ class _LocationPickerSheetState extends State<LocationPickerSheet> {
               child: SizedBox(
                 height: 360,
                 child: kIsWeb
-                    ? const WebMapUnavailable()
+                    ? WebTrackingMap(
+                        latitude: _latitude,
+                        longitude: _longitude,
+                        onMapTap: (point) => setState(() {
+                          _latitude = point.latitude;
+                          _longitude = point.longitude;
+                        }),
+                      )
                     : _tokenReady
                     ? Stack(
                         children: [

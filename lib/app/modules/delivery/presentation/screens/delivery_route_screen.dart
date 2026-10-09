@@ -6,7 +6,7 @@ import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 import '../../../../config/environment/app_environment.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -1172,7 +1172,63 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
             children: [
               Positioned.fill(
                 child: kIsWeb
-                    ? const WebMapUnavailable()
+                    ? WebTrackingMap(
+                        latitude: _myLat ?? mapCenter.coordinates.lat.toDouble(),
+                        longitude:
+                            _myLng ?? mapCenter.coordinates.lng.toDouble(),
+                        markers: [
+                          if (_myLat != null && _myLng != null)
+                            WebMapMarker(
+                              id: 'delivery',
+                              latitude: _myLat!,
+                              longitude: _myLng!,
+                              color: '#${myColor.toARGB32().toRadixString(16).substring(2)}',
+                            ),
+                          for (var i = 0; i < _manualWaypoints.length; i++)
+                            WebMapMarker(
+                              id: 'waypoint-$i',
+                              latitude: _manualWaypoints[i][1],
+                              longitude: _manualWaypoints[i][0],
+                              color: i == 0
+                                  ? '#2E7D32'
+                                  : i == _manualWaypoints.length - 1
+                                  ? '#D32F2F'
+                                  : '#00897B',
+                            ),
+                        ],
+                        routes: [
+                          if ((_manualRouteCoords ?? _manualWaypoints).length >= 2)
+                            WebMapRoute(
+                              id: 'manual-route',
+                              coordinates: _manualRouteCoords ?? _manualWaypoints,
+                              color: '#6A1B9A',
+                            ),
+                          if (!manualActive &&
+                              ((entrega?.rutaCoordenadas ??
+                                          _entregaRouteCoords)
+                                      ?.length ??
+                                  0) >=
+                                  2)
+                            WebMapRoute(
+                              id: 'delivery-route',
+                              coordinates:
+                                  entrega?.rutaCoordenadas ?? _entregaRouteCoords!,
+                              color: '#1976D2',
+                            ),
+                        ],
+                        onMapTap: (point) {
+                          if (!_manualMode) return;
+                          if (_manualWaypoints.length >= 20) {
+                            _showMessage('Maximo 20 paradas por ruta.');
+                            return;
+                          }
+                          setState(() => _manualWaypoints.add([
+                                point.longitude,
+                                point.latitude,
+                              ]));
+                          _afterManualChange();
+                        },
+                      )
                     : MapWidget(
                   // ignore: deprecated_member_use
                   cameraOptions: CameraOptions(center: mapCenter, zoom: 12),

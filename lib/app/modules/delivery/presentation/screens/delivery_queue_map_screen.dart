@@ -7,7 +7,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -706,7 +706,13 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                 if (_hasToken)
                   Positioned.fill(
                     child: kIsWeb
-                      ? const WebMapUnavailable()
+                      ? WebTrackingMap(
+                          latitude: _myLat ?? initialCenter.coordinates.lat.toDouble(),
+                          longitude:
+                              _myLng ?? initialCenter.coordinates.lng.toDouble(),
+                          markers: _webMarkers(accepted),
+                          routes: _webRoutes(accepted),
+                        )
                       : MapWidget(
                       // ignore: deprecated_member_use
                       cameraOptions: CameraOptions(
@@ -768,6 +774,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                           _syncAnnotations(initial: !_didInitialCamera),
                         );
                       }
+
                     },
                     child: BlocBuilder<DeliveryCubit, DeliveryState>(
                       builder: (context, state) {
@@ -782,6 +789,76 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
         ),
       ),
     );
+  }
+
+  List<DeliveryEntregaModel> _webEntries(DeliveryEntregaModel? accepted) {
+    final available = context.read<DeliveryCubit>().state.availableEntregas;
+    return [
+      if (_focusEntrega != null &&
+          _focusEntrega!.id != accepted?.id &&
+          !available.any((item) => item.id == _focusEntrega!.id))
+        _focusEntrega!,
+      if (accepted != null && !available.any((item) => item.id == accepted.id))
+        accepted,
+      ...available,
+    ];
+  }
+
+  List<WebMapMarker> _webMarkers(DeliveryEntregaModel? accepted) {
+    final markers = <WebMapMarker>[
+      if (_myLat != null && _myLng != null)
+        WebMapMarker(
+          id: 'delivery-user',
+          latitude: _myLat!,
+          longitude: _myLng!,
+          color: '#00ACC1',
+        ),
+    ];
+    for (final entrega in _webEntries(accepted)) {
+      final origin = _originFor(entrega);
+      if (origin != null) {
+        markers.add(WebMapMarker(
+          id: '${entrega.id}-origin',
+          latitude: origin.lat,
+          longitude: origin.lng,
+          color: _hasOriginCoordsFor(entrega) ? '#2E7D32' : '#9E9E9E',
+        ));
+      }
+      if (entrega.destinoLatitude != null && entrega.destinoLongitude != null) {
+        markers.add(WebMapMarker(
+          id: '${entrega.id}-destination',
+          latitude: entrega.destinoLatitude!,
+          longitude: entrega.destinoLongitude!,
+          color: '#D32F2F',
+        ));
+      }
+    }
+    return markers;
+  }
+
+  List<WebMapRoute> _webRoutes(DeliveryEntregaModel? accepted) {
+    final routes = <WebMapRoute>[];
+    for (final entrega in _webEntries(accepted)) {
+      final origin = _originFor(entrega);
+      final route = _routePointsFor(entrega) ??
+          (origin != null &&
+                  entrega.destinoLatitude != null &&
+                  entrega.destinoLongitude != null
+              ? [
+                  [origin.lng, origin.lat],
+                  [entrega.destinoLongitude!, entrega.destinoLatitude!],
+                ]
+              : null);
+      if (route != null && route.length >= 2) {
+        routes.add(WebMapRoute(
+          id: entrega.id,
+          coordinates: route,
+          color: '#1976D2',
+          width: entrega.id == _focusEntregaId ? 5 : 3.4,
+        ));
+      }
+    }
+    return routes;
   }
 
   Future<void> _onFocusLocation(double lat, double lng) async {

@@ -1,0 +1,28 @@
+{
+  "headers": [
+    {
+      "source": "/(.*\\.js|.*\\.wasm|.*\\.js\\.symbols|assets/(.*)|icons/(.*))",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
+    },
+    {
+      "source": "/(.*\\.html|manifest\\.json|flutter_service_worker\\.js)",
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=0, must-revalidate"
+        }
+      ]
+    }
+  ],
+  "rewrites": [
+    {
+      "source": "/((?!api/).*)",
+      "destination": "/index.html"
+    }
+  ]
+}

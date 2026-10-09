@@ -8,7 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -120,6 +120,30 @@ class _MapViewState extends State<_MapView> {
                   latitude: state.latitude,
                   longitude: state.longitude,
                   selectedItem: _selectedItem,
+                  markers: [
+                    for (final item in visibleItems)
+                      WebMapMarker(
+                        id: item.id,
+                        latitude: item.latitude,
+                        longitude: item.longitude,
+                        color: item.themeColor ?? _webColorForType(item.type),
+                      ),
+                  ],
+                  routes: state.routePoints.length < 2
+                      ? const []
+                      : [
+                          WebMapRoute(
+                            id: 'selected-route',
+                            coordinates: [
+                              for (final point in state.routePoints)
+                                [point.longitude, point.latitude],
+                            ],
+                          ),
+                        ],
+                  onMarkerTap: (id) {
+                    final item = visibleItems.where((item) => item.id == id).firstOrNull;
+                    if (item != null) unawaited(_selectItem(item));
+                  },
                   onMapCreated: (mapboxMap) async {
                     final cubit = context.read<MapCubit>();
                     _mapboxMap = mapboxMap;
@@ -177,6 +201,12 @@ class _MapViewState extends State<_MapView> {
       ),
     );
   }
+
+  String _webColorForType(MapSearchType type) => switch (type) {
+    MapSearchType.business => '#C9A227',
+    MapSearchType.property => '#2E7D32',
+    MapSearchType.transport => '#1976D2',
+  };
 
   Future<void> _selectItem(MapSearchItem item) async {
     setState(() => _selectedItem = item);
@@ -386,6 +416,9 @@ class _MapCanvas extends StatelessWidget {
     required this.latitude,
     required this.longitude,
     required this.selectedItem,
+    required this.markers,
+    required this.routes,
+    required this.onMarkerTap,
     required this.onMapCreated,
     required this.onLocate,
   });
@@ -394,6 +427,9 @@ class _MapCanvas extends StatelessWidget {
   final double latitude;
   final double longitude;
   final MapSearchItem? selectedItem;
+  final List<WebMapMarker> markers;
+  final List<WebMapRoute> routes;
+  final ValueChanged<String> onMarkerTap;
   final ValueChanged<MapboxMap> onMapCreated;
   final VoidCallback? onLocate;
 
@@ -409,7 +445,13 @@ class _MapCanvas extends StatelessWidget {
           children: [
             Positioned.fill(
               child: kIsWeb
-                  ? const WebMapUnavailable()
+                  ? WebTrackingMap(
+                      latitude: latitude,
+                      longitude: longitude,
+                      markers: markers,
+                      routes: routes,
+                      onMarkerTap: onMarkerTap,
+                    )
                   : tokenReady
                   ? MapWidget(
                       // ignore: deprecated_member_use

@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../../../common/blocs/app_theme/app_theme_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
+import '../../../../common/services/push_notification_service.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../wizard/data/models/business_type_model.dart';
 import '../../blocs/preferences/preferences_cubit.dart';
@@ -490,6 +491,8 @@ class _PrivacySectionState extends State<_PrivacySection> {
               ),
             ),
             const SizedBox(height: 12),
+            const _PushPermissionTile(),
+            const SizedBox(height: 12),
             _PermissionsInfoCard(
               items: const [
                 _PermissionInfo(
@@ -600,6 +603,115 @@ class _StatusPill extends StatelessWidget {
             fontWeight: FontWeight.w900,
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PushPermissionTile extends StatefulWidget {
+  const _PushPermissionTile();
+
+  @override
+  State<_PushPermissionTile> createState() => _PushPermissionTileState();
+}
+
+class _PushPermissionTileState extends State<_PushPermissionTile> {
+  bool? _granted;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  Future<void> _refresh() async {
+    if (!sl.isRegistered<PushNotificationService>()) return;
+    final granted = await sl<PushNotificationService>().isPushGranted();
+    if (!mounted) return;
+    setState(() => _granted = granted);
+  }
+
+  Future<void> _enable() async {
+    if (_busy) return;
+    setState(() => _busy = true);
+    final ok = await sl<PushNotificationService>().enablePush();
+    await _refresh();
+    if (!mounted) return;
+    setState(() => _busy = false);
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          ok
+              ? 'Notificaciones activadas en este dispositivo.'
+              : 'No se pudo activar. Revisa los permisos del navegador o del sistema.',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final granted = _granted == true;
+
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            granted
+                ? Icons.notifications_active_rounded
+                : Icons.notifications_off_outlined,
+            color: granted
+                ? theme.colorScheme.primary
+                : theme.colorScheme.onSurfaceVariant,
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Notificaciones push',
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w800,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  granted
+                      ? 'Activas en este dispositivo.'
+                      : 'Activa los avisos, pedidos y promociones en este dispositivo.',
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          if (granted)
+            const Padding(
+              padding: EdgeInsets.symmetric(horizontal: 4),
+              child: Icon(Icons.check_circle_rounded, color: Colors.green),
+            )
+          else
+            FilledButton(
+              onPressed: _busy ? null : _enable,
+              child: _busy
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Text('Activar'),
+            ),
+        ],
       ),
     );
   }

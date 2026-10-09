@@ -4,7 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
-import '../../../../common/presentation/widgets/web_map_unavailable.dart';
+import '../../../../common/presentation/widgets/web_tracking_map.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
@@ -390,7 +390,36 @@ class _DeliveryOrderTrackingScreenState
         children: [
           Positioned.fill(
             child: kIsWeb
-                ? const WebMapUnavailable()
+                ? WebTrackingMap(
+                    latitude: point?[1] ?? _defaultCenter.lat.toDouble(),
+                    longitude: point?[0] ?? _defaultCenter.lng.toDouble(),
+                    markers: [
+                      if (_entrega case final entrega?)
+                        if (_origin(entrega) case final origin?)
+                          WebMapMarker(
+                            id: 'origin',
+                            latitude: origin[1],
+                            longitude: origin[0],
+                            color: '#2E7D32',
+                          ),
+                      if (_entrega case final entrega?)
+                        if (_dest(entrega) case final destination?)
+                          WebMapMarker(
+                            id: 'destination',
+                            latitude: destination[1],
+                            longitude: destination[0],
+                            color: '#D32F2F',
+                          ),
+                      if (point != null)
+                        WebMapMarker(
+                          id: 'delivery',
+                          latitude: point[1],
+                          longitude: point[0],
+                          color: '#${(_markerColor ?? DeliveryRouteColors.delivery).toARGB32().toRadixString(16).substring(2)}',
+                        ),
+                    ],
+                    routes: _webRoutes(),
+                  )
                 : MapWidget(
               // ignore: deprecated_member_use
               cameraOptions: CameraOptions(
@@ -478,6 +507,24 @@ class _DeliveryOrderTrackingScreenState
         ],
       ),
     );
+  }
+
+  List<WebMapRoute> _webRoutes() {
+    final entrega = _entrega;
+    if (entrega == null) return const [];
+    final origin = _origin(entrega);
+    final destination = _dest(entrega);
+    final coordinates = entrega.rutaCoordenadas ??
+        (origin != null && destination != null ? [origin, destination] : null);
+    if (coordinates == null || coordinates.length < 2) return const [];
+    return [
+      WebMapRoute(
+        id: 'delivery-route',
+        coordinates: coordinates,
+        color: '#1976D2',
+        width: 5.5,
+      ),
+    ];
   }
 
   Widget _buildBottomPanel(
