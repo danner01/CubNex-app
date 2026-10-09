@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
 
@@ -8,6 +9,7 @@ import '../../../../common/presentation/widgets/web_tracking_map.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../../config/routes/app_routes.dart';
 import '../../data/models/delivery_entrega_model.dart';
 import '../widgets/delivery_common.dart';
 
@@ -53,6 +55,15 @@ class _DeliveryOrderTrackingScreenState
 
   String? _lastDeliveryKey;
   bool _didInitialCamera = false;
+
+  void _goBack() {
+    final navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go(AppRoutes.orders);
+  }
 
   @override
   void initState() {
@@ -440,7 +451,7 @@ class _DeliveryOrderTrackingScreenState
                 child: Row(
                   children: [
                     IconButton.filledTonal(
-                      onPressed: () => Navigator.of(context).maybePop(),
+                      onPressed: _goBack,
                       icon: const Icon(Icons.arrow_back_rounded),
                       tooltip: 'Volver',
                     ),
