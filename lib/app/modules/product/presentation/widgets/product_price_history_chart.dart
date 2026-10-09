@@ -145,27 +145,27 @@ class ProductPriceHistoryChart extends StatelessWidget {
                 ),
               ),
               lineBarsData: [
-                if (ventaSpots.length > 1)
+                if (ventaSpots.isNotEmpty)
                   LineChartBarData(
                     spots: ventaSpots,
                     isCurved: true,
                     color: ventaColor,
                     barWidth: 2.6,
                     isStrokeCapRound: true,
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(show: ventaSpots.length == 1),
                     belowBarData: BarAreaData(
-                      show: true,
+                      show: ventaSpots.length > 1,
                       color: ventaColor.withValues(alpha: 0.10),
                     ),
                   ),
-                if (mostrarSecundaria && compraSpots.length > 1)
+                if (mostrarSecundaria && compraSpots.isNotEmpty)
                   LineChartBarData(
                     spots: compraSpots,
                     isCurved: true,
                     color: compraColor,
                     barWidth: 2.2,
                     dashArray: [6, 4],
-                    dotData: const FlDotData(show: false),
+                    dotData: FlDotData(show: compraSpots.length == 1),
                   ),
               ],
               lineTouchData: LineTouchData(

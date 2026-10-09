@@ -31,22 +31,18 @@ Future<void> _ensureFirebaseInitialized() async {
 }
 
 Future<void> _initializeFirebase() async {
-  try {
-    if (Firebase.apps.isNotEmpty) return;
+  if (Firebase.apps.isNotEmpty) return;
 
-    // Prefer native firebase config first (google-services/plist).
-    await Firebase.initializeApp();
-  } on FirebaseException catch (error) {
-    // If native config is unavailable on this platform, use explicit options.
-    if (error.code == 'no-app') {
-      await Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
-      );
-      return;
-    }
-
-    if (error.code != 'duplicate-app') rethrow;
+  // On web there are no native config files: FirebaseOptions are required.
+  if (kIsWeb) {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+    return;
   }
+
+  // Prefer native firebase config first (google-services/plist).
+  await Firebase.initializeApp();
 }
 
 @pragma('vm:entry-point')
@@ -99,8 +95,9 @@ class _BootstrapAppState extends State<_BootstrapApp> {
         _ready = true;
       });
       unawaited(_initializeForegroundServices());
-    } catch (error) {
+    } catch (error, stackTrace) {
       if (!mounted) return;
+      debugPrint('Bootstrap error: $error\n$stackTrace');
       setState(() {
         _error = error.toString();
       });

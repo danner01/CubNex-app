@@ -640,12 +640,17 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
       const SizedBox(height: 10),
       if (_priceHistory != null &&
           _priceHistory!.serie.isNotEmpty &&
-          (_priceHistory!.tieneVenta || _priceHistory!.tieneCompra))
+          (_priceHistory!.tieneVenta || _priceHistory!.tieneCompra)) ...[
         ProductPriceHistoryChart(
           serie: _priceHistory!.serie,
           moneda: _priceHistory!.monedaActual,
-        )
-      else
+        ),
+        const SizedBox(height: 12),
+        _PriceHistoryResumen(
+          resumen: _priceHistory!.resumen,
+          moneda: _priceHistory!.monedaActual,
+        ),
+      ] else
         Padding(
           padding: const EdgeInsets.symmetric(vertical: 18),
           child: Text(
@@ -654,6 +659,82 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
           ),
         ),
     ];
+  }
+}
+
+class _PriceHistoryResumen extends StatelessWidget {
+  const _PriceHistoryResumen({required this.resumen, required this.moneda});
+
+  final ProductPriceResumen resumen;
+  final String moneda;
+
+  String _fmt(double? value) {
+    if (value == null) return '-';
+    return value % 1 == 0 ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        _PriceHistoryChip(
+          label: 'Promedio',
+          value: '${_fmt(resumen.promedio)} $moneda',
+        ),
+        const SizedBox(width: 8),
+        _PriceHistoryChip(label: 'Min', value: '${_fmt(resumen.minimo)} $moneda'),
+        const SizedBox(width: 8),
+        _PriceHistoryChip(label: 'Max', value: '${_fmt(resumen.maximo)} $moneda'),
+        const SizedBox(width: 8),
+        _PriceHistoryChip(
+          label: 'Variacion',
+          value: resumen.variacionPorcentual == null
+              ? '-'
+              : '${resumen.variacionPorcentual!.toStringAsFixed(1)}%',
+        ),
+      ],
+    );
+  }
+}
+
+class _PriceHistoryChip extends StatelessWidget {
+  const _PriceHistoryChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 6),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.surfaceContainerHighest,
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Text(
+              label,
+              style: theme.textTheme.labelSmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              value,
+              style: theme.textTheme.bodySmall?.copyWith(
+                fontWeight: FontWeight.w800,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 
