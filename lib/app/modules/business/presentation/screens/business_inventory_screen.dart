@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -16,6 +17,7 @@ import '../../../../config/theme/app_colors.dart';
 import '../../../home/data/models/product_model.dart';
 import '../../../product/data/models/product_price_history.dart';
 import '../../../product/presentation/widgets/product_price_history_chart.dart';
+import '../../../posts/presentation/screens/business_posts_screen.dart';
 import '../../blocs/inventory/business_inventory_cubit.dart';
 import '../../blocs/inventory/business_inventory_state.dart';
 import '../../data/models/business_product_cost.dart';
@@ -248,6 +250,10 @@ class _InventoryProductCard extends StatelessWidget {
                             PopupMenuButton<String>(
                               itemBuilder: (context) => const [
                                 PopupMenuItem(
+                                  value: 'publish',
+                                  child: Text('Crear publicación'),
+                                ),
+                                PopupMenuItem(
                                   value: 'edit',
                                   child: Text('Editar'),
                                 ),
@@ -261,6 +267,15 @@ class _InventoryProductCard extends StatelessWidget {
                                 ),
                               ],
                               onSelected: (value) {
+                                if (value == 'publish') {
+                                  Navigator.of(context).push(
+                                    MaterialPageRoute(
+                                      builder: (_) => BusinessPostsScreen(
+                                        initialProduct: product,
+                                      ),
+                                    ),
+                                  );
+                                }
                                 if (value == 'edit') {
                                   showModalBottomSheet<void>(
                                     context: context,
@@ -981,6 +996,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   final _transferPriceController = TextEditingController();
   final _transferPercentController = TextEditingController();
   final _stockController = TextEditingController();
+  final _minimumStockController = TextEditingController(text: '0');
   final _costController = TextEditingController();
   final _categoryController = TextEditingController();
   final _image1Controller = TextEditingController();
@@ -1017,6 +1033,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
     _transferPercentController.text =
         product.transferPercent?.toStringAsFixed(2) ?? '';
     _stockController.text = product.stock?.toString() ?? '';
+    _minimumStockController.text = product.minimumStock.toString();
     _categoryController.text = product.features['categoria']?.toString() ?? '';
     _currency = product.currency ?? 'CUP';
     _inInventory = product.inInventory;
@@ -1044,6 +1061,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
     _transferPriceController.dispose();
     _transferPercentController.dispose();
     _stockController.dispose();
+    _minimumStockController.dispose();
     _costController.dispose();
     _categoryController.dispose();
     _image1Controller.dispose();
@@ -1260,10 +1278,33 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                   ),
                 ],
                 const SizedBox(height: 12),
-                TextFormField(
-                  controller: _stockController,
-                  keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(labelText: 'Stock'),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _stockController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(labelText: 'Stock'),
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: TextFormField(
+                        controller: _minimumStockController,
+                        keyboardType: TextInputType.number,
+                        decoration: const InputDecoration(
+                          labelText: 'Cantidad mínima',
+                        ),
+                        validator: (value) {
+                          final amount = int.tryParse(value?.trim() ?? '');
+                          if (amount == null || amount < 0) {
+                            return 'Cantidad invalida';
+                          }
+                          return null;
+                        },
+                      ),
+                    ),
+                  ],
                 ),
                 const SizedBox(height: 12),
                 SwitchListTile.adaptive(
@@ -1372,6 +1413,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
           transferPercent: _nullableDouble(_transferPercentController.text),
           currency: _currency,
           stock: int.tryParse(_stockController.text.trim()),
+          minimumStock: int.parse(_minimumStockController.text.trim()),
           category: _categoryController.text.trim(),
           imageUrls: imageUrls,
           detectedFeatures: _detectedFeatures,
@@ -1405,6 +1447,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
           transferPercent: _nullableDouble(_transferPercentController.text),
           currency: _currency,
           stock: int.tryParse(_stockController.text.trim()),
+          minimumStock: int.tryParse(_minimumStockController.text.trim()),
           category: _categoryController.text.trim(),
           imageUrls: imageUrls,
           detectedFeatures: _detectedFeatures,
@@ -1670,13 +1713,22 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   }
 
   void _sendPatronFeedback(String patronId, bool acerto) {
-    sl<ApiClient>()
-        .post<Map<String, dynamic>>(
-          '/productos/patron-feedback',
-          data: {'patron_id': patronId, 'acerto': acerto},
-          parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
-        )
-        .catchError((_) {});
+    unawaited(_submitPatronFeedback(patronId, acerto));
+  }
+
+  Future<void> _submitPatronFeedback(String patronId, bool acerto) async {
+    try {
+      final result = await sl<ApiClient>().post<Map<String, dynamic>>(
+        '/productos/patron-feedback',
+        data: {'patron_id': patronId, 'acerto': acerto},
+        parser: (json) => json is Map ? Map<String, dynamic>.from(json) : {},
+      );
+      if (!result.isSuccess) {
+        debugPrint('No se pudo registrar feedback de patron: ${result.error}');
+      }
+    } on Object catch (error) {
+      debugPrint('No se pudo registrar feedback de patron: $error');
+    }
   }
 }
 

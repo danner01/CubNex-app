@@ -17,6 +17,8 @@ class ProductModel {
     this.sku,
     this.barcode,
     this.stock,
+    this.minimumStock = 0,
+    this.publishedPostsCount = 0,
     this.available = true,
     this.inInventory = true,
     this.purchasable = true,
@@ -41,6 +43,8 @@ class ProductModel {
   final String? sku;
   final String? barcode;
   final int? stock;
+  final int minimumStock;
+  final int publishedPostsCount;
   final bool available;
   final bool inInventory;
   final bool purchasable;
@@ -76,6 +80,8 @@ class ProductModel {
     String? sku,
     String? barcode,
     int? stock,
+    int? minimumStock,
+    int? publishedPostsCount,
     bool? available,
     bool? inInventory,
     bool? purchasable,
@@ -100,6 +106,8 @@ class ProductModel {
       sku: sku ?? this.sku,
       barcode: barcode ?? this.barcode,
       stock: stock ?? this.stock,
+      minimumStock: minimumStock ?? this.minimumStock,
+      publishedPostsCount: publishedPostsCount ?? this.publishedPostsCount,
       available: available ?? this.available,
       inInventory: inInventory ?? this.inInventory,
       purchasable: purchasable ?? this.purchasable,
@@ -144,6 +152,9 @@ class ProductModel {
       sku: json['sku']?.toString(),
       barcode: json['codigo_barras']?.toString(),
       stock: int.tryParse('${json['stock'] ?? ''}'),
+      minimumStock: int.tryParse('${json['stock_minimo'] ?? ''}') ?? 0,
+      publishedPostsCount:
+          int.tryParse('${json['publicaciones_count'] ?? ''}') ?? 0,
       available: json['disponible'] != false,
       inInventory: json['en_inventario'] != false,
       purchasable: json['comprable'] != false,
@@ -174,6 +185,8 @@ class ProductModel {
       'sku': sku,
       'codigo_barras': barcode,
       'stock': stock,
+      'stock_minimo': minimumStock,
+      'publicaciones_count': publishedPostsCount,
       'disponible': available,
       'en_inventario': inInventory,
       'comprable': purchasable,

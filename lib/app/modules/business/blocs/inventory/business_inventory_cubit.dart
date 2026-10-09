@@ -311,6 +311,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     double? transferPercent,
     String currency = 'CUP',
     int? stock,
+    int minimumStock = 0,
     String? category,
     List<String> imageUrls = const [],
     Map<String, dynamic> detectedFeatures = const {},
@@ -342,6 +343,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         'porciento_transferencia': transferPercent,
         'moneda': currency,
         'stock': stock,
+        'stock_minimo': minimumStock,
         'imagenes': imageUrls.take(3).toList(),
         'caracteristicas': {
           if (category?.trim().isNotEmpty == true)
@@ -395,6 +397,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
     double? transferPercent,
     String currency = 'CUP',
     int? stock,
+    int? minimumStock,
     String? category,
     List<String> imageUrls = const [],
     Map<String, dynamic> detectedFeatures = const {},
@@ -413,6 +416,7 @@ class BusinessInventoryCubit extends Cubit<BusinessInventoryState> {
         'porciento_transferencia': transferPercent,
         'moneda': currency,
         'stock': stock,
+        'stock_minimo': minimumStock ?? product.minimumStock,
         'imagenes': imageUrls.take(3).toList(),
         'caracteristicas': {
           ...product.features,

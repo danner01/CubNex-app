@@ -10,24 +10,29 @@ import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../business/presentation/widgets/business_switcher.dart';
+import '../../../home/data/models/product_model.dart';
 import '../../blocs/posts/posts_cubit.dart';
 import '../../blocs/posts/posts_state.dart';
 import '../../data/models/business_post_model.dart';
 
 class BusinessPostsScreen extends StatelessWidget {
-  const BusinessPostsScreen({super.key});
+  const BusinessPostsScreen({this.initialProduct, super.key});
+
+  final ProductModel? initialProduct;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<PostsCubit>(),
-      child: const _BusinessPostsView(),
+      child: _BusinessPostsView(initialProduct: initialProduct),
     );
   }
 }
 
 class _BusinessPostsView extends StatefulWidget {
-  const _BusinessPostsView();
+  const _BusinessPostsView({this.initialProduct});
+
+  final ProductModel? initialProduct;
 
   @override
   State<_BusinessPostsView> createState() => _BusinessPostsViewState();
@@ -35,6 +40,7 @@ class _BusinessPostsView extends StatefulWidget {
 
 class _BusinessPostsViewState extends State<_BusinessPostsView> {
   String _filter = 'todas';
+  bool _openedInitialProduct = false;
 
   @override
   void didChangeDependencies() {
@@ -42,6 +48,18 @@ class _BusinessPostsViewState extends State<_BusinessPostsView> {
     final business = context.read<ActiveBusinessCubit>().state.activeBusiness;
     if (business != null) {
       context.read<PostsCubit>().loadBusinessPosts(business.id);
+      if (!_openedInitialProduct && widget.initialProduct != null) {
+        _openedInitialProduct = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) {
+            _openEditor(
+              context,
+              business.id,
+              initialProduct: widget.initialProduct,
+            );
+          }
+        });
+      }
     }
   }
 
@@ -177,6 +195,7 @@ class _BusinessPostsViewState extends State<_BusinessPostsView> {
     BuildContext context,
     String businessId, {
     BusinessPostModel? post,
+    ProductModel? initialProduct,
   }) async {
     final saved = await Navigator.of(context).push<bool>(
       MaterialPageRoute(
@@ -184,7 +203,11 @@ class _BusinessPostsViewState extends State<_BusinessPostsView> {
           // A pushed route is a sibling of this page's route, not its child.
           // Give the editor its own cubit and reload the list when it returns.
           create: (_) => sl<PostsCubit>(),
-          child: _PostEditorScreen(businessId: businessId, post: post),
+          child: _PostEditorScreen(
+            businessId: businessId,
+            post: post,
+            initialProduct: initialProduct,
+          ),
         ),
       ),
     );
@@ -305,10 +328,15 @@ class _BusinessPostCard extends StatelessWidget {
 }
 
 class _PostEditorScreen extends StatefulWidget {
-  const _PostEditorScreen({required this.businessId, this.post});
+  const _PostEditorScreen({
+    required this.businessId,
+    this.post,
+    this.initialProduct,
+  });
 
   final String businessId;
   final BusinessPostModel? post;
+  final ProductModel? initialProduct;
 
   @override
   State<_PostEditorScreen> createState() => _PostEditorScreenState();
@@ -321,9 +349,9 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
   late final TextEditingController _tags;
   late final TextEditingController _link;
   late final TextEditingController _cta;
-  late final TextEditingController _price;
   late List<String> _mediaUrls;
-  String _type = 'post';
+  ProductModel? _linkedProduct;
+  List<ProductModel> _inventoryProducts = const [];
   bool _uploading = false;
   bool _saving = false;
   DateTime? _scheduledAt;
@@ -337,12 +365,11 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags = TextEditingController(text: post?.tags.join(', '));
     _link = TextEditingController(text: post?.linkUrl);
     _cta = TextEditingController(text: post?.ctaText);
-    _price = TextEditingController(
-      text: post?.precio == null ? null : post!.precio!.toStringAsFixed(2),
-    );
     _mediaUrls = [...?post?.mediaUrls];
-    _type = post?.type ?? 'post';
+    _linkedProduct = widget.initialProduct;
+    if (widget.initialProduct != null) _applyProduct(widget.initialProduct!);
     _scheduledAt = post?.scheduledAt;
+    _loadInventoryProducts();
   }
 
   @override
@@ -352,7 +379,6 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags.dispose();
     _link.dispose();
     _cta.dispose();
-    _price.dispose();
     super.dispose();
   }
 
@@ -369,6 +395,23 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
+            _InventoryProductSelector(
+              products: _inventoryProducts,
+              selectedId: _linkedProduct?.id,
+              enabled: !_saving,
+              onChanged: (productId) {
+                if (productId == null) {
+                  setState(() => _linkedProduct = null);
+                  return;
+                }
+                for (final product in _inventoryProducts) {
+                  if (product.id != productId) continue;
+                  setState(() => _applyProduct(product));
+                  break;
+                }
+              },
+            ),
+            const SizedBox(height: 12),
             TextFormField(
               controller: _title,
               decoration: const InputDecoration(labelText: 'Título opcional'),
@@ -385,47 +428,6 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
                   ? 'Escribe el contenido de la publicación.'
                   : null,
             ),
-            const SizedBox(height: 12),
-            DropdownButtonFormField<String>(
-              initialValue: _type,
-              decoration: const InputDecoration(
-                labelText: 'Tipo de publicación',
-              ),
-              items: const [
-                DropdownMenuItem(value: 'post', child: Text('Publicación')),
-                DropdownMenuItem(value: 'promocion', child: Text('Promoción')),
-                DropdownMenuItem(value: 'historia', child: Text('Historia')),
-                DropdownMenuItem(value: 'reel', child: Text('Reel')),
-              ],
-              onChanged: _saving
-                  ? null
-                  : (value) => setState(() => _type = value ?? 'post'),
-            ),
-            if (_type == 'promocion') ...[
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: _price,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                decoration: const InputDecoration(
-                  labelText: 'Precio del producto o servicio',
-                  hintText: 'Ej: 1500',
-                ),
-                validator: (value) {
-                  if (value == null || value.trim().isEmpty) {
-                    return 'Indica el precio de la promocion.';
-                  }
-                  final parsed = double.tryParse(
-                    value.trim().replaceAll(',', '.'),
-                  );
-                  if (parsed == null || parsed < 0) {
-                    return 'Precio invalido.';
-                  }
-                  return null;
-                },
-              ),
-            ],
             const SizedBox(height: 12),
             _MediaPicker(
               urls: _mediaUrls,
@@ -583,13 +585,12 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
       postId: widget.post?.id,
       content: _content.text,
       title: _title.text,
-      type: _type,
+      type: 'post',
       mediaUrls: _mediaUrls,
-      mediaType: _type == 'reel' ? 'video' : 'imagen',
+      mediaType: 'imagen',
       tags: tags,
-      precio: _type == 'promocion'
-          ? double.tryParse(_price.text.trim().replaceAll(',', '.'))
-          : null,
+      productId: _linkedProduct?.id,
+      precio: null,
       linkUrl: _link.text,
       ctaText: _cta.text,
       scheduledAt: _scheduledAt,
@@ -598,6 +599,80 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     if (!mounted) return;
     setState(() => _saving = false);
     if (saved) Navigator.pop(context, true);
+  }
+
+  Future<void> _loadInventoryProducts() async {
+    final result = await sl<ApiClient>().get<List<ProductModel>>(
+      '/negocios/${widget.businessId}/productos',
+      queryParameters: const {'limit': '100', 'order': 'nombre.asc'},
+      parser: (json) {
+        if (json is! List) return const [];
+        return json
+            .whereType<Map>()
+            .map(
+              (item) => ProductModel.fromJson(Map<String, dynamic>.from(item)),
+            )
+            .toList();
+      },
+    );
+    if (!mounted || !result.isSuccess) return;
+    setState(() => _inventoryProducts = result.data ?? const []);
+  }
+
+  void _applyProduct(ProductModel product) {
+    _linkedProduct = product;
+    _title.text = product.name;
+    _content.text = product.description?.trim().isNotEmpty == true
+        ? product.description!
+        : 'Disponible en nuestro inventario.';
+    _mediaUrls = [...product.imageUrls];
+    final category = product.features['categoria']?.toString().trim();
+    if (category != null && category.isNotEmpty) _tags.text = category;
+  }
+}
+
+class _InventoryProductSelector extends StatelessWidget {
+  const _InventoryProductSelector({
+    required this.products,
+    required this.selectedId,
+    required this.enabled,
+    required this.onChanged,
+  });
+
+  final List<ProductModel> products;
+  final String? selectedId;
+  final bool enabled;
+  final ValueChanged<String?> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DropdownButtonFormField<String>(
+      initialValue: products.any((product) => product.id == selectedId)
+          ? selectedId
+          : null,
+      decoration: const InputDecoration(
+        labelText: 'Producto o servicio del inventario',
+        hintText: 'Opcional: completa los datos automáticamente',
+      ),
+      isExpanded: true,
+      items: [
+        const DropdownMenuItem<String>(
+          value: null,
+          child: Text('Publicación sin producto'),
+        ),
+        ...products.map(
+          (product) => DropdownMenuItem<String>(
+            value: product.id,
+            child: Text(
+              product.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
+        ),
+      ],
+      onChanged: enabled ? onChanged : null,
+    );
   }
 }
 
