@@ -494,16 +494,18 @@ class _MapCanvas extends StatelessWidget {
             Positioned(
               right: 12,
               top: 12,
-              child: FloatingActionButton.small(
-                heroTag: 'map-location',
-                onPressed: onLocate,
-                child: onLocate == null
-                    ? const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    : const Icon(Icons.my_location_rounded),
+              child: WebMapOverlay(
+                child: FloatingActionButton.small(
+                  heroTag: 'map-location',
+                  onPressed: onLocate,
+                  child: onLocate == null
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.my_location_rounded),
+                ),
               ),
             ),
             if (selectedItem != null)
@@ -511,7 +513,8 @@ class _MapCanvas extends StatelessWidget {
                 left: 12,
                 right: 12,
                 bottom: 12,
-                child: DecoratedBox(
+                child: WebMapOverlay(
+                  child: DecoratedBox(
                   decoration: BoxDecoration(
                     color: theme.colorScheme.surface,
                     borderRadius: BorderRadius.circular(18),
@@ -544,6 +547,7 @@ class _MapCanvas extends StatelessWidget {
                         ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

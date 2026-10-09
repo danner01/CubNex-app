@@ -98,12 +98,8 @@ class DeliveryHubProfileView extends StatelessWidget {
 
   Widget _buildDeliveryModeCard(BuildContext context, DeliveryState state) {
     final theme = Theme.of(context);
-    final deliveryActive = context.select<RoleModeCubit, bool>(
-      (cubit) => cubit.state.activeMode == RoleMode.delivery,
-    );
-    final canSwitch = context.select<RoleModeCubit, bool>(
-      (cubit) => cubit.state.availableModes.contains(RoleMode.delivery),
-    );
+    final roleMode = context.watch<RoleModeCubit>().state;
+    final deliveryActive = roleMode.activeMode == RoleMode.delivery;
     return Card(
       elevation: 0,
       shape: RoundedRectangleBorder(
@@ -117,39 +113,47 @@ class DeliveryHubProfileView extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              value: deliveryActive,
-              onChanged: !canSwitch
-                  ? null
-                  : (value) async {
-                      if (!context.mounted) return;
-                      final cubit = context.read<RoleModeCubit>();
-                      await cubit.setMode(
-                        value ? RoleMode.delivery : RoleMode.client,
-                      );
-                      if (!context.mounted) return;
-                      context.go(
-                        value ? AppRoutes.deliveryDashboard : AppRoutes.home,
-                      );
-                    },
-              title: const Text('Modo entrega'),
-              subtitle: Text(
-                canSwitch
-                    ? deliveryActive
-                          ? 'La app abre en el panel de reparto.'
-                          : 'Activa para trabajar en modo repartidor.'
-                    : 'Tu cuenta no tiene el rol de repartidor disponible.',
+            Text(
+              'Modo de uso',
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
-              secondary: Icon(
-                deliveryActive
-                    ? Icons.delivery_dining_rounded
-                    : Icons.delivery_dining_outlined,
-                size: 28,
-                color: deliveryActive
-                    ? theme.colorScheme.primary
-                    : theme.colorScheme.outline,
-              ),
+            ),
+            const SizedBox(height: 4),
+            const Text('Cambia entre tu actividad como cliente y repartidor.'),
+            const SizedBox(height: 10),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: roleMode.availableModes.map((mode) {
+                final selected = mode == roleMode.activeMode;
+                final label = switch (mode) {
+                  RoleMode.client => 'Cliente',
+                  RoleMode.business => 'Negocio',
+                  RoleMode.delivery => 'Delivery',
+                };
+                final icon = switch (mode) {
+                  RoleMode.client => Icons.shopping_bag_outlined,
+                  RoleMode.business => Icons.storefront_outlined,
+                  RoleMode.delivery => Icons.delivery_dining_outlined,
+                };
+                return ChoiceChip(
+                  selected: selected,
+                  label: Text(label),
+                  avatar: Icon(icon, size: 18),
+                  onSelected: (_) async {
+                    await context.read<RoleModeCubit>().setMode(mode);
+                    if (!context.mounted) return;
+                    context.go(
+                      switch (mode) {
+                        RoleMode.client => AppRoutes.home,
+                        RoleMode.business => AppRoutes.businessDashboard,
+                        RoleMode.delivery => AppRoutes.deliveryDashboard,
+                      },
+                    );
+                  },
+                );
+              }).toList(),
             ),
             if (deliveryActive) ...[
               const Divider(height: 20),

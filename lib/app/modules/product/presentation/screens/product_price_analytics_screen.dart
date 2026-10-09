@@ -515,10 +515,34 @@ class _AnalyticsData {
       }
     }
 
+    final parsedSummary = _Resumen.fromJson(json['resumen']);
+    final valores = serie.map((point) => point.precio).toList();
+    final calculatedSummary = valores.isEmpty
+        ? const _Resumen()
+        : _Resumen(
+            minimo: valores.reduce((a, b) => a < b ? a : b),
+            maximo: valores.reduce((a, b) => a > b ? a : b),
+            promedio:
+                valores.reduce((total, value) => total + value) / valores.length,
+            primero: valores.first,
+            ultimo: valores.last,
+            variacionPorcentual: valores.first == 0
+                ? null
+                : ((valores.last - valores.first) / valores.first) * 100,
+          );
     return _AnalyticsData(
       nombre: json['nombre']?.toString() ?? '',
       monedaActual: json['moneda_actual']?.toString() ?? 'CUP',
-      resumen: _Resumen.fromJson(json['resumen']),
+      resumen: _Resumen(
+        minimo: parsedSummary.minimo ?? calculatedSummary.minimo,
+        maximo: parsedSummary.maximo ?? calculatedSummary.maximo,
+        promedio: parsedSummary.promedio ?? calculatedSummary.promedio,
+        primero: parsedSummary.primero ?? calculatedSummary.primero,
+        ultimo: parsedSummary.ultimo ?? calculatedSummary.ultimo,
+        variacionPorcentual:
+            parsedSummary.variacionPorcentual ??
+            calculatedSummary.variacionPorcentual,
+      ),
       serie: serie,
       similares: similares,
     );

@@ -2723,12 +2723,14 @@ class _LocationPickerSheetState extends State<_LocationPickerSheet> {
                           Positioned(
                             right: 12,
                             top: 12,
-                            child: _MapZoomControls(
-                              zoom: _zoom,
-                              minZoom: _minZoom,
-                              maxZoom: _maxZoom,
-                              onZoomIn: () => _changeZoom(1),
-                              onZoomOut: () => _changeZoom(-1),
+                            child: WebMapOverlay(
+                              child: _MapZoomControls(
+                                zoom: _zoom,
+                                minZoom: _minZoom,
+                                maxZoom: _maxZoom,
+                                onZoomIn: () => _changeZoom(1),
+                                onZoomOut: () => _changeZoom(-1),
+                              ),
                             ),
                           ),
                         ],

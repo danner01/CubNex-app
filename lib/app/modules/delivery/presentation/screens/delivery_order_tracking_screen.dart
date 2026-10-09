@@ -433,9 +433,10 @@ class _DeliveryOrderTrackingScreenState
             left: 0,
             right: 0,
             top: 0,
-            child: SafeArea(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+            child: WebMapOverlay(
+              child: SafeArea(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
                 child: Row(
                   children: [
                     IconButton.filledTonal(
@@ -487,20 +488,22 @@ class _DeliveryOrderTrackingScreenState
                   ],
                 ),
               ),
+              ),
             ),
           ),
           Positioned(
             left: 8,
             right: 8,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: _buildBottomPanel(
-                theme,
-                point,
-                updated,
-                speed,
-                accuracy,
+            child: WebMapOverlay(
+              child: SafeArea(
+                child: _buildBottomPanel(
+                  theme,
+                  point,
+                  updated,
+                  speed,
+                  accuracy,
+                ),
               ),
             ),
           ),

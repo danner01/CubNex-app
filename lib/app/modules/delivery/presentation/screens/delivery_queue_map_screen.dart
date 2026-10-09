@@ -743,23 +743,25 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   child: SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 12),
-                      child: FloatingActionButton.small(
-                        heroTag: 'queue_map_locate',
-                        tooltip: 'Centrar en mi ubicacion',
-                        backgroundColor: theme.colorScheme.surface,
-                        foregroundColor: const Color(0xFF00ACC1),
-                        onPressed: _locating || _autoLocating
-                            ? null
-                            : () => unawaited(_locateCurrentPos()),
-                        child: _locating || _autoLocating
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.my_location_rounded),
+                      child: WebMapOverlay(
+                        child: FloatingActionButton.small(
+                          heroTag: 'queue_map_locate',
+                          tooltip: 'Centrar en mi ubicacion',
+                          backgroundColor: theme.colorScheme.surface,
+                          foregroundColor: const Color(0xFF00ACC1),
+                          onPressed: _locating || _autoLocating
+                              ? null
+                              : () => unawaited(_locateCurrentPos()),
+                          child: _locating || _autoLocating
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.my_location_rounded),
+                        ),
                       ),
                     ),
                   ),
@@ -882,6 +884,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     final isFailure = state.status == DeliveryStatus.failure && items.isEmpty;
     final profile = state.profile;
     final queueError = state.queueError;
+    final maxSheetSize = kIsWeb ? 0.94 : 0.85;
 
     return Align(
       alignment: Alignment.bottomCenter,
@@ -892,12 +895,13 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
             ? 0.3
             : 0.4,
         minChildSize: 0.24,
-        maxChildSize: 0.85,
+        maxChildSize: maxSheetSize,
         snap: true,
-        snapSizes: const [0.24, 0.4, 0.62, 0.85],
+        snapSizes: [0.24, 0.4, 0.62, maxSheetSize],
         builder: (context, sheetController) {
-          return DeliverySheetPanel(
-            controller: sheetController,
+          return WebMapOverlay(
+            child: DeliverySheetPanel(
+              controller: sheetController,
             child: ListView(
               controller: sheetController,
               padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
@@ -1037,6 +1041,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                   ],
                 ],
               ],
+              ),
             ),
           );
         },

@@ -18,6 +18,7 @@ class WebTrackingMap extends StatefulWidget {
     this.routes = const [],
     this.onMapTap,
     this.onMarkerTap,
+    this.interactive = true,
     super.key,
   });
 
@@ -27,6 +28,7 @@ class WebTrackingMap extends StatefulWidget {
   final List<WebMapRoute> routes;
   final ValueChanged<({double latitude, double longitude})>? onMapTap;
   final ValueChanged<String>? onMarkerTap;
+  final bool interactive;
 
   @override
   State<WebTrackingMap> createState() => _WebTrackingMapState();
@@ -49,6 +51,7 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
       ..style.border = '0'
       ..style.height = '100%'
       ..style.width = '100%'
+      ..style.pointerEvents = widget.interactive ? 'auto' : 'none'
       ..title = 'Mapa de Mapbox';
     ui_web.platformViewRegistry.registerViewFactory(_viewType, (_) => _iframe);
     _messages = html.window.onMessage.listen(_handleMessage);
@@ -62,6 +65,9 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
         oldWidget.markers != widget.markers ||
         oldWidget.routes != widget.routes) {
       _iframe.srcdoc = _mapDocument(widget.latitude, widget.longitude).toJS;
+    }
+    if (oldWidget.interactive != widget.interactive) {
+      _iframe.style.pointerEvents = widget.interactive ? 'auto' : 'none';
     }
   }
 

@@ -1,7 +1,5 @@
 import 'dart:async';
-import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -14,6 +12,7 @@ import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../blocs/scanner/scanner_cubit.dart';
 import '../../blocs/scanner/scanner_state.dart';
+import '../widgets/scanner_image_preview.dart';
 
 enum _ScannerMode { qr, product }
 
@@ -148,26 +147,6 @@ class _ScannerViewState extends State<_ScannerView> {
 
   @override
   Widget build(BuildContext context) {
-    if (kIsWeb) {
-      return Scaffold(
-        body: SafeArea(
-          child: Center(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(Icons.qr_code_scanner_outlined, size: 44),
-                const SizedBox(height: 12),
-                const Text(
-                  'El escaner solo esta disponible en la app movil.',
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }
-
     return Scaffold(
       body: SafeArea(
         child: BlocConsumer<ScannerCubit, ScannerState>(
@@ -497,8 +476,9 @@ class _ProductScanView extends StatelessWidget {
         if (capturedPath != null && resolving) ...[
           ColoredBox(
             color: Colors.black,
-            child: Image.file(
-              File(capturedPath),
+            child: ScannerImagePreview(
+              path: capturedPath,
+              height: null,
               fit: BoxFit.contain,
               errorBuilder: (_, __, ___) => const SizedBox.shrink(),
             ),
@@ -677,8 +657,8 @@ class _ProductResultViewState extends State<_ProductResultView> {
                 child: Icon(Icons.no_photography_outlined, size: 44),
               ),
             )
-          : Image.file(
-              File(path),
+          : ScannerImagePreview(
+              path: path,
               height: 180,
               fit: BoxFit.cover,
               errorBuilder: (_, __, ___) => Container(

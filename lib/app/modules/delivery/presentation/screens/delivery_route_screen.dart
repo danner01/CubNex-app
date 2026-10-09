@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
 import 'package:flutter/foundation.dart';
+import 'package:pointer_interceptor/pointer_interceptor.dart';
 
 import '../../../../common/presentation/widgets/web_tracking_map.dart';
 import '../../../../config/environment/app_environment.dart';
@@ -1150,6 +1151,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
               : Point(coordinates: _defaultCenter);
           final myColor = _ownMarkerColor();
           final manualActive = _manualMode && _manualWaypoints.isNotEmpty;
+          final maxSheetSize = kIsWeb ? 0.94 : 0.8;
 
           final routeChips = <String>[];
           if (manualActive && _manualWaypoints.length >= 2) {
@@ -1228,6 +1230,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                               ]));
                           _afterManualChange();
                         },
+                        interactive: _manualMode,
                       )
                     : MapWidget(
                   // ignore: deprecated_member_use
@@ -1254,19 +1257,21 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 child: SafeArea(
                   child: Padding(
                     padding: const EdgeInsets.only(top: 12),
-                    child: FloatingActionButton.small(
-                      heroTag: 'delivery_route_locate',
-                      tooltip: 'Mi ubicacion',
-                      onPressed: _locating
-                          ? null
-                          : () => unawaited(_locateCurrentPosition()),
-                      child: _locating
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(strokeWidth: 2),
-                            )
-                          : const Icon(Icons.my_location_rounded),
+                    child: PointerInterceptor(
+                      child: FloatingActionButton.small(
+                        heroTag: 'delivery_route_locate',
+                        tooltip: 'Mi ubicacion',
+                        onPressed: _locating
+                            ? null
+                            : () => unawaited(_locateCurrentPosition()),
+                        child: _locating
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2),
+                              )
+                            : const Icon(Icons.my_location_rounded),
+                      ),
                     ),
                   ),
                 ),
@@ -1278,22 +1283,24 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                   child: SafeArea(
                     child: Padding(
                       padding: const EdgeInsets.only(top: 76),
-                      child: FloatingActionButton.small(
-                        heroTag: 'delivery_route_enruta',
-                        tooltip: _followingDelivery
-                            ? 'Detener seguimiento'
-                            : 'En ruta',
-                        backgroundColor: _followingDelivery
-                            ? theme.colorScheme.primary
-                            : null,
-                        foregroundColor: _followingDelivery
-                            ? theme.colorScheme.onPrimary
-                            : null,
-                        onPressed: () => unawaited(_toggleFollowing()),
-                        child: Icon(
-                          _followingDelivery
-                              ? Icons.location_disabled_rounded
-                              : Icons.route_rounded,
+                      child: PointerInterceptor(
+                        child: FloatingActionButton.small(
+                          heroTag: 'delivery_route_enruta',
+                          tooltip: _followingDelivery
+                              ? 'Detener seguimiento'
+                              : 'En ruta',
+                          backgroundColor: _followingDelivery
+                              ? theme.colorScheme.primary
+                              : null,
+                          foregroundColor: _followingDelivery
+                              ? theme.colorScheme.onPrimary
+                              : null,
+                          onPressed: () => unawaited(_toggleFollowing()),
+                          child: Icon(
+                            _followingDelivery
+                                ? Icons.location_disabled_rounded
+                                : Icons.route_rounded,
+                          ),
                         ),
                       ),
                     ),
@@ -1310,13 +1317,15 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                       alignment: Alignment.topCenter,
                       child: Padding(
                         padding: const EdgeInsets.only(top: 90),
-                        child: _ManualStatusBanner(
-                          waypoints: _manualWaypoints.length,
-                          drawing: _drawingRoute,
-                          routeReady: _manualRouteCoords != null,
-                          onClear: _manualWaypoints.isEmpty
-                              ? null
-                              : _clearWaypoints,
+                        child: PointerInterceptor(
+                          child: _ManualStatusBanner(
+                            waypoints: _manualWaypoints.length,
+                            drawing: _drawingRoute,
+                            routeReady: _manualRouteCoords != null,
+                            onClear: _manualWaypoints.isEmpty
+                                ? null
+                                : _clearWaypoints,
+                          ),
                         ),
                       ),
                     ),
@@ -1326,12 +1335,13 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                 child: DraggableScrollableSheet(
                   initialChildSize: _manualMode ? 0.32 : 0.27,
                   minChildSize: 0.22,
-                  maxChildSize: 0.8,
+                  maxChildSize: maxSheetSize,
                   snap: true,
-                  snapSizes: const [0.22, 0.32, 0.55, 0.8],
-                  builder: (context, sheetController) => DeliverySheetPanel(
-                    controller: sheetController,
-                    child: ListView(
+                  snapSizes: [0.22, 0.32, 0.55, maxSheetSize],
+                  builder: (context, sheetController) => PointerInterceptor(
+                    child: DeliverySheetPanel(
+                      controller: sheetController,
+                      child: ListView(
                       controller: sheetController,
                       padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
                       children: [
@@ -1468,6 +1478,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
                           ),
                       ],
                     ),
+                  ),
                   ),
                 ),
               ),

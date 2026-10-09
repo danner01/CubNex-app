@@ -11,6 +11,7 @@ class WebTrackingMap extends StatelessWidget {
     this.routes = const [],
     this.onMapTap,
     this.onMarkerTap,
+    this.interactive = true,
     super.key,
   });
 
@@ -20,6 +21,7 @@ class WebTrackingMap extends StatelessWidget {
   final List<WebMapRoute> routes;
   final ValueChanged<({double latitude, double longitude})>? onMapTap;
   final ValueChanged<String>? onMarkerTap;
+  final bool interactive;
 
   @override
   Widget build(BuildContext context) => const WebMapUnavailable();
