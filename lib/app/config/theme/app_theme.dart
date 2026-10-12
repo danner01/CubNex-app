@@ -7,10 +7,10 @@ class AppTheme {
 
   static ThemeData get light {
     final colorScheme = ColorScheme.fromSeed(
-      seedColor: AppColors.ink,
+      seedColor: AppColors.blue,
       brightness: Brightness.light,
     ).copyWith(
-      primary: AppColors.ink,
+      primary: AppColors.blue,
       onPrimary: Colors.white,
       secondary: AppColors.green,
       onSecondary: Colors.white,
@@ -30,7 +30,7 @@ class AppTheme {
         elevation: 0,
         scrolledUnderElevation: 0,
         backgroundColor: AppColors.lightBackground,
-        foregroundColor: AppColors.ink,
+        foregroundColor: AppColors.blue,
       ),
     );
   }
@@ -41,7 +41,7 @@ class AppTheme {
       brightness: Brightness.dark,
     ).copyWith(
       primary: AppColors.gold,
-      onPrimary: AppColors.ink,
+      onPrimary: AppColors.darkBackground,
       secondary: AppColors.greenLight,
       onSecondary: AppColors.ink,
       error: AppColors.dangerDark,
@@ -106,9 +106,9 @@ class AppTheme {
         style: FilledButton.styleFrom(
           backgroundColor: colorScheme.brightness == Brightness.dark
               ? AppColors.gold
-              : AppColors.ink,
+              : AppColors.blue,
           foregroundColor: colorScheme.brightness == Brightness.dark
-              ? AppColors.ink
+              ? AppColors.darkBackground
               : Colors.white,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(14),
@@ -127,7 +127,7 @@ class AppTheme {
       backgroundColor: colorScheme.surface.withValues(alpha: 0.96),
       indicatorColor: colorScheme.brightness == Brightness.dark
           ? AppColors.gold.withValues(alpha: 0.18)
-          : AppColors.ink.withValues(alpha: 0.08),
+          : AppColors.blue.withValues(alpha: 0.10),
       labelTextStyle: WidgetStateProperty.resolveWith(
         (states) => TextStyle(
           fontSize: 12,

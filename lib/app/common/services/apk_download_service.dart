@@ -3,7 +3,19 @@ import 'dart:io';
 import 'package:apk_installer/apk_installer.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:path_provider/path_provider.dart';
+
+import 'apk_update_service.dart';
+
+enum ApkDownloadPhase {
+  idle,
+  downloading,
+  completed,
+  installing,
+  error,
+  cancelled,
+}
 
 class ApkDownloadProgress {
   const ApkDownloadProgress({
@@ -17,22 +29,116 @@ class ApkDownloadProgress {
   final double percent;
 }
 
-class ApkDownloadService {
-  ApkDownloadService({Dio? dio}) : _dio = dio ?? Dio();
+class ApkDownloadService extends ChangeNotifier with WidgetsBindingObserver {
+  ApkDownloadService({Dio? dio}) : _dio = dio ?? Dio() {
+    WidgetsBinding.instance.addObserver(this);
+  }
 
   final Dio _dio;
   CancelToken? _cancelToken;
+  ApkUpdateInfo? _update;
+  File? _file;
+  ApkDownloadPhase _phase = ApkDownloadPhase.idle;
+  ApkDownloadProgress _progress = const ApkDownloadProgress(
+    received: 0,
+    total: 0,
+    percent: 0,
+  );
+  String? _error;
+  var _pendingInstall = false;
+  AppLifecycleState _lifecycle = AppLifecycleState.resumed;
 
-  Future<File?> downloadApk({
-    required String url,
-    void Function(ApkDownloadProgress)? onProgress,
-  }) async {
+  ApkUpdateInfo? get update => _update;
+  File? get file => _file;
+  ApkDownloadPhase get phase => _phase;
+  ApkDownloadProgress get progress => _progress;
+  String? get error => _error;
+  bool get isDownloading => _phase == ApkDownloadPhase.downloading;
+  bool get isBusy =>
+      _phase == ApkDownloadPhase.downloading ||
+      _phase == ApkDownloadPhase.installing;
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    _lifecycle = state;
+    if (state == AppLifecycleState.resumed && _pendingInstall) {
+      _pendingInstall = false;
+      final file = _file;
+      if (file != null) {
+        installApk(file);
+      }
+    }
+  }
+
+  Future<void> start(ApkUpdateInfo update) async {
     if (kIsWeb) {
       throw Exception(
         'Las actualizaciones de la APK solo estan disponibles en la app movil.',
       );
     }
 
+    if (isBusy && _update?.downloadUrl == update.downloadUrl) {
+      return;
+    }
+
+    if (_phase == ApkDownloadPhase.completed &&
+        _file != null &&
+        _update?.downloadUrl == update.downloadUrl) {
+      await installApk(_file!);
+      return;
+    }
+
+    _update = update;
+    _error = null;
+    _file = null;
+    _pendingInstall = false;
+    _phase = ApkDownloadPhase.downloading;
+    _progress = const ApkDownloadProgress(received: 0, total: 0, percent: 0);
+    notifyListeners();
+
+    try {
+      final file = await _downloadApk(update.downloadUrl);
+      if (_phase == ApkDownloadPhase.cancelled) return;
+      if (file == null) {
+        _phase = ApkDownloadPhase.error;
+        _error = 'No se pudo descargar el archivo.';
+        notifyListeners();
+        return;
+      }
+
+      _file = file;
+      _phase = ApkDownloadPhase.completed;
+      _progress = ApkDownloadProgress(
+        received: _progress.total,
+        total: _progress.total,
+        percent: 100,
+      );
+      notifyListeners();
+      await installApk(file);
+    } catch (e) {
+      if (_phase == ApkDownloadPhase.cancelled) return;
+      _phase = ApkDownloadPhase.error;
+      _error = e.toString();
+      notifyListeners();
+    }
+  }
+
+  Future<File?> downloadApk({
+    required String url,
+    void Function(ApkDownloadProgress)? onProgress,
+  }) async {
+    await start(
+      ApkUpdateInfo(
+        version: 'actualizacion',
+        downloadUrl: url,
+        source: 'direct',
+      ),
+    );
+    onProgress?.call(_progress);
+    return _file;
+  }
+
+  Future<File?> _downloadApk(String url) async {
     _cancelToken = CancelToken();
 
     final dir = await getTemporaryDirectory();
@@ -50,19 +156,21 @@ class ApkDownloadService {
       file.path,
       cancelToken: _cancelToken,
       options: Options(
-        receiveTimeout: const Duration(minutes: 10),
+        receiveTimeout: const Duration(minutes: 30),
         sendTimeout: const Duration(seconds: 30),
         headers: {'Accept': 'application/octet-stream'},
       ),
       onReceiveProgress: (received, total) {
+        if (_phase == ApkDownloadPhase.cancelled) return;
         if (total > 0) {
           expectedTotal = total;
           receivedTotal = received;
-          onProgress?.call(ApkDownloadProgress(
+          _progress = ApkDownloadProgress(
             received: received,
             total: total,
             percent: (received / total * 100).clamp(0.0, 100.0),
-          ));
+          );
+          notifyListeners();
         }
       },
     );
@@ -111,9 +219,10 @@ class ApkDownloadService {
   void cancelDownload() {
     _cancelToken?.cancel('User cancelled');
     _cancelToken = null;
+    _pendingInstall = false;
+    _phase = ApkDownloadPhase.cancelled;
+    notifyListeners();
   }
-
-  bool get isDownloading => _cancelToken != null;
 
   Future<void> installApk(File apkFile) async {
     if (kIsWeb) {
@@ -124,6 +233,41 @@ class ApkDownloadService {
       throw Exception('El archivo APK no existe.');
     }
 
-    await ApkInstaller.installApk(filePath: apkFile.path);
+    if (_lifecycle != AppLifecycleState.resumed) {
+      _pendingInstall = true;
+      _file = apkFile;
+      _phase = ApkDownloadPhase.completed;
+      notifyListeners();
+      return;
+    }
+
+    _phase = ApkDownloadPhase.installing;
+    notifyListeners();
+
+    try {
+      await ApkInstaller.installApk(filePath: apkFile.path);
+      _phase = ApkDownloadPhase.completed;
+      _pendingInstall = false;
+      notifyListeners();
+    } catch (e) {
+      if (_lifecycle != AppLifecycleState.resumed) {
+        _pendingInstall = true;
+        _file = apkFile;
+        _phase = ApkDownloadPhase.completed;
+        notifyListeners();
+        return;
+      }
+      _phase = ApkDownloadPhase.error;
+      _error =
+          'Error al instalar: $e\nVe a Ajustes > Aplicaciones > '
+          'Permitir apps desconocidas y habilita este permiso.';
+      notifyListeners();
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
   }
 }

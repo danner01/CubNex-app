@@ -1,111 +1,17 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:package_info_plus/package_info_plus.dart';
 
-import '../../../../common/services/apk_update_service.dart';
-import '../../../../common/presentation/widgets/update_download_sheet.dart';
 import '../../../../common/blocs/app_session/app_session_cubit.dart';
 import '../../../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
-import '../../../../config/injection/injection.dart';
+import '../../../../common/presentation/widgets/apk_version_card.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../business/data/models/business_employee_model.dart';
 import '../../../plans/presentation/widgets/personal_plan_card.dart';
 
-class ProfileScreen extends StatefulWidget {
+class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
-
-  @override
-  State<ProfileScreen> createState() => _ProfileScreenState();
-}
-
-class _ProfileScreenState extends State<ProfileScreen> {
-  String? _installedVersion;
-  bool _checkingUpdates = false;
-  bool _hasUpdate = false;
-  String? _latestVersion;
-
-  @override
-  void initState() {
-    super.initState();
-    _loadInstalledVersion();
-  }
-
-  Future<void> _loadInstalledVersion() async {
-    final info = await PackageInfo.fromPlatform();
-    final build = info.buildNumber.trim();
-    final value = build.isEmpty ? info.version : '${info.version}+$build';
-    if (!mounted) return;
-    setState(() => _installedVersion = value);
-  }
-
-  Future<void> _checkUpdates() async {
-    if (_checkingUpdates) return;
-    setState(() => _checkingUpdates = true);
-    try {
-      final status = await sl<ApkUpdateService>().checkForUpdateStatus();
-      if (!mounted) return;
-      setState(() {
-        _hasUpdate = status.hasUpdate;
-        _latestVersion = status.latest?.version;
-      });
-      await _showUpdateModal(status);
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('No se pudo verificar actualizaciones: $error')),
-      );
-    } finally {
-      if (mounted) setState(() => _checkingUpdates = false);
-    }
-  }
-
-  Future<void> _showUpdateModal(ApkUpdateStatus status) async {
-    final latest = status.latest;
-
-    if (!status.hasUpdate || latest == null) {
-      if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (dialogContext) {
-          return AlertDialog(
-            title: const Text('Estado de la APK'),
-            content: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Version instalada: ${status.currentVersion}'),
-                const SizedBox(height: 8),
-                Text(
-                  'Tu APK ya esta actualizada.',
-                  style: TextStyle(
-                    color: Theme.of(context).colorScheme.primary,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            actions: [
-              FilledButton(
-                onPressed: () => Navigator.of(dialogContext).pop(),
-                child: const Text('Cerrar'),
-              ),
-            ],
-          );
-        },
-      );
-      return;
-    }
-
-    if (!mounted) return;
-    await showModalBottomSheet<void>(
-      context: context,
-      isScrollControlled: true,
-      isDismissible: false,
-      builder: (_) => UpdateDownloadSheet(update: latest),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -198,13 +104,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
           ..._profileTilesForMode(context, activeMode),
           const SizedBox(height: 10),
           const _SectionLabel('Aplicación'),
-          _ApkVersionCard(
-            installedVersion: _installedVersion,
-            checkingUpdates: _checkingUpdates,
-            hasUpdate: _hasUpdate,
-            latestVersion: _latestVersion,
-            onCheckUpdates: _checkUpdates,
-          ),
+          const ApkVersionCard(),
           const SizedBox(height: 10),
           const _SectionLabel('Configuracion'),
           _ProfileTile(
@@ -631,91 +531,6 @@ class _ModeSwitcher extends StatelessWidget {
       RoleMode.business => AppRoutes.businessDashboard,
       RoleMode.delivery => AppRoutes.deliveryDashboard,
     };
-  }
-}
-
-class _ApkVersionCard extends StatelessWidget {
-  const _ApkVersionCard({
-    required this.installedVersion,
-    required this.checkingUpdates,
-    required this.hasUpdate,
-    required this.latestVersion,
-    required this.onCheckUpdates,
-  });
-
-  final String? installedVersion;
-  final bool checkingUpdates;
-  final bool hasUpdate;
-  final String? latestVersion;
-  final VoidCallback onCheckUpdates;
-
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(14),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Text(
-                  'Version APK',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-                if (hasUpdate) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 2,
-                    ),
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: Text(
-                      'Nueva: $latestVersion',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        color: Colors.white,
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            const SizedBox(height: 6),
-            Text(
-              installedVersion == null
-                  ? 'Cargando version instalada...'
-                  : 'Instalada: $installedVersion',
-            ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: checkingUpdates ? null : onCheckUpdates,
-              icon: checkingUpdates
-                  ? const SizedBox(
-                      width: 18,
-                      height: 18,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : Icon(
-                      hasUpdate
-                          ? Icons.system_update_alt_rounded
-                          : Icons.refresh_rounded,
-                    ),
-              label: Text(
-                hasUpdate ? 'Actualizar ahora' : 'Buscar actualizaciones',
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
   }
 }
 

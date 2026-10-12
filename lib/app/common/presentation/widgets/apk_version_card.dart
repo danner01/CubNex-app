@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../../../config/injection/injection.dart';
 import '../../services/apk_update_service.dart';
+import '../../services/pwa_force_update.dart';
 import 'update_download_sheet.dart';
 
 class ApkVersionCard extends StatefulWidget {
@@ -36,6 +38,13 @@ class _ApkVersionCardState extends State<ApkVersionCard> {
     if (_checkingUpdates) return;
     setState(() => _checkingUpdates = true);
     try {
+      if (kIsWeb) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Actualizando la aplicacion...')),
+        );
+        await forcePwaUpdate();
+        return;
+      }
       final status = await sl<ApkUpdateService>().checkForUpdateStatus();
       if (!mounted) return;
       setState(() {
@@ -94,7 +103,8 @@ class _ApkVersionCardState extends State<ApkVersionCard> {
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
-      isDismissible: false,
+      isDismissible: true,
+      enableDrag: true,
       builder: (_) => UpdateDownloadSheet(update: latest),
     );
   }

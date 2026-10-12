@@ -1,0 +1,1 @@
+Future<void> forcePwaUpdate() async {}

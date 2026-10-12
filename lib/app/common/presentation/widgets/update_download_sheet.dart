@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter/material.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
@@ -17,18 +15,26 @@ class UpdateDownloadSheet extends StatefulWidget {
 }
 
 class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
-  double _progress = 0;
-  String _statusText = 'Preparando descarga...';
-  bool _downloading = false;
-  bool _completed = false;
-  String? _error;
+  late final ApkDownloadService _service;
   String? _installedVersion;
 
   @override
   void initState() {
     super.initState();
+    _service = sl<ApkDownloadService>();
+    _service.addListener(_onChanged);
     _loadInstalledVersion();
-    _startDownload();
+    _service.start(widget.update);
+  }
+
+  @override
+  void dispose() {
+    _service.removeListener(_onChanged);
+    super.dispose();
+  }
+
+  void _onChanged() {
+    if (mounted) setState(() {});
   }
 
   Future<void> _loadInstalledVersion() async {
@@ -39,255 +45,170 @@ class _UpdateDownloadSheetState extends State<UpdateDownloadSheet> {
     setState(() => _installedVersion = value);
   }
 
-  Future<void> _startDownload() async {
-    setState(() {
-      _downloading = true;
-      _progress = 0;
-      _statusText = 'Descargando...';
-    });
-
-    try {
-      final service = sl<ApkDownloadService>();
-      final file = await service.downloadApk(
-        url: widget.update.downloadUrl,
-        onProgress: (progress) {
-          if (!mounted) return;
-          final mbReceived = (progress.received / 1024 / 1024).toStringAsFixed(1);
-          final mbTotal = (progress.total / 1024 / 1024).toStringAsFixed(1);
-          setState(() {
-            _progress = progress.percent / 100;
-            _statusText = 'Descargando... ($mbReceived MB / $mbTotal MB)';
-          });
-        },
-      );
-
-      if (!mounted) return;
-
-      if (file == null) {
-        setState(() {
-          _error = 'No se pudo descargar el archivo.';
-          _downloading = false;
-        });
-        return;
-      }
-
-      setState(() {
-        _statusText = 'Descarga completa. Instalando...';
-        _progress = 1.0;
-        _completed = true;
-      });
-
-      await _installApk(file);
-    } catch (e) {
-      if (!mounted) return;
-      final msg = e.toString();
-      if (msg.contains('cancel')) {
-        setState(() {
-          _statusText = 'Descarga cancelada.';
-          _downloading = false;
-        });
-      } else {
-        setState(() {
-          _error = 'Error al descargar: $msg';
-          _downloading = false;
-        });
-      }
-    }
-  }
-
-  Future<void> _installApk(File file) async {
-    try {
-      await sl<ApkDownloadService>().installApk(file);
-      if (!mounted) return;
-      Navigator.of(context).pop();
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Instalacion iniciada.')),
-      );
-    } catch (e) {
-      if (!mounted) return;
-      setState(() {
-        _error = 'Error al instalar: $e\nVe a Ajustes > Aplicaciones > '
-            'Permitir apps desconocidas y habilita este permiso.';
-        _downloading = false;
-      });
-    }
-  }
-
-  void _cancel() {
-    sl<ApkDownloadService>().cancelDownload();
+  void _hide() {
     Navigator.of(context).pop();
   }
 
-  void _retry() {
-    setState(() {
-      _error = null;
-      _completed = false;
-    });
-    _startDownload();
+  void _cancel() {
+    _service.cancelDownload();
+    Navigator.of(context).pop();
+  }
+
+  Future<void> _retry() async {
+    await _service.start(widget.update);
   }
 
   @override
   Widget build(BuildContext context) {
     final bottom = MediaQuery.viewInsetsOf(context).bottom;
+    final phase = _service.phase;
+    final downloading = phase == ApkDownloadPhase.downloading;
+    final installing = phase == ApkDownloadPhase.installing;
+    final completed =
+        phase == ApkDownloadPhase.completed || installing;
+    final error = _service.error;
+    final progress = _service.progress;
+    final percent = (progress.percent / 100).clamp(0.0, 1.0);
+    final mbReceived = (progress.received / 1024 / 1024).toStringAsFixed(1);
+    final mbTotal = (progress.total / 1024 / 1024).toStringAsFixed(1);
+    final statusText = switch (phase) {
+      ApkDownloadPhase.downloading => progress.total > 0
+          ? 'Descargando en segundo plano... ($mbReceived MB / $mbTotal MB)'
+          : 'Descargando en segundo plano...',
+      ApkDownloadPhase.installing => 'Descarga completa. Instalando...',
+      ApkDownloadPhase.completed =>
+        'Descarga completa. La instalacion se abre al volver a la app.',
+      ApkDownloadPhase.error => 'Error en la actualizacion',
+      ApkDownloadPhase.cancelled => 'Descarga cancelada.',
+      ApkDownloadPhase.idle => 'Preparando descarga...',
+    };
 
     return PopScope(
-      canPop: !_downloading,
+      canPop: true,
       child: Padding(
-      padding: EdgeInsets.fromLTRB(24, 24, 24, bottom + 24),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                _completed
-                    ? Icons.check_circle_rounded
-                    : _error != null
-                        ? Icons.error_rounded
-                        : Icons.system_update_rounded,
-                color: _completed
-                    ? Colors.green
-                    : _error != null
-                        ? Colors.red
-                        : Theme.of(context).colorScheme.primary,
-                size: 28,
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Text(
-                  _completed
-                      ? 'Actualizacion completa'
-                      : _error != null
-                          ? 'Error en la actualizacion'
-                          : 'Actualizando a ${widget.update.version}',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w900,
-                      ),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Container(
-            width: double.infinity,
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: Theme.of(context).colorScheme.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        padding: EdgeInsets.fromLTRB(24, 24, 24, bottom + 24),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
               children: [
-                Text(
-                  'Version instalada: ${_installedVersion ?? '...'}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
+                Icon(
+                  completed
+                      ? Icons.check_circle_rounded
+                      : error != null
+                      ? Icons.error_rounded
+                      : Icons.system_update_rounded,
+                  color: completed
+                      ? Colors.green
+                      : error != null
+                      ? Colors.red
+                      : Theme.of(context).colorScheme.primary,
+                  size: 28,
                 ),
-                const SizedBox(height: 4),
-                Text(
-                  'Version destino: ${widget.update.version}',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    completed
+                        ? 'Actualizacion lista'
+                        : error != null
+                        ? 'Error en la actualizacion'
+                        : 'Actualizando a ${widget.update.version}',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w900,
+                    ),
+                  ),
                 ),
               ],
             ),
-          ),
-          if (_downloading) ...[
+            const SizedBox(height: 16),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.orange.withValues(alpha: 0.14),
+                color: Theme.of(context).colorScheme.surfaceContainerHighest,
                 borderRadius: BorderRadius.circular(8),
               ),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(
-                    Icons.priority_high_rounded,
-                    color: Color(0xFFB26A00),
-                    size: 20,
+                  Text(
+                    'Version instalada: ${_installedVersion ?? '...'}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      'No salgas de esta pantalla mientras se descarga. '
-                      'Si cierras la vista, la actualizacion se cancela y '
-                      'tendras que descargarla de nuevo.',
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: const Color(0xFF7A4D00),
-                        fontWeight: FontWeight.w600,
-                      ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Version destino: ${widget.update.version}',
+                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(height: 16),
-          ],
-          if (_error != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.red.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
+            if (error != null) ...[
+              const SizedBox(height: 16),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  error,
+                  style: Theme.of(
+                    context,
+                  ).textTheme.bodySmall?.copyWith(color: Colors.red),
+                ),
               ),
-              child: Text(
-                _error!,
+            ],
+            if (downloading || installing || completed) ...[
+              const SizedBox(height: 16),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(4),
+                child: LinearProgressIndicator(
+                  value: downloading ? percent : 1,
+                  minHeight: 6,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                statusText,
                 style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                      color: Colors.red,
-                    ),
+                  color: Theme.of(context).colorScheme.onSurfaceVariant,
+                ),
               ),
-            ),
-            const SizedBox(height: 16),
-          ],
-          if (_downloading || _completed) ...[
-            ClipRRect(
-              borderRadius: BorderRadius.circular(4),
-              child: LinearProgressIndicator(
-                value: _progress,
-                minHeight: 6,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _statusText,
-              style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                    color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ],
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: [
+                if (error != null) ...[
+                  TextButton(onPressed: _retry, child: const Text('Reintentar')),
+                  const SizedBox(width: 8),
+                ],
+                if (downloading)
+                  TextButton(
+                    onPressed: _cancel,
+                    child: const Text('Cancelar'),
                   ),
+                if (downloading) ...[
+                  const SizedBox(width: 8),
+                  FilledButton(
+                    onPressed: _hide,
+                    child: const Text('Continuar en segundo plano'),
+                  ),
+                ] else
+                  FilledButton(onPressed: _hide, child: const Text('Cerrar')),
+              ],
             ),
           ],
-          const SizedBox(height: 20),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              if (_error != null) ...[
-                TextButton(
-                  onPressed: _retry,
-                  child: const Text('Reintentar'),
-                ),
-                const SizedBox(width: 8),
-              ],
-              if (_downloading)
-                TextButton(
-                  onPressed: _cancel,
-                  child: const Text('Cancelar'),
-                ),
-              if (!_downloading && _error == null)
-                FilledButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: const Text('Cerrar'),
-                ),
-            ],
-              ),
-            ],
-          ),
         ),
-      );
+      ),
+    );
   }
 }
