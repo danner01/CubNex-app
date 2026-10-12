@@ -11,6 +11,8 @@ class PreferencesState extends Equatable {
     this.selectedTypeIds = const {},
     this.opportunitiesLocationEnabled = false,
     this.nearbyOpportunityNotificationsEnabled = false,
+    this.opportunityRadiusKm = 2,
+    this.opportunityFrequencyMinutes = 180,
     this.message,
   });
 
@@ -19,6 +21,8 @@ class PreferencesState extends Equatable {
   final Set<String> selectedTypeIds;
   final bool opportunitiesLocationEnabled;
   final bool nearbyOpportunityNotificationsEnabled;
+  final int opportunityRadiusKm;
+  final int opportunityFrequencyMinutes;
   final String? message;
 
   PreferencesState copyWith({
@@ -27,6 +31,8 @@ class PreferencesState extends Equatable {
     Set<String>? selectedTypeIds,
     bool? opportunitiesLocationEnabled,
     bool? nearbyOpportunityNotificationsEnabled,
+    int? opportunityRadiusKm,
+    int? opportunityFrequencyMinutes,
     String? message,
   }) {
     return PreferencesState(
@@ -38,6 +44,9 @@ class PreferencesState extends Equatable {
       nearbyOpportunityNotificationsEnabled:
           nearbyOpportunityNotificationsEnabled ??
           this.nearbyOpportunityNotificationsEnabled,
+      opportunityRadiusKm: opportunityRadiusKm ?? this.opportunityRadiusKm,
+      opportunityFrequencyMinutes:
+          opportunityFrequencyMinutes ?? this.opportunityFrequencyMinutes,
       message: message,
     );
   }
@@ -49,6 +58,8 @@ class PreferencesState extends Equatable {
     selectedTypeIds,
     opportunitiesLocationEnabled,
     nearbyOpportunityNotificationsEnabled,
+    opportunityRadiusKm,
+    opportunityFrequencyMinutes,
     message,
   ];
 }

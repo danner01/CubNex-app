@@ -14,6 +14,8 @@ class BusinessDashboardSummary {
     this.orders = 0,
     this.subscribers = 0,
     this.potentialCustomers = 0,
+    this.recentSubscribers = 0,
+    this.notifiedSubscribers = 0,
     this.level = 'bronce',
   });
 
@@ -29,6 +31,8 @@ class BusinessDashboardSummary {
   final int orders;
   final int subscribers;
   final int potentialCustomers;
+  final int recentSubscribers;
+  final int notifiedSubscribers;
   final String level;
 
   BusinessDashboardSummary copyWith({
@@ -44,6 +48,8 @@ class BusinessDashboardSummary {
     int? orders,
     int? subscribers,
     int? potentialCustomers,
+    int? recentSubscribers,
+    int? notifiedSubscribers,
     String? level,
   }) {
     return BusinessDashboardSummary(
@@ -59,6 +65,8 @@ class BusinessDashboardSummary {
       orders: orders ?? this.orders,
       subscribers: subscribers ?? this.subscribers,
       potentialCustomers: potentialCustomers ?? this.potentialCustomers,
+      recentSubscribers: recentSubscribers ?? this.recentSubscribers,
+      notifiedSubscribers: notifiedSubscribers ?? this.notifiedSubscribers,
       level: level ?? this.level,
     );
   }
@@ -77,5 +85,10 @@ class BusinessDashboardSummary {
       score++;
     }
     return score / 5;
+  }
+
+  int get conversionPercent {
+    if (subscribers <= 0) return 0;
+    return ((orders / subscribers) * 100).round().clamp(0, 100).toInt();
   }
 }

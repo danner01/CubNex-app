@@ -153,7 +153,9 @@ Future<void> configureDependencies() async {
     )
     ..registerFactory(() => ScannerCubit(apiClient: sl()))
     ..registerFactory(() => ScanHistoryCubit(apiClient: sl()))
-    ..registerFactory(() => BusinessDashboardCubit(apiClient: sl()))
+    ..registerFactory(
+      () => BusinessDashboardCubit(apiClient: sl(), sharedPreferences: sl()),
+    )
     ..registerFactory(() => BusinessInventoryCubit(apiClient: sl()))
     ..registerFactory(() => BusinessSettingsCubit(apiClient: sl()))
     ..registerFactory(() => BusinessWizardCubit(apiClient: sl()));

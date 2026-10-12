@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -12,7 +10,6 @@ import '../../../home/data/models/business_model.dart';
 import '../../../plans/presentation/widgets/active_plan_card.dart';
 import '../../blocs/dashboard/business_dashboard_cubit.dart';
 import '../../blocs/dashboard/business_dashboard_state.dart';
-import '../../data/models/business_operational_references.dart';
 import '../../data/models/business_dashboard_summary.dart';
 import '../../data/models/business_opportunity.dart';
 import '../widgets/business_switcher.dart';
@@ -35,10 +32,7 @@ class BusinessDashboardScreen extends StatelessWidget {
     return BlocProvider(
       create: (_) => sl<BusinessDashboardCubit>()
         ..load(
-          selectedBusiness: context
-              .read<ActiveBusinessCubit>()
-              .state
-              .activeBusiness,
+          selectedBusiness: context.read<ActiveBusinessCubit>().state.activeBusiness,
         ),
       child: const _BusinessDashboardView(),
     );
@@ -61,29 +55,19 @@ class _BusinessDashboardView extends StatelessWidget {
           );
         },
         child: BlocConsumer<BusinessDashboardCubit, BusinessDashboardState>(
-          listenWhen: (previous, current) =>
-              previous.needsWizard != current.needsWizard,
+          listenWhen: (previous, current) => previous.needsWizard != current.needsWizard,
           listener: (context, state) {
             if (!state.needsWizard) return;
-            final active = context
-                .read<ActiveBusinessCubit>()
-                .state
-                .activeBusiness;
-            // Employees must not be forced into the owner onboarding wizard.
+            final active = context.read<ActiveBusinessCubit>().state.activeBusiness;
             if (active?.isEmployeeAccess == true) return;
             WidgetsBinding.instance.addPostFrameCallback((_) {
-              if (context.mounted) {
-                context.go(AppRoutes.businessWizard);
-              }
+              if (context.mounted) context.go(AppRoutes.businessWizard);
             });
           },
           builder: (context, state) {
             return RefreshIndicator(
               onRefresh: () => context.read<BusinessDashboardCubit>().load(
-                selectedBusiness: context
-                    .read<ActiveBusinessCubit>()
-                    .state
-                    .activeBusiness,
+                selectedBusiness: context.read<ActiveBusinessCubit>().state.activeBusiness,
               ),
               child: ListView(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
@@ -91,13 +75,9 @@ class _BusinessDashboardView extends StatelessWidget {
                   const _DashboardHeader(),
                   const SizedBox(height: 6),
                   BusinessSwitcher(
-                    onChanged: () =>
-                        context.read<BusinessDashboardCubit>().load(
-                          selectedBusiness: context
-                              .read<ActiveBusinessCubit>()
-                              .state
-                              .activeBusiness,
-                        ),
+                    onChanged: () => context.read<BusinessDashboardCubit>().load(
+                      selectedBusiness: context.read<ActiveBusinessCubit>().state.activeBusiness,
+                    ),
                   ),
                   const SizedBox(height: 14),
                   if (state.status == BusinessDashboardStatus.loading)
@@ -109,10 +89,7 @@ class _BusinessDashboardView extends StatelessWidget {
                     Card(
                       child: Padding(
                         padding: const EdgeInsets.all(18),
-                        child: Text(
-                          state.message ??
-                              'Crea tu negocio para ver estadisticas.',
-                        ),
+                        child: Text(state.message ?? 'Crea tu negocio para ver estadisticas.'),
                       ),
                     )
                   else ...[
@@ -120,18 +97,19 @@ class _BusinessDashboardView extends StatelessWidget {
                     const SizedBox(height: 14),
                     ActivePlanCard(plan: state.activePlan),
                     const SizedBox(height: 14),
-                    _PerformancePanel(
-                      summary: state.summary!,
-                      references: state.operationalReferences,
-                    ),
+                    if (state.canViewReports)
+                      _CommercialSummary(
+                        summary: state.summary!,
+                        trends: state.metricTrends,
+                      )
+                    else
+                      const _RestrictedReportsCard(),
                     const SizedBox(height: 14),
-                    _CustomerInsightPanel(summary: state.summary!),
-                    if (state.nearbyOpportunities.isNotEmpty) ...[
-                      const SizedBox(height: 14),
-                      _NearbyOpportunitiesCarousel(
-                        opportunities: state.nearbyOpportunities,
-                      ),
-                    ],
+                    _NearbyOpportunitiesSection(
+                      status: state.nearbyStatus,
+                      message: state.nearbyMessage,
+                      opportunities: state.nearbyOpportunities,
+                    ),
                     const SizedBox(height: 18),
                     Text(
                       'Gestion del negocio',
@@ -139,8 +117,13 @@ class _BusinessDashboardView extends StatelessWidget {
                         fontWeight: FontWeight.w900,
                       ),
                     ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Agrupada por proposito. Sin accesos repetidos.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
                     const SizedBox(height: 12),
-                    _ActionsGrid(summary: state.summary!),
+                    _GroupedManagement(business: state.summary!.business),
                   ],
                 ],
               ),
@@ -163,7 +146,7 @@ class _DashboardHeader extends StatelessWidget {
         ? (business?.employeeRoleTitle?.trim().isNotEmpty == true
               ? business!.employeeRoleTitle!
               : 'Empleado')
-        : null;
+        : 'Propietario';
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -180,9 +163,7 @@ class _DashboardHeader extends StatelessWidget {
               ),
               const SizedBox(height: 4),
               Text(
-                roleLabel == null
-                    ? 'Gestiona una tienda, franquicia o servicio por separado.'
-                    : 'Acceso como $roleLabel. Solo ves lo que el admin habilito.',
+                'Vista de $roleLabel. El resumen comercial y la gestion se adaptan a tus permisos.',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -246,13 +227,6 @@ class _HeroSummary extends StatelessWidget {
               ],
             ),
             const SizedBox(height: 16),
-            Text(
-              '${_formatCompact(summary.sales)} ventas acumuladas',
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.w900,
-              ),
-            ),
-            const SizedBox(height: 12),
             LinearProgressIndicator(value: summary.completeness),
             const SizedBox(height: 8),
             Text(
@@ -266,466 +240,397 @@ class _HeroSummary extends StatelessWidget {
   }
 }
 
-class _CustomerInsightPanel extends StatelessWidget {
-  const _CustomerInsightPanel({required this.summary});
-
-  final BusinessDashboardSummary summary;
+class _RestrictedReportsCard extends StatelessWidget {
+  const _RestrictedReportsCard();
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Icon(
-                  Icons.groups_2_outlined,
-                  color: theme.colorScheme.secondary,
-                ),
-                const SizedBox(width: 8),
-                Text(
-                  'Clientes y crecimiento',
-                  style: theme.textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w900,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                Expanded(
-                  child: _CustomerInsight(
-                    icon: Icons.favorite_outline_rounded,
-                    label: 'Suscritos',
-                    value: summary.subscribers,
-                    caption: 'Reciben novedades voluntariamente',
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _CustomerInsight(
-                    icon: Icons.person_search_outlined,
-                    label: 'Potenciales',
-                    value: summary.potentialCustomers,
-                    caption: 'Interes agregado en tu zona',
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              summary.orders > 0
-                  ? '${_formatCompact(summary.orders)} pedidos o reservas registrados.'
-                  : 'Activa suscripciones y oportunidades para conocer tu demanda local.',
-              style: theme.textTheme.bodySmall,
-            ),
-          ],
+        child: Text(
+          'Tu rol no incluye reportes comerciales. Usa la gestion habilitada abajo. Pide ver_reportes al administrador si necesitas metricas.',
+          style: Theme.of(context).textTheme.bodyMedium,
         ),
       ),
     );
   }
 }
 
-class _CustomerInsight extends StatelessWidget {
-  const _CustomerInsight({
-    required this.icon,
-    required this.label,
-    required this.value,
-    required this.caption,
-  });
+class _CommercialSummary extends StatelessWidget {
+  const _CommercialSummary({required this.summary, required this.trends});
 
-  final IconData icon;
-  final String label;
-  final int value;
-  final String caption;
-
-  @override
-  Widget build(BuildContext context) => Container(
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      color: Theme.of(context).colorScheme.surfaceContainerHighest,
-      borderRadius: BorderRadius.circular(12),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Icon(icon, size: 20),
-        const SizedBox(height: 8),
-        Text('$value', style: Theme.of(context).textTheme.headlineSmall),
-        Text(label, style: Theme.of(context).textTheme.titleSmall),
-        const SizedBox(height: 2),
-        Text(caption, style: Theme.of(context).textTheme.bodySmall),
-      ],
-    ),
-  );
-}
-
-class _NearbyOpportunitiesCarousel extends StatelessWidget {
-  const _NearbyOpportunitiesCarousel({required this.opportunities});
-
-  final List<BusinessOpportunity> opportunities;
+  final BusinessDashboardSummary summary;
+  final Map<String, int> trends;
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final metrics = [
+      _KpiData(
+        keyName: 'sales',
+        label: 'Ventas',
+        value: _formatCompact(summary.sales),
+        status: summary.sales > 0 ? 'Activo' : 'Sin movimiento',
+        caption: 'Movimiento comercial acumulado',
+        action: 'Ver mapa',
+        route: AppRoutes.salesMap,
+      ),
+      _KpiData(
+        keyName: 'orders',
+        label: 'Pedidos y reservas',
+        value: _formatCompact(summary.orders),
+        status: summary.orders > 0 ? 'En curso' : 'En espera',
+        caption: 'Solicitudes operativas del negocio',
+        action: 'Gestionar',
+        route: AppRoutes.businessOrders,
+      ),
+      _KpiData(
+        keyName: 'subscribers',
+        label: 'Clientes suscritos',
+        value: '${summary.subscribers}',
+        status: summary.recentSubscribers > 0
+            ? '+${summary.recentSubscribers} en 30 dias'
+            : 'Lista voluntaria',
+        caption: '${summary.notifiedSubscribers} reciben avisos. Sin compras individuales.',
+        action: 'Ver lista',
+        route: AppRoutes.businessCustomers,
+      ),
+      _KpiData(
+        keyName: 'potential',
+        label: 'Clientes potenciales',
+        value: _formatCompact(summary.potentialCustomers),
+        status: summary.potentialCustomers > 0 ? 'Demanda agregada' : 'Privado / umbral',
+        caption: 'Interes de zona, nunca identidades sin consentimiento.',
+        action: 'Ver zona',
+        route: AppRoutes.preferences,
+      ),
+      _KpiData(
+        keyName: 'reviews',
+        label: 'Resenas',
+        value: '${summary.reviews}',
+        status: summary.reviews > 0 ? 'Reputacion visible' : 'Sin resenas',
+        caption: 'Validacion publica del negocio',
+        action: 'Ver ficha',
+        route: AppRoutes.businessStore,
+      ),
+      _KpiData(
+        keyName: 'conversion',
+        label: 'Conversion',
+        value: '${summary.conversionPercent}%',
+        status: summary.conversionPercent >= 20
+            ? 'Saludable'
+            : summary.subscribers == 0
+                ? 'Sin base'
+                : 'Por mejorar',
+        caption: 'Pedidos respecto a clientes suscritos.',
+        action: 'Publicar',
+        route: AppRoutes.businessPosts,
+      ),
+    ];
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Oportunidades cerca de ti',
-          style: theme.textTheme.titleLarge?.copyWith(
+          'Resumen comercial',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.w900,
           ),
         ),
         const SizedBox(height: 4),
         Text(
-          'Basadas en una zona aproximada y demanda agregada.',
-          style: theme.textTheme.bodySmall,
+          'Cada indicador tiene una sola accion. No se repite en gestion.',
+          style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 10),
-        SizedBox(
-          height: 164,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            itemCount: opportunities.length,
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final opportunity = opportunities[index];
-              return SizedBox(
-                width: 250,
-                child: Card(
-                  clipBehavior: Clip.antiAlias,
-                  child: InkWell(
-                    onTap: () => context.go(AppRoutes.businessNetwork),
-                    child: Padding(
-                      padding: const EdgeInsets.all(14),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                child: Icon(
-                                  Icons.storefront_outlined,
-                                  color: theme.colorScheme.primary,
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              Expanded(
-                                child: Text(
-                                  opportunity.name,
-                                  maxLines: 1,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.titleMedium?.copyWith(
-                                    fontWeight: FontWeight.w900,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          const Spacer(),
-                          Text(opportunity.type),
-                          const SizedBox(height: 4),
-                          Text(
-                            '${_formatCompact(opportunity.potentialDemand)} personas con interes agregado',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ],
-                      ),
-                    ),
-                  ),
-                ),
-              );
-            },
-          ),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            final columns = constraints.maxWidth > 720
+                ? 3
+                : constraints.maxWidth > 520
+                    ? 2
+                    : 1;
+            return GridView.builder(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: metrics.length,
+              gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: columns,
+                crossAxisSpacing: 12,
+                mainAxisSpacing: 12,
+                mainAxisExtent: 168,
+              ),
+              itemBuilder: (context, index) {
+                final item = metrics[index];
+                return _KpiCard(item: item, trend: trends[item.keyName] ?? 0);
+              },
+            );
+          },
         ),
       ],
     );
   }
 }
 
-class _PerformancePanel extends StatelessWidget {
-  const _PerformancePanel({required this.summary, this.references});
+class _KpiData {
+  const _KpiData({
+    required this.keyName,
+    required this.label,
+    required this.value,
+    required this.status,
+    required this.caption,
+    required this.action,
+    required this.route,
+  });
 
-  final BusinessDashboardSummary summary;
-  final BusinessOperationalReferences? references;
+  final String keyName;
+  final String label;
+  final String value;
+  final String status;
+  final String caption;
+  final String action;
+  final String route;
+}
+
+class _KpiCard extends StatelessWidget {
+  const _KpiCard({required this.item, required this.trend});
+
+  final _KpiData item;
+  final int trend;
 
   @override
   Widget build(BuildContext context) {
-    final refs =
-        references ?? _referencesFor(summary.business.businessParentCategory);
-    final metrics = [
-      _OperationalMetricData(
-        label: 'Ventas',
-        value: summary.sales,
-        icon: Icons.payments_outlined,
-        reference: refs.sales,
-        scale: _MetricScale.logarithmic,
-        context: 'Movimiento comercial total',
-      ),
-      _OperationalMetricData(
-        label: 'Productos',
-        value: summary.products,
-        icon: Icons.inventory_2_outlined,
-        reference: refs.products,
-        context: 'Catalogo activo',
-      ),
-      _OperationalMetricData(
-        label: 'Resenas',
-        value: summary.reviews,
-        icon: Icons.star_rate_outlined,
-        reference: refs.reviews,
-        context: 'Validacion social del negocio',
-      ),
-      _OperationalMetricData(
-        label: 'Promos',
-        value: summary.promotions,
-        icon: Icons.campaign_outlined,
-        reference: refs.promotions,
-        context: 'Actividad promocional reciente',
-      ),
-    ];
-
+    final scheme = Theme.of(context).colorScheme;
+    final trendIcon = trend > 0
+        ? Icons.trending_up_rounded
+        : trend < 0
+            ? Icons.trending_down_rounded
+            : Icons.trending_flat_rounded;
+    final trendColor = trend > 0
+        ? scheme.primary
+        : trend < 0
+            ? scheme.error
+            : scheme.outline;
     return Card(
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.fromLTRB(14, 12, 14, 8),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                Icon(
-                  Icons.query_stats_rounded,
-                  color: Theme.of(context).colorScheme.secondary,
-                ),
-                const SizedBox(width: 8),
                 Expanded(
-                  child: Text(
-                    'Resumen operativo',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w900,
-                    ),
-                  ),
+                  child: Text(item.label, style: Theme.of(context).textTheme.titleSmall),
                 ),
+                Icon(trendIcon, size: 18, color: trendColor),
               ],
             ),
-            const SizedBox(height: 12),
-            ...metrics.map(
-              (item) => Padding(
-                padding: const EdgeInsets.only(bottom: 10),
-                child: _OperationalMetricRow(item: item),
+            const SizedBox(height: 6),
+            Text(
+              item.value,
+              style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                fontWeight: FontWeight.w900,
               ),
             ),
+            Text(item.status, style: Theme.of(context).textTheme.labelMedium),
             const SizedBox(height: 4),
-            Text(
-              'Cada indicador usa su propia referencia para una lectura visual mas estable.',
-              style: Theme.of(context).textTheme.bodySmall,
+            Expanded(
+              child: Text(
+                item.caption,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(
+                onPressed: () => context.go(item.route),
+                child: Text(item.action),
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
 
-  BusinessOperationalReferences _referencesFor(String? category) {
-    return switch (category) {
-      'gastronomia' => const BusinessOperationalReferences(
-        sales: 90000,
-        products: 120,
-        reviews: 90,
-        promotions: 20,
+class _NearbyOpportunitiesSection extends StatelessWidget {
+  const _NearbyOpportunitiesSection({
+    required this.status,
+    required this.opportunities,
+    this.message,
+  });
+
+  final NearbyOpportunityStatus status;
+  final List<BusinessOpportunity> opportunities;
+  final String? message;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Oportunidades cercanas',
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(
+            fontWeight: FontWeight.w900,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Complementarios, demanda agregada y posibles alianzas. Puedes abrir, guardar o descartar.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 10),
+        if (status == NearbyOpportunityStatus.loading)
+          const Card(
+            child: Padding(
+              padding: EdgeInsets.all(24),
+              child: Center(child: CircularProgressIndicator()),
+            ),
+          )
+        else if (status == NearbyOpportunityStatus.needsLocation)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(message ?? 'Activa tu zona aproximada para ver oportunidades.'),
+                  const SizedBox(height: 8),
+                  FilledButton.tonal(
+                    onPressed: () => context.go(AppRoutes.preferences),
+                    child: const Text('Ir a preferencias'),
+                  ),
+                ],
+              ),
+            ),
+          )
+        else if (opportunities.isEmpty)
+          Card(
+            child: Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                message ?? 'No hay oportunidades cercanas por ahora.',
+              ),
+            ),
+          )
+        else
+          SizedBox(
+            height: 220,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              itemCount: opportunities.length,
+              separatorBuilder: (_, __) => const SizedBox(width: 12),
+              itemBuilder: (context, index) {
+                return _OpportunityCard(opportunity: opportunities[index]);
+              },
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _OpportunityCard extends StatelessWidget {
+  const _OpportunityCard({required this.opportunity});
+
+  final BusinessOpportunity opportunity;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SizedBox(
+      width: 280,
+      child: Card(
+        clipBehavior: Clip.antiAlias,
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  CircleAvatar(
+                    backgroundImage: opportunity.logoUrl == null || opportunity.logoUrl!.isEmpty
+                        ? null
+                        : NetworkImage(opportunity.logoUrl!),
+                    child: opportunity.logoUrl == null || opportunity.logoUrl!.isEmpty
+                        ? const Icon(Icons.storefront_outlined)
+                        : null,
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      opportunity.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(_kindLabel(opportunity.kind), style: theme.textTheme.labelMedium),
+              const SizedBox(height: 4),
+              Expanded(
+                child: Text(
+                  opportunity.reason ??
+                      '${_formatCompact(opportunity.potentialDemand)} personas con interes agregado.',
+                  maxLines: 3,
+                  overflow: TextOverflow.ellipsis,
+                  style: theme.textTheme.bodySmall,
+                ),
+              ),
+              Row(
+                children: [
+                  TextButton(
+                    onPressed: () => context.go(AppRoutes.store(opportunity.businessId)),
+                    child: const Text('Abrir'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.read<BusinessDashboardCubit>().interactWithOpportunity(
+                      businessId: opportunity.businessId,
+                      action: 'guardar',
+                    ),
+                    child: Text(opportunity.saved ? 'Guardada' : 'Guardar'),
+                  ),
+                  TextButton(
+                    onPressed: () => context.read<BusinessDashboardCubit>().interactWithOpportunity(
+                      businessId: opportunity.businessId,
+                      action: 'descartar',
+                    ),
+                    child: const Text('Descartar'),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
       ),
-      'transporte' => const BusinessOperationalReferences(
-        sales: 45000,
-        products: 35,
-        reviews: 55,
-        promotions: 8,
-      ),
-      'inmobiliaria' => const BusinessOperationalReferences(
-        sales: 180000,
-        products: 28,
-        reviews: 35,
-        promotions: 6,
-      ),
-      'servicio' => const BusinessOperationalReferences(
-        sales: 70000,
-        products: 45,
-        reviews: 70,
-        promotions: 10,
-      ),
-      _ => const BusinessOperationalReferences(
-        sales: 50000,
-        products: 80,
-        reviews: 40,
-        promotions: 12,
-      ),
+    );
+  }
+
+  String _kindLabel(String kind) {
+    return switch (kind) {
+      'complementario' || 'comprar' || 'vender' => 'Complementario',
+      'alianza' => 'Posible alianza',
+      _ => 'Demanda cercana',
     };
   }
 }
 
-class _OperationalMetricRow extends StatelessWidget {
-  const _OperationalMetricRow({required this.item});
+class _GroupedManagement extends StatelessWidget {
+  const _GroupedManagement({required this.business});
 
-  final _OperationalMetricData item;
-
-  @override
-  Widget build(BuildContext context) {
-    final ratio = item.normalized;
-    final ratioColor = _colorForRatio(context, ratio);
-
-    return Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: Theme.of(context).dividerColor.withValues(alpha: 0.7),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(item.icon, size: 18),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  item.label,
-                  style: Theme.of(context).textTheme.titleSmall,
-                ),
-              ),
-              Text(
-                item.formattedValue,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _SegmentedScaleBar(ratio: ratio, color: ratioColor),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  item.context,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Ref ${item.formattedReference}',
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Color _colorForRatio(BuildContext context, double ratio) {
-    if (ratio < 0.25) return Theme.of(context).colorScheme.error;
-    if (ratio < 0.6) return Theme.of(context).colorScheme.secondary;
-    return Theme.of(context).colorScheme.primary;
-  }
-}
-
-class _SegmentedScaleBar extends StatelessWidget {
-  const _SegmentedScaleBar({required this.ratio, required this.color});
-
-  final double ratio;
-  final Color color;
+  final BusinessModel business;
 
   @override
   Widget build(BuildContext context) {
-    const segments = 12;
-    final filled = (ratio * segments).round().clamp(0, segments);
-    return Row(
-      children: List.generate(segments, (index) {
-        final isFilled = index < filled;
-        return Expanded(
-          child: Container(
-            margin: EdgeInsets.only(right: index == segments - 1 ? 0 : 4),
-            height: 10,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(999),
-              color: isFilled
-                  ? color.withValues(alpha: 0.92)
-                  : Theme.of(
-                      context,
-                    ).colorScheme.outline.withValues(alpha: 0.25),
-            ),
-          ),
-        );
-      }),
-    );
-  }
-}
-
-enum _MetricScale { linear, logarithmic }
-
-class _OperationalMetricData {
-  const _OperationalMetricData({
-    required this.label,
-    required this.value,
-    required this.icon,
-    required this.reference,
-    required this.context,
-    this.scale = _MetricScale.linear,
-  });
-
-  final String label;
-  final int value;
-  final IconData icon;
-  final int reference;
-  final String context;
-  final _MetricScale scale;
-
-  double get normalized {
-    if (reference <= 0 || value <= 0) return 0;
-    final v = value.toDouble();
-    final r = reference.toDouble();
-    if (scale == _MetricScale.logarithmic) {
-      return (math.log(v + 1) / math.log(r + 1)).clamp(0, 1);
-    }
-    return (v / r).clamp(0, 1);
-  }
-
-  String get formattedValue => _formatCompact(value);
-
-  String get formattedReference => _formatCompact(reference);
-
-  static String _formatCompact(int n) {
-    if (n >= 1000000) {
-      final value = (n / 1000000).toStringAsFixed(n % 1000000 == 0 ? 0 : 1);
-      return '${value}M';
-    }
-    if (n >= 1000) {
-      final value = (n / 1000).toStringAsFixed(n % 1000 == 0 ? 0 : 1);
-      return '${value}K';
-    }
-    return '$n';
-  }
-}
-
-class _ActionsGrid extends StatelessWidget {
-  const _ActionsGrid({required this.summary});
-
-  final BusinessDashboardSummary summary;
-
-  @override
-  Widget build(BuildContext context) {
-    final business = summary.business;
-    final actions = _actionsForBusiness(business);
-
-    if (actions.isEmpty) {
+    final groups = _groupsFor(business);
+    if (groups.every((group) => group.actions.isEmpty)) {
       return Card(
         child: Padding(
           padding: const EdgeInsets.all(18),
@@ -738,154 +643,98 @@ class _ActionsGrid extends StatelessWidget {
       );
     }
 
-    return GridView.builder(
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      itemCount: actions.length,
-      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: MediaQuery.sizeOf(context).width > 520 ? 4 : 2,
-        crossAxisSpacing: 12,
-        mainAxisSpacing: 12,
-        childAspectRatio: 1.25,
-      ),
-      itemBuilder: (context, index) {
-        final action = actions[index];
-        return Card(
-          child: InkWell(
-            onTap: () => context.go(action.route),
-            borderRadius: BorderRadius.circular(16),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(action.icon, size: 32),
-                const SizedBox(height: 8),
-                Text(
-                  action.label,
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.titleMedium,
+    return Column(
+      children: groups
+          .where((group) => group.actions.isNotEmpty)
+          .map(
+            (group) => Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Card(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 14, 14, 8),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        group.title,
+                        style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                          fontWeight: FontWeight.w900,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(group.subtitle, style: Theme.of(context).textTheme.bodySmall),
+                      const SizedBox(height: 8),
+                      ...group.actions.map(
+                        (action) => ListTile(
+                          contentPadding: EdgeInsets.zero,
+                          leading: Icon(action.icon),
+                          title: Text(action.label),
+                          trailing: const Icon(Icons.chevron_right_rounded),
+                          onTap: () => context.go(action.route),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ],
+              ),
             ),
-          ),
-        );
-      },
+          )
+          .toList(),
     );
   }
 
-  List<_BusinessAction> _actionsForBusiness(BusinessModel business) {
-    final parentCategory = business.businessParentCategory;
-    final common = <_BusinessActionCandidate>[
-      _BusinessActionCandidate(
-        'Publicaciones',
-        Icons.post_add_outlined,
-        AppRoutes.businessPosts,
-        EmployeePermissionKeys.gestionarPublicaciones,
-      ),
-      _BusinessActionCandidate(
-        'Inventario',
-        Icons.inventory_2_outlined,
-        AppRoutes.businessInventory,
-        EmployeePermissionKeys.gestionarInventario,
-      ),
-      _BusinessActionCandidate(
-        'Negocio',
-        Icons.storefront_outlined,
-        AppRoutes.businessStore,
-        EmployeePermissionKeys.editarNegocio,
-      ),
-      _BusinessActionCandidate(
-        'Promos',
-        Icons.campaign_outlined,
-        AppRoutes.businessPromotions,
-        EmployeePermissionKeys.gestionarPromociones,
-      ),
-      _BusinessActionCandidate(
-        'Pedidos',
-        Icons.receipt_long_outlined,
-        AppRoutes.businessOrders,
-        EmployeePermissionKeys.gestionarPedidos,
-      ),
-      _BusinessActionCandidate(
-        'Equipo',
-        Icons.groups_outlined,
-        AppRoutes.businessTeam,
-        EmployeePermissionKeys.gestionarEmpleados,
-      ),
-      _BusinessActionCandidate(
-        'Conexiones',
-        Icons.hub_outlined,
-        AppRoutes.businessNetwork,
-        EmployeePermissionKeys.gestionarRed,
-      ),
-      _BusinessActionCandidate(
-        'Empleos',
-        Icons.work_outline_rounded,
-        AppRoutes.businessJobs,
-        EmployeePermissionKeys.gestionarEmpleos,
-      ),
-      _BusinessActionCandidate(
-        'Escanear',
-        Icons.qr_code_scanner_rounded,
-        AppRoutes.scanner,
-        EmployeePermissionKeys.escanearPedidos,
-      ),
+  List<_ManagementGroup> _groupsFor(BusinessModel business) {
+    bool can(String permission) => business.canEmployee(permission);
+    final catalog = <_BusinessAction>[
+      if (can(EmployeePermissionKeys.gestionarInventario))
+        const _BusinessAction('Inventario', Icons.inventory_2_outlined, AppRoutes.businessInventory),
+      if (business.businessParentCategory == 'gastronomia' && can(EmployeePermissionKeys.gestionarMenus))
+        const _BusinessAction('Menus QR', Icons.restaurant_menu_outlined, AppRoutes.businessMenus),
+      if (business.businessParentCategory == 'inmobiliaria' && can(EmployeePermissionKeys.editarNegocio))
+        const _BusinessAction('Propiedades', Icons.home_work_outlined, AppRoutes.businessProperties),
+      if (business.businessParentCategory == 'transporte' && can(EmployeePermissionKeys.editarNegocio))
+        const _BusinessAction('Transporte', Icons.local_shipping_outlined, AppRoutes.businessTransport),
+    ];
+    final growth = <_BusinessAction>[
+      if (can(EmployeePermissionKeys.gestionarPublicaciones))
+        const _BusinessAction('Publicaciones', Icons.post_add_outlined, AppRoutes.businessPosts),
+      if (can(EmployeePermissionKeys.gestionarPromociones))
+        const _BusinessAction('Promociones', Icons.campaign_outlined, AppRoutes.businessPromotions),
+      if (can(EmployeePermissionKeys.gestionarEmpleos))
+        const _BusinessAction('Empleos', Icons.work_outline_rounded, AppRoutes.businessJobs),
+      if (can(EmployeePermissionKeys.gestionarRed))
+        const _BusinessAction('Red y alianzas', Icons.hub_outlined, AppRoutes.businessNetwork),
+    ];
+    final operations = <_BusinessAction>[
+      if (can(EmployeePermissionKeys.gestionarPedidos))
+        const _BusinessAction('Pedidos', Icons.receipt_long_outlined, AppRoutes.businessOrders),
+      if (can(EmployeePermissionKeys.escanearPedidos))
+        const _BusinessAction('Escanear', Icons.qr_code_scanner_rounded, AppRoutes.scanner),
+      if (can(EmployeePermissionKeys.gestionarEmpleados))
+        const _BusinessAction('Equipo', Icons.groups_outlined, AppRoutes.businessTeam),
+    ];
+    final settings = <_BusinessAction>[
+      if (can(EmployeePermissionKeys.editarNegocio))
+        const _BusinessAction('Ficha y configuracion', Icons.storefront_outlined, AppRoutes.businessStore),
+      if (business.isOwnerAccess)
+        const _BusinessAction('Plan', Icons.workspace_premium_outlined, AppRoutes.businessPlans),
     ];
 
-    final categorySpecific = switch (parentCategory) {
-      'gastronomia' => [
-        _BusinessActionCandidate(
-          'Menus QR',
-          Icons.restaurant_menu_outlined,
-          AppRoutes.businessMenus,
-          EmployeePermissionKeys.gestionarMenus,
-        ),
-      ],
-      'inmobiliaria' => [
-        _BusinessActionCandidate(
-          'Propiedades',
-          Icons.home_work_outlined,
-          AppRoutes.businessProperties,
-          EmployeePermissionKeys.editarNegocio,
-        ),
-      ],
-      'transporte' => [
-        _BusinessActionCandidate(
-          'Transporte',
-          Icons.local_shipping_outlined,
-          AppRoutes.businessTransport,
-          EmployeePermissionKeys.editarNegocio,
-        ),
-      ],
-      'servicio' => [
-        _BusinessActionCandidate(
-          'Reservas',
-          Icons.event_available_outlined,
-          AppRoutes.businessOrders,
-          EmployeePermissionKeys.gestionarPedidos,
-        ),
-      ],
-      _ => const <_BusinessActionCandidate>[],
-    };
-
-    return [...common, ...categorySpecific]
-        .where((item) => business.canEmployee(item.permission))
-        .map((item) => _BusinessAction(item.label, item.icon, item.route))
-        .toList();
+    return [
+      _ManagementGroup('Catalogo', 'Productos, menus y activos del negocio.', catalog),
+      _ManagementGroup('Crecimiento', 'Publicar, promocionar y conectar.', growth),
+      _ManagementGroup('Operacion', 'Pedidos, equipo y herramientas del dia.', operations),
+      _ManagementGroup('Configuracion', 'Apariencia, ficha y plan.', settings),
+    ];
   }
 }
 
-class _BusinessActionCandidate {
-  const _BusinessActionCandidate(
-    this.label,
-    this.icon,
-    this.route,
-    this.permission,
-  );
+class _ManagementGroup {
+  const _ManagementGroup(this.title, this.subtitle, this.actions);
 
-  final String label;
-  final IconData icon;
-  final String route;
-  final String permission;
+  final String title;
+  final String subtitle;
+  final List<_BusinessAction> actions;
 }
 
 class _BusinessAction {

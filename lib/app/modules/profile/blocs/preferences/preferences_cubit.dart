@@ -89,6 +89,14 @@ class PreferencesCubit extends Cubit<PreferencesState> {
         nearbyOpportunityNotificationsEnabled:
             opportunityPreferences.data?['notificaciones_cercanas_opt_in'] ==
             true,
+        opportunityRadiusKm: _asInt(
+          opportunityPreferences.data?['radio_km'],
+          fallback: 2,
+        ).clamp(1, 20).toInt(),
+        opportunityFrequencyMinutes: _asInt(
+          opportunityPreferences.data?['frecuencia_minutos'],
+          fallback: 180,
+        ),
         message: opportunityPreferences.isSuccess
             ? null
             : 'No se pudieron sincronizar las oportunidades cercanas.',
@@ -153,7 +161,7 @@ class PreferencesCubit extends Cubit<PreferencesState> {
       emit(
         state.copyWith(
           status: PreferencesStatus.failure,
-          message: 'Primero activa las oportunidades cercanas.',
+          message: 'Primero activa usar ubicacion para sugerencias.',
         ),
       );
       return;
@@ -164,10 +172,28 @@ class PreferencesCubit extends Cubit<PreferencesState> {
     );
   }
 
+  Future<void> setOpportunityRadius(int kilometers) async {
+    await _saveOpportunityPreferences(
+      locationEnabled: state.opportunitiesLocationEnabled,
+      notificationsEnabled: state.nearbyOpportunityNotificationsEnabled,
+      radiusKm: kilometers.clamp(1, 20),
+    );
+  }
+
+  Future<void> setOpportunityFrequency(int minutes) async {
+    await _saveOpportunityPreferences(
+      locationEnabled: state.opportunitiesLocationEnabled,
+      notificationsEnabled: state.nearbyOpportunityNotificationsEnabled,
+      frequencyMinutes: minutes,
+    );
+  }
+
   Future<void> _saveOpportunityPreferences({
     required bool locationEnabled,
     required bool notificationsEnabled,
     String? cell,
+    int? radiusKm,
+    int? frequencyMinutes,
   }) async {
     emit(state.copyWith(status: PreferencesStatus.saving));
     final result = await _apiClient.put<Map<String, dynamic>?>(
@@ -175,6 +201,9 @@ class PreferencesCubit extends Cubit<PreferencesState> {
       data: {
         'ubicacion_opt_in': locationEnabled,
         'notificaciones_cercanas_opt_in': notificationsEnabled,
+        'radio_km': radiusKm ?? state.opportunityRadiusKm,
+        'frecuencia_minutos':
+            frequencyMinutes ?? state.opportunityFrequencyMinutes,
         if (locationEnabled && cell != null) 'celda': cell,
       },
       parser: (json) => json is Map ? Map<String, dynamic>.from(json) : null,
@@ -197,9 +226,23 @@ class PreferencesCubit extends Cubit<PreferencesState> {
             result.data?['ubicacion_opt_in'] == true,
         nearbyOpportunityNotificationsEnabled:
             result.data?['notificaciones_cercanas_opt_in'] == true,
+        opportunityRadiusKm: _asInt(
+          result.data?['radio_km'],
+          fallback: radiusKm ?? state.opportunityRadiusKm,
+        ).clamp(1, 20).toInt(),
+        opportunityFrequencyMinutes: _asInt(
+          result.data?['frecuencia_minutos'],
+          fallback: frequencyMinutes ?? state.opportunityFrequencyMinutes,
+        ),
         message: 'Preferencias de oportunidades actualizadas.',
       ),
     );
+  }
+
+  int _asInt(Object? value, {required int fallback}) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    return int.tryParse('${value ?? ''}') ?? fallback;
   }
 
   String _coarseCell(Position position) {

@@ -7,6 +7,8 @@ import '../../data/models/business_opportunity.dart';
 
 enum BusinessDashboardStatus { initial, loading, success, failure }
 
+enum NearbyOpportunityStatus { unknown, loading, needsLocation, empty, ready }
+
 class BusinessDashboardState extends Equatable {
   const BusinessDashboardState({
     this.status = BusinessDashboardStatus.initial,
@@ -14,6 +16,10 @@ class BusinessDashboardState extends Equatable {
     this.operationalReferences,
     this.activePlan,
     this.nearbyOpportunities = const [],
+    this.nearbyStatus = NearbyOpportunityStatus.unknown,
+    this.nearbyMessage,
+    this.metricTrends = const {},
+    this.canViewReports = true,
     this.message,
     this.needsWizard = false,
   });
@@ -23,6 +29,10 @@ class BusinessDashboardState extends Equatable {
   final BusinessOperationalReferences? operationalReferences;
   final ActiveSubscription? activePlan;
   final List<BusinessOpportunity> nearbyOpportunities;
+  final NearbyOpportunityStatus nearbyStatus;
+  final String? nearbyMessage;
+  final Map<String, int> metricTrends;
+  final bool canViewReports;
   final String? message;
   final bool needsWizard;
 
@@ -32,6 +42,10 @@ class BusinessDashboardState extends Equatable {
     BusinessOperationalReferences? operationalReferences,
     ActiveSubscription? activePlan,
     List<BusinessOpportunity>? nearbyOpportunities,
+    NearbyOpportunityStatus? nearbyStatus,
+    String? nearbyMessage,
+    Map<String, int>? metricTrends,
+    bool? canViewReports,
     String? message,
     bool? needsWizard,
   }) {
@@ -41,6 +55,10 @@ class BusinessDashboardState extends Equatable {
       operationalReferences: operationalReferences ?? this.operationalReferences,
       activePlan: activePlan ?? this.activePlan,
       nearbyOpportunities: nearbyOpportunities ?? this.nearbyOpportunities,
+      nearbyStatus: nearbyStatus ?? this.nearbyStatus,
+      nearbyMessage: nearbyMessage,
+      metricTrends: metricTrends ?? this.metricTrends,
+      canViewReports: canViewReports ?? this.canViewReports,
       message: message,
       needsWizard: needsWizard ?? this.needsWizard,
     );
@@ -53,6 +71,10 @@ class BusinessDashboardState extends Equatable {
     operationalReferences,
     activePlan,
     nearbyOpportunities,
+    nearbyStatus,
+    nearbyMessage,
+    metricTrends,
+    canViewReports,
     message,
     needsWizard,
   ];

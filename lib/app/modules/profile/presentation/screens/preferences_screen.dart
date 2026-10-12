@@ -495,9 +495,9 @@ class _PrivacySectionState extends State<_PrivacySection> {
             const Divider(height: 28),
             _PrivacyToggleTile(
               value: state.opportunitiesLocationEnabled,
-              title: const Text('Oportunidades cercanas'),
+              title: const Text('Usar ubicacion para sugerencias'),
               subtitle: const Text(
-                'Usa una zona aproximada, nunca tu ubicacion exacta, para mostrar negocios relevantes.',
+                'Usa una zona aproximada, nunca tu ubicacion exacta, para recomendaciones comerciales.',
               ),
               onChanged: saving
                   ? null
@@ -507,9 +507,9 @@ class _PrivacySectionState extends State<_PrivacySection> {
             ),
             _PrivacyToggleTile(
               value: state.nearbyOpportunityNotificationsEnabled,
-              title: const Text('Avisos de oportunidades cercanas'),
+              title: const Text('Oportunidades cercanas'),
               subtitle: const Text(
-                'Recibe avisos cuando haya una oportunidad comercial relevante cerca.',
+                'Avisos cuando hay una oportunidad cerca. Se puede desactivar aqui en cualquier momento.',
               ),
               onChanged: saving || !state.opportunitiesLocationEnabled
                   ? null
@@ -517,6 +517,52 @@ class _PrivacySectionState extends State<_PrivacySection> {
                       .read<PreferencesCubit>()
                       .setNearbyOpportunityNotifications(value),
             ),
+            if (state.opportunitiesLocationEnabled) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Radio aproximado: ${state.opportunityRadiusKm} km',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              Slider(
+                min: 1,
+                max: 20,
+                divisions: 19,
+                label: '${state.opportunityRadiusKm} km',
+                value: state.opportunityRadiusKm.toDouble(),
+                onChanged: saving ? null : (_) {},
+                onChangeEnd: saving
+                    ? null
+                    : (value) => context
+                        .read<PreferencesCubit>()
+                        .setOpportunityRadius(value.round()),
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Frecuencia maxima de avisos',
+                style: Theme.of(context).textTheme.titleSmall,
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                children: const [60, 180, 360, 720, 1440].map((minutes) {
+                  final selected = state.opportunityFrequencyMinutes == minutes;
+                  final label = minutes < 60
+                      ? '$minutes min'
+                      : minutes < 1440
+                      ? '${minutes ~/ 60} h'
+                      : '24 h';
+                  return ChoiceChip(
+                    selected: selected,
+                    label: Text(label),
+                    onSelected: saving
+                        ? null
+                        : (_) => context
+                            .read<PreferencesCubit>()
+                            .setOpportunityFrequency(minutes),
+                  );
+                }).toList(),
+              ),
+            ],
             const SizedBox(height: 12),
             const _PushPermissionTile(),
             const SizedBox(height: 12),

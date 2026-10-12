@@ -10,6 +10,7 @@ import '../../common/presentation/widgets/home_shell.dart';
 import '../../modules/auth/presentation/screens/login_screen.dart';
 import '../../modules/address/presentation/screens/map_screen.dart';
 import '../../modules/address/presentation/screens/sales_map_screen.dart';
+import '../../modules/business/presentation/screens/business_customers_screen.dart';
 import '../../modules/business/presentation/screens/business_dashboard_screen.dart';
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
@@ -256,6 +257,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.businessDashboard,
             builder: (_, __) => const BusinessDashboardScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessCustomers,
+            builder: (_, __) => const BusinessCustomersScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessPromotions,
