@@ -62,6 +62,10 @@ class BusinessSubscriber {
     required this.id,
     required this.name,
     this.avatarUrl,
+    this.phone,
+    this.whatsapp,
+    this.email,
+    this.address,
     this.subscribedAt,
     this.notificationsEnabled = false,
   });
@@ -69,6 +73,10 @@ class BusinessSubscriber {
   final String id;
   final String name;
   final String? avatarUrl;
+  final String? phone;
+  final String? whatsapp;
+  final String? email;
+  final String? address;
   final DateTime? subscribedAt;
   final bool notificationsEnabled;
 
@@ -77,6 +85,10 @@ class BusinessSubscriber {
       id: '${json['id'] ?? ''}',
       name: '${json['nombre'] ?? 'Cliente suscrito'}',
       avatarUrl: json['avatar_url']?.toString(),
+      phone: json['telefono']?.toString(),
+      whatsapp: json['whatsapp']?.toString(),
+      email: json['email']?.toString(),
+      address: json['direccion']?.toString(),
       subscribedAt: DateTime.tryParse('${json['suscrito_en'] ?? ''}'),
       notificationsEnabled: json['notificaciones'] == true,
     );

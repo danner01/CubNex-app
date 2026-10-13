@@ -223,6 +223,37 @@ class ScannerCubit extends Cubit<ScannerState> {
     _processing = false;
   }
 
+  /// Un codigo de barras detectado en vivo (modo producto) sin fotograma
+  /// disponible: deja el codigo listo para buscar en la base de datos.
+  Future<void> processProductBarcode(String barcode) async {
+    final code = barcode.trim();
+    if (code.isEmpty || _processing) return;
+
+    _processing = true;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.resolving,
+        orderQrValidated: false,
+        walletQrDetected: false,
+        clearOrderResult: true,
+        clearRawCodeFallback: true,
+        clearProductResult: true,
+        productDetectedLocally: false,
+        message: 'Codigo detectado. Preparando busqueda...',
+      ),
+    );
+    await _saveScan(code);
+    _processing = false;
+    emit(
+      state.copyWith(
+        status: ScannerStatus.success,
+        productDetection: ProductLabelDetection(barcode: code),
+        productQuery: code,
+        message: 'Codigo de barras detectado. Revisa y busca.',
+      ),
+    );
+  }
+
   void restart() {
     _processing = false;
     emit(const ScannerState());

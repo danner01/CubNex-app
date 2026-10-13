@@ -50,6 +50,8 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   List<List<double>>? _acceptedRouteCoords;
   bool _autoCentered = false;
   Timer? _pollTimer;
+  String? _mapLoadError;
+  int _mapReloadKey = 0;
 
   bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
 
@@ -134,6 +136,21 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       CameraOptions(center: Point(coordinates: pos), zoom: 14),
       MapAnimationOptions(duration: 500),
     );
+  }
+
+  void _onMapLoadError(String message) {
+    if (!mounted) return;
+    setState(() {
+      _mapLoadError = message.trim().isEmpty ? null : message.trim();
+    });
+  }
+
+  void _retryMapLoad() {
+    setState(() {
+      _mapLoadError = null;
+      _mapReloadKey++;
+    });
+    unawaited(_refreshQueue(initial: true));
   }
 
   void _applyLocationResult(DeliveryLocationResult result) {
@@ -703,23 +720,38 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                       : Point(coordinates: _defaultCenter));
             return Stack(
               children: [
-                if (_hasToken)
+                if (_mapLoadError != null)
                   Positioned.fill(
-                    child: kIsWeb
-                      ? WebTrackingMap(
-                          latitude: _myLat ?? initialCenter.coordinates.lat.toDouble(),
-                          longitude:
-                              _myLng ?? initialCenter.coordinates.lng.toDouble(),
-                          markers: _webMarkers(accepted),
-                          routes: _webRoutes(accepted),
-                        )
-                      : MapWidget(
-                      // ignore: deprecated_member_use
-                      cameraOptions: CameraOptions(
-                        center: initialCenter,
-                        zoom: 13,
-                      ),
-                      onMapCreated: _onMapCreated,
+                    child: _MapTokenErrorPanel(
+                      message: _mapLoadError,
+                      onRetry: _retryMapLoad,
+                    ),
+                  )
+                else if (_hasToken)
+                  Positioned.fill(
+                    child: KeyedSubtree(
+                      key: ValueKey('queue-map-$_mapReloadKey'),
+                      child: kIsWeb
+                        ? WebTrackingMap(
+                            latitude:
+                                _myLat ?? initialCenter.coordinates.lat.toDouble(),
+                            longitude:
+                                _myLng ?? initialCenter.coordinates.lng.toDouble(),
+                            markers: _webMarkers(accepted),
+                            routes: _webRoutes(accepted),
+                            onLoadError: () =>
+                                _onMapLoadError('No se pudo cargar el mapa.'),
+                          )
+                        : MapWidget(
+                            // ignore: deprecated_member_use
+                            cameraOptions: CameraOptions(
+                              center: initialCenter,
+                              zoom: 13,
+                            ),
+                            onMapCreated: _onMapCreated,
+                            onMapLoadErrorListener: (error) =>
+                                _onMapLoadError(error.message),
+                          ),
                     ),
                   )
                 else
@@ -1462,11 +1494,18 @@ class _FocusDeliveryCard extends StatelessWidget {
 }
 
 class _MapTokenErrorPanel extends StatelessWidget {
-  const _MapTokenErrorPanel();
+  const _MapTokenErrorPanel({this.message, this.onRetry});
+
+  final String? message;
+  final VoidCallback? onRetry;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final errorMessage = message ??
+        'Configuracion invalida de Mapbox. Verifica el token de acceso y '
+            'vuelve a intentarlo mas tarde.';
+    final subtitle = message == null;
     return ColoredBox(
       color: theme.colorScheme.surfaceContainerLowest,
       child: Center(
@@ -1489,22 +1528,29 @@ class _MapTokenErrorPanel extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: 6),
-              const Text(
-                'Configuracion invalida de Mapbox. Vuelve a intentarlo mas '
-                'tarde.',
+              Text(
+                errorMessage,
                 textAlign: TextAlign.center,
               ),
+              if (!subtitle) ...[
+                const SizedBox(height: 6),
+                Text(
+                  'Revisa tu conexion a internet e intenta de nuevo.',
+                  textAlign: TextAlign.center,
+                ),
+              ],
               const SizedBox(height: 16),
               FilledButton.tonalIcon(
-                onPressed: () {
-                  final cubit = context.read<DeliveryCubit>();
-                  if (cubit.state.profile == null ||
-                      cubit.state.status == DeliveryStatus.failure) {
-                    unawaited(cubit.load());
-                  } else {
-                    unawaited(cubit.loadDisponibles());
-                  }
-                },
+                onPressed: onRetry ??
+                    () {
+                      final cubit = context.read<DeliveryCubit>();
+                      if (cubit.state.profile == null ||
+                          cubit.state.status == DeliveryStatus.failure) {
+                        unawaited(cubit.load());
+                      } else {
+                        unawaited(cubit.loadDisponibles());
+                      }
+                    },
                 icon: const Icon(Icons.refresh_rounded),
                 label: const Text('Reintentar'),
               ),

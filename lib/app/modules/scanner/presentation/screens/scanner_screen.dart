@@ -42,7 +42,9 @@ class _ScannerView extends StatefulWidget {
 class _ScannerViewState extends State<_ScannerView> {
   Timer? _fallbackTimer;
   bool _showFallbackButton = false;
-  final MobileScannerController _controller = MobileScannerController();
+  final MobileScannerController _controller = MobileScannerController(
+    returnImage: true,
+  );
   _ScannerMode _mode = _ScannerMode.qr;
 
   bool _arma = true;
@@ -75,6 +77,40 @@ class _ScannerViewState extends State<_ScannerView> {
     _ultimoProcesado = ahora;
     _arma = false;
     context.read<ScannerCubit>().processCode(value, evento: widget.evento);
+  }
+
+  /// En modo producto escanea directo desde la camara en vivo, como en QR:
+  /// si detecta un codigo en la etiqueta usa el fotograma capturado para
+  /// reconocer el producto sin abrir la camara del sistema. Si no hay
+  /// fotograma (web), deja el codigo listo para buscar.
+  void _onDetectProducto(BarcodeCapture capture) {
+    if (_mode != _ScannerMode.product) return;
+    if (!_arma) return;
+    final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
+    final value = barcode?.rawValue;
+    if (value == null) return;
+
+    final ahora = DateTime.now();
+    if (_ultimoCodigo == value &&
+        _ultimoProcesado != null &&
+        ahora.difference(_ultimoProcesado!) < const Duration(seconds: 4)) {
+      return;
+    }
+
+    _ultimoCodigo = value;
+    _ultimoProcesado = ahora;
+    _arma = false;
+    final cubit = context.read<ScannerCubit>();
+    if (cubit.state.status == ScannerStatus.resolving) {
+      _arma = true;
+      return;
+    }
+    final bytes = capture.image;
+    if (bytes != null && bytes.isNotEmpty) {
+      unawaited(cubit.detectProductImage(imagePath: null, imageBytes: bytes));
+    } else {
+      unawaited(cubit.processProductBarcode(value));
+    }
   }
 
   Future<void> _capturarProducto() async {
@@ -198,6 +234,13 @@ class _ScannerViewState extends State<_ScannerView> {
             if (message != null && _mode == _ScannerMode.qr) {
               showSnackOrAuthDialog(context, message);
             }
+
+            if (_mode == _ScannerMode.product &&
+                (state.status == ScannerStatus.success ||
+                    state.status == ScannerStatus.failure) &&
+                !_arma) {
+              _arma = true;
+            }
           },
           builder: (context, state) {
             final resolving = state.status == ScannerStatus.resolving;
@@ -239,6 +282,7 @@ class _ScannerViewState extends State<_ScannerView> {
                               state: state,
                               resolving: resolving,
                               showResult: showProductResult,
+                              onDetect: _onDetectProducto,
                               onCapturar: _capturarProducto,
                             )
                           else ...[
@@ -344,8 +388,9 @@ class _HeaderCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               product
-                  ? 'Apunta a la etiqueta del producto y toca el boton de la camara.'
-                        ' La IA reconoce tipo, marca y categoria, y busca en la base de datos.'
+                  ? 'Apunta a la etiqueta del producto: el codigo se detecta '
+                        'solo desde la camara, o toca el boton para capturar la '
+                        'etiqueta. La IA reconoce tipo, marca y categoria.'
                   : 'Pedidos o billetera ConKkao: coloca el codigo dentro del marco.',
               textAlign: TextAlign.center,
             ),
@@ -450,6 +495,7 @@ class _ProductScanView extends StatelessWidget {
     required this.state,
     required this.resolving,
     required this.showResult,
+    required this.onDetect,
     required this.onCapturar,
   });
 
@@ -457,6 +503,7 @@ class _ProductScanView extends StatelessWidget {
   final ScannerState state;
   final bool resolving;
   final bool showResult;
+  final void Function(BarcodeCapture) onDetect;
   final VoidCallback onCapturar;
 
   @override
@@ -472,7 +519,7 @@ class _ProductScanView extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        MobileScanner(controller: controller, onDetect: (_) {}),
+        MobileScanner(controller: controller, onDetect: onDetect),
         if (capturedPath != null && resolving) ...[
           ColoredBox(
             color: Colors.black,

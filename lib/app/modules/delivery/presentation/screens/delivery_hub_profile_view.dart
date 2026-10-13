@@ -256,13 +256,16 @@ class DeliveryHubProfileView extends StatelessWidget {
         const ApkVersionCard(),
         const SizedBox(height: 10),
         _SectionLabel('Sesion'),
-        OutlinedButton.icon(
-          onPressed: () async {
-            await context.read<AppSessionCubit>().logout();
-            if (context.mounted) context.go(AppRoutes.login);
-          },
-          icon: const Icon(Icons.logout_rounded),
-          label: const Text('Cerrar sesion'),
+        SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () async {
+              await context.read<AppSessionCubit>().logout();
+              if (context.mounted) context.go(AppRoutes.login);
+            },
+            icon: const Icon(Icons.logout_rounded),
+            label: const Text('Cerrar sesion'),
+          ),
         ),
       ],
     );

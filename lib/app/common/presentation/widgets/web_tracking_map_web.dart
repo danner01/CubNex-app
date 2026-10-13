@@ -18,6 +18,7 @@ class WebTrackingMap extends StatefulWidget {
     this.routes = const [],
     this.onMapTap,
     this.onMarkerTap,
+    this.onLoadError,
     this.interactive = true,
     super.key,
   });
@@ -28,6 +29,7 @@ class WebTrackingMap extends StatefulWidget {
   final List<WebMapRoute> routes;
   final ValueChanged<({double latitude, double longitude})>? onMapTap;
   final ValueChanged<String>? onMarkerTap;
+  final VoidCallback? onLoadError;
   final bool interactive;
 
   @override
@@ -97,6 +99,8 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
     } else if (decoded['event'] == 'marker') {
       final id = decoded['id'];
       if (id is String) widget.onMarkerTap?.call(id);
+    } else if (decoded['event'] == 'loadError') {
+      widget.onLoadError?.call();
     }
   }
 
@@ -156,6 +160,7 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
       showUserHeading: true,
     }), 'top-right');
     map.on('load', () => {
+      window.parent.postMessage(JSON.stringify({ mapId: config.mapId, event: 'ready' }), '*');
       for (const route of config.routes) {
         const sourceId = 'route-' + route.id;
         map.addSource(sourceId, {
@@ -189,6 +194,15 @@ class _WebTrackingMapState extends State<WebTrackingMap> {
         latitude: event.lngLat.lat,
         longitude: event.lngLat.lng,
       }), '*');
+    });
+    map.on('error', (error) => {
+      if (error && error.error) {
+        window.parent.postMessage(JSON.stringify({
+          mapId: config.mapId,
+          event: 'loadError',
+          message: String(error.error.message || error.error),
+        }), '*');
+      }
     });
   </script>
 </body>
