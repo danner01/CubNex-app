@@ -52,6 +52,8 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   Timer? _pollTimer;
   String? _mapLoadError;
   int _mapReloadKey = 0;
+  final ScrollController _webPanelController = ScrollController();
+  double? _webPanelHeight;
 
   bool get _hasToken => AppEnvironment.mapboxAccessToken.isNotEmpty;
 
@@ -82,6 +84,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   @override
   void dispose() {
     _pollTimer?.cancel();
+    _webPanelController.dispose();
     unawaited(_pointManager?.deleteAll());
     unawaited(_polylineManager?.deleteAll());
     super.dispose();
@@ -717,8 +720,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                           ),
                         )
                       : Point(coordinates: _defaultCenter));
-            return Stack(
-              children: [
+            final mapChildren = <Widget>[
                 if (_mapLoadError != null)
                   Positioned.fill(
                     child: _MapTokenErrorPanel(
@@ -797,26 +799,53 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                     ),
                   ),
                 ),
-                Positioned.fill(
-                  child: BlocListener<DeliveryCubit, DeliveryState>(
-                    listener: (context, state) {
-                      if (_mapboxMap == null || _pointManager == null) return;
-                      if (!_didInitialCamera ||
-                          state.availableEntregas.isNotEmpty) {
-                        unawaited(
-                          _syncAnnotations(initial: !_didInitialCamera),
-                        );
-                      }
+            ];
 
-                    },
-                    child: BlocBuilder<DeliveryCubit, DeliveryState>(
-                      builder: (context, state) {
-                        return _buildPanel(context, state, accepted);
-                      },
+            final statePanel = BlocListener<DeliveryCubit, DeliveryState>(
+              listener: (context, state) {
+                if (_mapboxMap == null || _pointManager == null) return;
+                if (!_didInitialCamera || state.availableEntregas.isNotEmpty) {
+                  unawaited(_syncAnnotations(initial: !_didInitialCamera));
+                }
+              },
+              child: BlocBuilder<DeliveryCubit, DeliveryState>(
+                builder: (context, state) => kIsWeb
+                    ? _buildWebPanel(context, state, accepted)
+                    : _buildPanel(context, state, accepted),
+              ),
+            );
+
+            if (!kIsWeb) {
+              return Stack(
+                children: [
+                  ...mapChildren,
+                  Positioned.fill(child: statePanel),
+                ],
+              );
+            }
+
+            return LayoutBuilder(
+              builder: (context, constraints) {
+                final maxH = constraints.maxHeight;
+                final minPanel = maxH * 0.30;
+                final maxPanel = maxH * 0.82;
+                final panelH =
+                    (_webPanelHeight ?? maxH * 0.55).clamp(minPanel, maxPanel);
+                return Column(
+                  children: [
+                    Expanded(child: Stack(children: mapChildren)),
+                    _WebPanelResizeHandle(
+                      onDrag: (dy) => setState(() {
+                        _webPanelHeight = (panelH - dy).clamp(
+                          minPanel,
+                          maxPanel,
+                        );
+                      }),
                     ),
-                  ),
-                ),
-              ],
+                    SizedBox(height: panelH, child: statePanel),
+                  ],
+                );
+              },
             );
           },
         ),
@@ -908,13 +937,10 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     DeliveryState state,
     DeliveryEntregaModel? accepted,
   ) {
-    final theme = Theme.of(context);
     final items = state.availableEntregas;
     final hasAccepted = accepted != null;
     final isLoading = state.status == DeliveryStatus.loading && items.isEmpty;
     final isFailure = state.status == DeliveryStatus.failure && items.isEmpty;
-    final profile = state.profile;
-    final queueError = state.queueError;
     final maxSheetSize = kIsWeb ? 0.94 : 0.85;
 
     return Align(
@@ -933,10 +959,46 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
           return WebMapOverlay(
             child: DeliverySheetPanel(
               controller: sheetController,
-            child: ListView(
-              controller: sheetController,
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
-              children: [
+              child: ListView(
+                controller: sheetController,
+                padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+                children: _panelChildren(context, state, accepted),
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildWebPanel(
+    BuildContext context,
+    DeliveryState state,
+    DeliveryEntregaModel? accepted,
+  ) {
+    return DeliverySheetPanel(
+      controller: _webPanelController,
+      child: ListView(
+        controller: _webPanelController,
+        padding: const EdgeInsets.fromLTRB(16, 4, 16, 24),
+        children: _panelChildren(context, state, accepted),
+      ),
+    );
+  }
+
+  List<Widget> _panelChildren(
+    BuildContext context,
+    DeliveryState state,
+    DeliveryEntregaModel? accepted,
+  ) {
+    final theme = Theme.of(context);
+    final items = state.availableEntregas;
+    final hasAccepted = accepted != null;
+    final isLoading = state.status == DeliveryStatus.loading && items.isEmpty;
+    final isFailure = state.status == DeliveryStatus.failure && items.isEmpty;
+    final profile = state.profile;
+    final queueError = state.queueError;
+    return [
                 Text(
                   'Cola de entregas',
                   style: theme.textTheme.headlineSmall?.copyWith(
@@ -1071,13 +1133,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
                     ],
                   ],
                 ],
-              ],
-              ),
-            ),
-          );
-        },
-      ),
-    );
+    ];
   }
 }
 
@@ -1685,6 +1741,37 @@ class _QueueMapItemCard extends StatelessWidget {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+}
+
+class _WebPanelResizeHandle extends StatelessWidget {
+  const _WebPanelResizeHandle({required this.onDrag});
+
+  final ValueChanged<double> onDrag;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return MouseRegion(
+      cursor: SystemMouseCursors.resizeRow,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onVerticalDragUpdate: (details) => onDrag(details.delta.dy),
+        child: Container(
+          height: 26,
+          alignment: Alignment.center,
+          color: theme.colorScheme.surface,
+          child: Container(
+            width: 48,
+            height: 5,
+            decoration: BoxDecoration(
+              color: theme.colorScheme.outlineVariant,
+              borderRadius: BorderRadius.circular(999),
+            ),
+          ),
         ),
       ),
     );
