@@ -214,7 +214,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   Future<void> _refreshQueue({bool initial = false}) async {
-    final cubit = context.read<DeliveryCubit>();
+    final cubit = sl<DeliveryCubit>();
     // La posicion puede tardar (el GPS busca el primer fix); no bloquees la
     // carga de la lista de entregas por eso.
     final detecting = _myLat == null;
@@ -244,7 +244,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   void _retry() {
-    final cubit = context.read<DeliveryCubit>();
+    final cubit = sl<DeliveryCubit>();
     if (cubit.state.status == DeliveryStatus.failure ||
         cubit.state.profile == null) {
       unawaited(cubit.load());
@@ -418,7 +418,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
 
     final accepted = sl<DeliveryAcceptedStore>().accepted.value;
     final items = List<DeliveryEntregaModel>.from(
-      context.read<DeliveryCubit>().state.availableEntregas,
+      sl<DeliveryCubit>().state.availableEntregas,
     );
     final entries = <DeliveryEntregaModel>[
       if (_focusEntrega != null &&
@@ -595,7 +595,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     required bool startRoute,
   }) async {
     if (!startRoute) {
-      await context.read<DeliveryCubit>().aceptar(entrega.id);
+      await sl<DeliveryCubit>().aceptar(entrega.id);
       return;
     }
     final position = await _currentPosition();
@@ -608,15 +608,14 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       return;
     }
     _storePosition(position);
-    await context
-        .read<DeliveryCubit>()
+    await sl<DeliveryCubit>()
         .reportLocation(
           latitude: position.latitude,
           longitude: position.longitude,
         )
         .catchError((_) {});
     if (!mounted) return;
-    await context.read<DeliveryCubit>().aceptar(entrega.id);
+    await sl<DeliveryCubit>().aceptar(entrega.id);
     if (mounted) context.push(AppRoutes.deliveryRoute);
   }
 
@@ -658,7 +657,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    final cubit = context.read<DeliveryCubit>();
+    final cubit = sl<DeliveryCubit>();
     await cubit.rechazarEntrega(entrega.id);
     if (!mounted) return;
     if (_focusEntregaId == entrega.id) {
@@ -826,7 +825,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   }
 
   List<DeliveryEntregaModel> _webEntries(DeliveryEntregaModel? accepted) {
-    final available = context.read<DeliveryCubit>().state.availableEntregas;
+    final available = sl<DeliveryCubit>().state.availableEntregas;
     return [
       if (_focusEntrega != null &&
           _focusEntrega!.id != accepted?.id &&
