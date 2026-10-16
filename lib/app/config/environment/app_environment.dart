@@ -19,6 +19,21 @@ class AppEnvironment {
   static const apkPrivacyPolicyUrl = '$apkLandingUrl/privacidad';
   static const apkTermsUrl = '$apkLandingUrl/terminos';
 
+  // PWA publica de la Casa de Cambio (CADECA). La casa seleccionada se pasa
+  // como query (?casa=<slug>) para que el usuario entre directo a su sede.
+  static const cadecaBaseUrl = String.fromEnvironment(
+    'CADECA_BASE_URL',
+    defaultValue: 'https://conkkao-cadeca.vercel.app',
+  );
+
+  static String cadecaUrl({String? casa}) {
+    final slug = casa?.trim();
+    if (slug == null || slug.isEmpty) return cadecaBaseUrl;
+    return Uri.parse(cadecaBaseUrl).replace(
+      queryParameters: {'casa': slug},
+    ).toString();
+  }
+
   static const mapboxAccessToken = String.fromEnvironment(
     'MAPBOX_ACCESS_TOKEN',
     defaultValue:

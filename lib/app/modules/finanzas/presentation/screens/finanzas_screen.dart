@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
+import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/services/finanzas/finanzas_formatos.dart';
 import '../../../../common/services/finanzas/finanzas_models.dart';
 import '../../../../common/services/finanzas/finanzas_service.dart';
+import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
@@ -79,6 +81,18 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
     }
   }
 
+  Future<void> _abrirCadeca() async {
+    final uri = Uri.parse(AppEnvironment.cadecaUrl());
+    final abierta = await launchUrl(uri, mode: LaunchMode.externalApplication);
+    if (!abierta && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('No se pudo abrir la Casa de Cambio.'),
+        ),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return RefreshIndicator(
@@ -96,6 +110,8 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
                 const SizedBox(height: 14),
                 const _SeccionFinanzas(titulo: 'Mercado'),
                 const SizedBox(height: 8),
+                _CasaDeCambioCard(onTap: _abrirCadeca),
+                const SizedBox(height: 10),
                 if (_cargando)
                   const _CargandoFinanzas()
                 else
@@ -395,6 +411,63 @@ class _SeccionFinanzas extends StatelessWidget {
           ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w900),
         ),
       ],
+    );
+  }
+}
+
+class _CasaDeCambioCard extends StatelessWidget {
+  const _CasaDeCambioCard({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+          child: Row(
+            children: [
+              Container(
+                width: 42,
+                height: 42,
+                decoration: BoxDecoration(
+                  color: AppColors.gold.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: const Icon(
+                  Icons.currency_exchange_rounded,
+                  color: AppColors.goldDark,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Casa de Cambio ConKkao',
+                      style: TextStyle(fontWeight: FontWeight.w900),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      'Compra y vende divisas y semillas en la sede oficial.',
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 6),
+              const Icon(Icons.chevron_right_rounded),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
