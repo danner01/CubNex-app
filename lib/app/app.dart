@@ -10,6 +10,7 @@ import 'common/blocs/role_mode/role_mode_cubit.dart';
 import 'common/entities/user_role.dart';
 import 'common/services/deep_link_service.dart';
 import 'common/services/push_notification_service.dart';
+import 'common/presentation/widgets/semilla_reward_host.dart';
 import 'config/injection/injection.dart';
 import 'config/routes/app_router.dart';
 import 'config/routes/app_routes.dart';
@@ -124,8 +125,11 @@ class ConKkaoApp extends StatelessWidget {
               darkTheme: AppTheme.dark,
               themeMode: themeMode,
               routerConfig: router,
-              builder: (context, child) =>
-                  TutorialAutoplayHost(child: child ?? const SizedBox.shrink()),
+              builder: (context, child) => SemillaRewardHost(
+                child: TutorialAutoplayHost(
+                  child: child ?? const SizedBox.shrink(),
+                ),
+              ),
             );
           },
         ),

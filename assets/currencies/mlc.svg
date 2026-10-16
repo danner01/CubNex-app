@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 128 128" width="128" height="128" role="img" aria-label="MLC">
+  <title>MLC</title>
+  <defs>
+    <radialGradient id="field" cx="35%" cy="28%" r="82%">
+      <stop offset="0" stop-color="#e0b45a"/>
+      <stop offset="1" stop-color="#8a5a12"/>
+    </radialGradient>
+  </defs>
+  <circle cx="64" cy="67" r="56" fill="#000000" opacity="0.22"/>
+  <circle cx="64" cy="64" r="56" fill="url(#field)"/>
+  <circle cx="64" cy="64" r="56" fill="none" stroke="#e3ab5b" stroke-width="4"/>
+  <circle cx="64" cy="64" r="49" fill="none" stroke="#ffffff" stroke-opacity="0.35" stroke-width="1.5"/>
+  <text x="64" y="65" text-anchor="middle" dominant-baseline="central" font-family="Segoe UI, Arial, sans-serif" font-size="34" font-weight="800" fill="#ffffff">MLC</text>
+</svg>

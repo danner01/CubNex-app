@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
+import '../../../../common/presentation/widgets/moneda_icon.dart';
 import '../../../business/presentation/widgets/business_switcher.dart';
 import '../../blocs/credits_cubit.dart';
 import '../../blocs/credits_state.dart';
@@ -388,12 +389,23 @@ class _CreditsView extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 8),
-                          Text(
-                            summary == null
-                                ? 'Cargando...'
-                                : '${summary.grains}',
-                            style: Theme.of(context).textTheme.displaySmall
-                                ?.copyWith(fontWeight: FontWeight.w900),
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.center,
+                            children: [
+                              const SemillaIcon(size: 34),
+                              const SizedBox(width: 10),
+                              Flexible(
+                                child: Text(
+                                  summary == null
+                                      ? 'Cargando...'
+                                      : '${summary.grains}',
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .displaySmall
+                                      ?.copyWith(fontWeight: FontWeight.w900),
+                                ),
+                              ),
+                            ],
                           ),
                           Text(
                             summary == null ? '' : 'semillas totales (saldo)',
@@ -690,6 +702,8 @@ class _WalletStatsCard extends StatelessWidget {
             const Divider(height: 20),
             Row(
               children: [
+                const SemillaIcon(size: 18),
+                const SizedBox(width: 6),
                 const Text(
                   'Semillas (saldo)',
                   style: TextStyle(fontWeight: FontWeight.w900),

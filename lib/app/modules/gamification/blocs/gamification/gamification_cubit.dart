@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
+import '../../../../config/injection/injection.dart';
+import '../../../../common/services/semilla_reward_service.dart';
 import '../../data/models/gamification_level.dart';
 import '../../data/models/gamification_summary.dart';
 import 'gamification_state.dart';
@@ -62,5 +64,15 @@ class GamificationCubit extends Cubit<GamificationState> {
         levels: levelsResult.data ?? const [],
       ),
     );
+
+    final newPoints = summaryResult.data?.points;
+    if (newPoints != null) {
+      sl<SemillaRewardService>().showIfIncreased(
+        'gamification',
+        newPoints,
+        unit: 'puntos',
+        label: '¡Recompensa ConKkao!',
+      );
+    }
   }
 }

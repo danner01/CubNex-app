@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../presentation/widgets/moneda_icon.dart';
 import '../../services/tasas/tasas_models.dart';
 import '../../services/tasas/tasas_service.dart';
 import '../../../config/injection/injection.dart';
@@ -198,28 +199,11 @@ class _RateTile extends StatelessWidget {
         children: [
           Row(
             children: [
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 6,
-                  vertical: 2,
-                ),
-                decoration: BoxDecoration(
-                  color: scheme.primaryContainer,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: Text(
-                  codigo,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w900,
-                    color: scheme.onPrimaryContainer,
-                  ),
-                ),
-              ),
+              MonedaIcon(codigo: codigo, size: 22),
               const SizedBox(width: 6),
               Expanded(
                 child: Text(
-                  nombre,
+                  '$codigo · $nombre',
                   overflow: TextOverflow.ellipsis,
                   maxLines: 1,
                   style: Theme.of(context).textTheme.labelSmall,

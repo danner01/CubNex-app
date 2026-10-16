@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../common/presentation/widgets/moneda_icon.dart';
 import '../../../../common/services/finanzas/finanzas_formatos.dart';
 import '../../../../common/services/finanzas/finanzas_models.dart';
 import '../../../../common/services/finanzas/finanzas_service.dart';
@@ -537,25 +538,14 @@ class _MonedaFila extends StatelessWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-        leading: CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.gold.withValues(alpha: 0.16),
-          child: Text(
-            codigo,
-            style: const TextStyle(
-              fontWeight: FontWeight.w900,
-              fontSize: 11,
-              color: AppColors.goldDark,
-            ),
-          ),
-        ),
+        leading: MonedaIcon(codigo: codigo, size: 40),
         title: Text(
           nombre,
           style: const TextStyle(fontWeight: FontWeight.w800),
         ),
         subtitle: Padding(
           padding: const EdgeInsets.only(top: 2),
-          child: Text('Precio $desglose'),
+          child: Text('$codigo · Precio $desglose'),
         ),
         trailing: Row(
           mainAxisSize: MainAxisSize.min,

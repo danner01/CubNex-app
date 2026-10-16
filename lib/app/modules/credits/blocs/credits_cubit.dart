@@ -1,6 +1,8 @@
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../config/http/api_client.dart';
+import '../../../config/injection/injection.dart';
+import '../../../common/services/semilla_reward_service.dart';
 import '../data/models/credit_movement.dart';
 import '../data/models/credit_summary.dart';
 import '../data/models/verified_topup.dart';
@@ -115,6 +117,15 @@ class CreditsCubit extends Cubit<CreditsState> {
         walletScope: walletScope,
       ),
     );
+
+    final newGrains = summaryResult.data?.grains;
+    if (newGrains != null) {
+      sl<SemillaRewardService>().showIfIncreased(
+        'credits:$walletScope',
+        newGrains,
+        label: '¡Ganaste semillas!',
+      );
+    }
   }
 
   void clear() {

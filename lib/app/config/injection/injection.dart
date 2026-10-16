@@ -13,6 +13,7 @@ import '../../common/blocs/employee_access/employee_access_cubit.dart';
 import '../../common/blocs/role_mode/role_mode_cubit.dart';
 import '../../common/services/contact_service.dart';
 import '../../common/services/credit_service.dart';
+import '../../common/services/semilla_reward_service.dart';
 import '../../common/services/tasas/tasas_service.dart';
 import '../../common/services/finanzas/finanzas_service.dart';
 import '../../common/services/apk_update_service.dart';
@@ -75,6 +76,7 @@ Future<void> configureDependencies() async {
     ..registerLazySingleton(ApkUpdateService.new)
     ..registerLazySingleton(ApkDownloadService.new)
     ..registerLazySingleton(ContactService.new)
+    ..registerLazySingleton(SemillaRewardService.new)
     ..registerLazySingleton(() => ShareService(apiClient: sl()))
     ..registerLazySingleton(() => CreditService(apiClient: sl()))
     ..registerLazySingleton(() => TasasService(apiClient: sl()))
