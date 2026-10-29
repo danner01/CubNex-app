@@ -76,7 +76,9 @@ class AppTheme {
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.all(Radius.circular(16)),
           side: BorderSide(
-            color: colorScheme.outlineVariant.withValues(alpha: 0.35),
+            color: colorScheme.brightness == Brightness.light
+                ? AppColors.lightTextSecondary.withValues(alpha: 0.55)
+                : colorScheme.outlineVariant.withValues(alpha: 0.35),
           ),
         ),
       ),

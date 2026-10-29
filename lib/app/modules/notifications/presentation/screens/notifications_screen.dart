@@ -2,10 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
-import '../../../../config/environment/app_environment.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
@@ -322,23 +320,6 @@ class _NotificationTile extends StatelessWidget {
   Future<void> _openNotification(BuildContext context) async {
     await context.read<NotificationsCubit>().markAsRead(notification.id);
     if (!context.mounted) return;
-
-    // Las ordenes de la Casa de Cambio viven en la PWA de CADECA: se abren
-    // externamente en lugar de navegar dentro de la app.
-    if (notification.type == 'cadeca_orden') {
-      final abierta = await launchUrl(
-        Uri.parse(AppEnvironment.cadecaUrl()),
-        mode: LaunchMode.externalApplication,
-      );
-      if (!abierta && context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo abrir la Casa de Cambio.'),
-          ),
-        );
-      }
-      return;
-    }
 
     final target = _normalizedLink(notification.link);
     if (target == null) {

@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../common/blocs/app_session/app_session_cubit.dart';
-import '../../common/presentation/screens/onboarding_screen.dart';
 import '../../common/presentation/screens/splash_screen.dart';
 import '../../common/presentation/widgets/home_shell.dart';
 import '../../modules/auth/presentation/screens/login_screen.dart';
@@ -72,22 +71,19 @@ GoRouter createAppRouter(
       final activeMode = roleModeCubit.state.activeMode;
       final isLogin = state.matchedLocation == AppRoutes.login;
       final isSplash = state.matchedLocation == AppRoutes.splash;
-      final isOnboarding = state.matchedLocation == AppRoutes.onboarding;
 
       if (session.status == AppSessionStatus.loading) {
-        return (isSplash || isLogin || isOnboarding) ? null : AppRoutes.splash;
+        return (isSplash || isLogin) ? null : AppRoutes.splash;
       }
 
       if (session.status == AppSessionStatus.unauthenticated) {
-        final target = session.onboardingSeen
-            ? AppRoutes.login
-            : AppRoutes.onboarding;
-        return (isSplash || isLogin || isOnboarding) ? null : target;
+        final target = AppRoutes.login;
+        return (isSplash || isLogin) ? null : target;
       }
 
       if (session.status == AppSessionStatus.guest) {
         if (isSplash) return null;
-        return (isLogin || isOnboarding) ? AppRoutes.home : null;
+        return isLogin ? AppRoutes.home : null;
       }
 
       if (session.status == AppSessionStatus.authenticated) {
@@ -95,7 +91,6 @@ GoRouter createAppRouter(
         final defaultLocation = _defaultLocationForMode(activeMode);
         final shouldUseRoleHome =
             isLogin ||
-            isOnboarding ||
             (state.matchedLocation == AppRoutes.home &&
                 activeMode != RoleMode.client);
         return shouldUseRoleHome ? defaultLocation : null;
@@ -105,10 +100,6 @@ GoRouter createAppRouter(
     },
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (_, __) => const SplashScreen()),
-      GoRoute(
-        path: AppRoutes.onboarding,
-        builder: (_, __) => const OnboardingScreen(),
-      ),
       GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
       GoRoute(
         path: '/market/negocio/pedidos',
