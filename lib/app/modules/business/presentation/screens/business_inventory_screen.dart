@@ -1120,8 +1120,8 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
                       ? null
                       : _image2Controller.text.trim(),
                   detecting: _detecting,
-                  onPickFront: () => _pickPackageImage(front: true),
-                  onPickBack: () => _pickPackageImage(front: false),
+                  onPickFront: _detecting ? null : () => unawaited(_capturarYAnalizar(front: true)),
+                  onPickBack: _detecting ? null : () => unawaited(_capturarYAnalizar(front: false)),
                   onAnalyze:
                       _frontPackageImage == null && _backPackageImage == null
                       ? null
@@ -1554,11 +1554,11 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
     return null;
   }
 
-  Future<void> _pickPackageImage({required bool front}) async {
-    final source = await _chooseImageSource();
-    if (source == null) return;
+  Future<void> _capturarYAnalizar({required bool front}) async {
+    // Camara directa como escaner QR: se dispara la captura y, al obtener la
+    // imagen, se analiza automaticamente sin requerir un boton extra.
     final image = await ImagePicker().pickImage(
-      source: source,
+      source: ImageSource.camera,
       imageQuality: 68,
       maxWidth: 960,
     );
@@ -1574,6 +1574,7 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
         _image2Controller.clear();
       }
     });
+    await _detectPackageImages();
   }
 
   Future<void> _pickProductImage(int index) async {
@@ -1815,10 +1816,10 @@ class _PackageScanPanel extends StatelessWidget {
   final XFile? backImage;
   final String? frontImageUrl;
   final String? backImageUrl;
-  final bool detecting;
-  final VoidCallback onPickFront;
-  final VoidCallback onPickBack;
-  final VoidCallback? onAnalyze;
+    final bool detecting;
+    final VoidCallback? onPickFront;
+    final VoidCallback? onPickBack;
+    final VoidCallback? onAnalyze;
 
   @override
   Widget build(BuildContext context) {
@@ -1837,7 +1838,7 @@ class _PackageScanPanel extends StatelessWidget {
             ),
             const SizedBox(height: 6),
             Text(
-              'Toma o carga fotos del frente y reverso. La app lee el texto localmente y rellena marca, nombre, peso, tamano y detalles.',
+              'Escanea el empaque con la camara. Al capturar, la app analiza la etiqueta y rellena marca, nombre, precio y datos automaticamente.',
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 12),

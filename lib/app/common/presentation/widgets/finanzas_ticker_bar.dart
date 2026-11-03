@@ -276,7 +276,11 @@ class _TickerCell extends StatelessWidget {
   Widget build(BuildContext context) {
     final tendencia = item.tendencia;
     final alza = tendencia == null || tendencia >= 0;
-    final led = alza ? _ledVerde : _ledRojo;
+    final isLight = Theme.of(context).brightness == Brightness.light;
+    final led = alza
+        ? (isLight ? const Color(0xFF1E6B44) : _ledVerde)
+        : (isLight ? const Color(0xFF9E2B25) : _ledRojo);
+    final codigoColor = isLight ? AppColors.ink : _textoTicker;
 
     return SizedBox(
       width: width,
@@ -284,10 +288,10 @@ class _TickerCell extends StatelessWidget {
         children: [
           Text(
             item.codigo,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 9,
               fontWeight: FontWeight.w900,
-              color: _textoTicker,
+              color: codigoColor,
               letterSpacing: 0.4,
             ),
           ),
@@ -300,9 +304,11 @@ class _TickerCell extends StatelessWidget {
               color: led,
               letterSpacing: 0.4,
               fontFeatures: const [FontFeature.tabularFigures()],
-              shadows: [
-                Shadow(color: led.withValues(alpha: 0.55), blurRadius: 5),
-              ],
+              shadows: isLight
+                  ? const []
+                  : [
+                      Shadow(color: led.withValues(alpha: 0.55), blurRadius: 5),
+                    ],
             ),
           ),
           const SizedBox(width: 4),
