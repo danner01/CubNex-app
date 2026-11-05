@@ -7,12 +7,16 @@ import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../common/blocs/active_business/active_business_cubit.dart';
+import '../../../../modules/scanner/presentation/screens/scanner_screen.dart';
+import '../../data/models/product_label_detection.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../../config/routes/app_routes.dart';
 import '../../../../config/theme/app_colors.dart';
 import '../../../home/data/models/product_model.dart';
 import '../../../product/data/models/product_price_history.dart';
@@ -1555,26 +1559,48 @@ class _ProductFormSheetState extends State<_ProductFormSheet> {
   }
 
   Future<void> _capturarYAnalizar({required bool front}) async {
-    // Camara directa como escaner QR: se dispara la captura y, al obtener la
-    // imagen, se analiza automaticamente sin requerir un boton extra.
-    final image = await ImagePicker().pickImage(
-      source: ImageSource.camera,
-      imageQuality: 68,
-      maxWidth: 960,
+    // Abre el escaner integrado (camara en pantalla como el de QR) en modo
+    // producto. Al detectar la etiqueta, devuelve los datos para autocompletar
+    // el formulario sin salir de la app ni abrir la camara del sistema.
+    final detection = await context.push<ProductLabelDetection?>(
+      AppRoutes.scanner,
+      extra: {
+        'initialMode': ScannerMode.product,
+        'onProductDetected': (ProductLabelDetection d) {},
+      },
     );
-    if (image == null || !mounted) return;
-    setState(() {
-      if (front) {
-        _frontPackageImage = image;
-        _image1File = image;
-        _image1Controller.clear();
-      } else {
-        _backPackageImage = image;
-        _image2File = image;
-        _image2Controller.clear();
-      }
-    });
-    await _detectPackageImages();
+    if (detection == null || !mounted) return;
+    _aplicarDeteccion(detection);
+  }
+
+  void _aplicarDeteccion(ProductLabelDetection detected) {
+    if (detected.name != null) _nameController.text = detected.name!;
+    if (detected.brand != null) _brandController.text = detected.brand!;
+    if (detected.description != null) {
+      _descriptionController.text = detected.description!;
+    }
+    if (detected.category != null) {
+      _categoryController.text = detected.category!;
+    }
+    if (detected.price != null) {
+      _priceController.text = detected.price!.toStringAsFixed(2);
+    }
+    if (detected.currency != null &&
+        ['CUP', 'MLC', 'USD'].contains(detected.currency)) {
+      setState(() => _currency = detected.currency!);
+    }
+    final urls = detected.imageUrls;
+    if (urls.isNotEmpty) {
+      _image1Controller.text = urls.elementAtOrNull(0) ?? '';
+      _image2Controller.text = urls.elementAtOrNull(1) ?? '';
+      _image3Controller.text = urls.elementAtOrNull(2) ?? '';
+    }
+    setState(
+      () => _detectedFeatures = detected.toProductFeatures(
+        category: _categoryController.text,
+      ),
+    );
+    _loadPriceSuggestions();
   }
 
   Future<void> _pickProductImage(int index) async {

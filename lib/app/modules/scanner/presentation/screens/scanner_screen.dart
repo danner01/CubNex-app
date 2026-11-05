@@ -13,27 +13,45 @@ import '../../../../config/routes/app_routes.dart';
 import '../../blocs/scanner/scanner_cubit.dart';
 import '../../blocs/scanner/scanner_state.dart';
 import '../widgets/scanner_image_preview.dart';
+import '../../../business/data/models/product_label_detection.dart';
 
-enum _ScannerMode { qr, product }
+enum ScannerMode { qr, product }
 
 class ScannerScreen extends StatelessWidget {
-  const ScannerScreen({super.key, this.evento});
+  const ScannerScreen({
+    super.key,
+    this.evento,
+    this.initialMode = ScannerMode.qr,
+    this.onProductDetected,
+  });
 
   final String? evento;
+  final ScannerMode initialMode;
+  final void Function(ProductLabelDetection)? onProductDetected;
 
   @override
   Widget build(BuildContext context) {
     return BlocProvider(
       create: (_) => sl<ScannerCubit>(),
-      child: _ScannerView(evento: evento),
+      child: _ScannerView(
+        evento: evento,
+        initialMode: initialMode,
+        onProductDetected: onProductDetected,
+      ),
     );
   }
 }
 
 class _ScannerView extends StatefulWidget {
-  const _ScannerView({this.evento});
+  const _ScannerView({
+    this.evento,
+    this.initialMode = ScannerMode.qr,
+    this.onProductDetected,
+  });
 
   final String? evento;
+  final ScannerMode initialMode;
+  final void Function(ProductLabelDetection)? onProductDetected;
 
   @override
   State<_ScannerView> createState() => _ScannerViewState();
@@ -45,21 +63,20 @@ class _ScannerViewState extends State<_ScannerView> {
   final MobileScannerController _controller = MobileScannerController(
     returnImage: true,
   );
-  _ScannerMode _mode = _ScannerMode.qr;
-
+  late ScannerMode _mode;
   bool _arma = true;
   String? _ultimoCodigo;
   DateTime? _ultimoProcesado;
+  bool _productResultNotified = false;
 
   @override
-  void dispose() {
-    _fallbackTimer?.cancel();
-    _controller.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    _mode = widget.initialMode;
   }
 
   void _onDetect(BarcodeCapture capture) {
-    if (_mode != _ScannerMode.qr) return;
+    if (_mode != ScannerMode.qr) return;
     if (!_arma) return;
     final value = capture.barcodes.isEmpty
         ? null
@@ -84,7 +101,7 @@ class _ScannerViewState extends State<_ScannerView> {
   /// reconocer el producto sin abrir la camara del sistema. Si no hay
   /// fotograma (web), deja el codigo listo para buscar.
   void _onDetectProducto(BarcodeCapture capture) {
-    if (_mode != _ScannerMode.product) return;
+    if (_mode != ScannerMode.product) return;
     if (!_arma) return;
     final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
     final value = barcode?.rawValue;
@@ -138,7 +155,7 @@ class _ScannerViewState extends State<_ScannerView> {
     }
   }
 
-  void _cambiarModo(_ScannerMode mode) {
+  void _cambiarModo(ScannerMode mode) {
     if (mode == _mode) return;
     setState(() {
       _mode = mode;
@@ -231,11 +248,24 @@ class _ScannerViewState extends State<_ScannerView> {
             }
 
             final message = state.message;
-            if (message != null && _mode == _ScannerMode.qr) {
+            if (message != null && _mode == ScannerMode.qr) {
               showSnackOrAuthDialog(context, message);
             }
 
-            if (_mode == _ScannerMode.product &&
+            if (_mode == ScannerMode.product &&
+                state.status == ScannerStatus.success &&
+                state.productDetection != null &&
+                widget.onProductDetected != null &&
+                !_productResultNotified) {
+              _productResultNotified = true;
+              widget.onProductDetected!.call(state.productDetection!);
+              if (mounted) {
+                Navigator.of(context).pop(state.productDetection);
+              }
+              return;
+            }
+
+            if (_mode == ScannerMode.product &&
                 (state.status == ScannerStatus.success ||
                     state.status == ScannerStatus.failure) &&
                 !_arma) {
@@ -244,7 +274,7 @@ class _ScannerViewState extends State<_ScannerView> {
           },
           builder: (context, state) {
             final resolving = state.status == ScannerStatus.resolving;
-            final productMode = _mode == _ScannerMode.product;
+            final productMode = _mode == ScannerMode.product;
             final showProductResult =
                 productMode &&
                 (state.productDetection != null ||
@@ -367,12 +397,12 @@ class _ScannerViewState extends State<_ScannerView> {
 class _HeaderCard extends StatelessWidget {
   const _HeaderCard({required this.mode, this.onRestart});
 
-  final _ScannerMode mode;
+  final ScannerMode mode;
   final VoidCallback? onRestart;
 
   @override
   Widget build(BuildContext context) {
-    final product = mode == _ScannerMode.product;
+    final product = mode == ScannerMode.product;
     return Card(
       child: Padding(
         padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
@@ -410,25 +440,25 @@ class _HeaderCard extends StatelessWidget {
 class _ModeSelector extends StatelessWidget {
   const _ModeSelector({required this.mode, required this.onChanged});
 
-  final _ScannerMode mode;
-  final ValueChanged<_ScannerMode> onChanged;
+  final ScannerMode mode;
+  final ValueChanged<ScannerMode> onChanged;
 
   @override
   Widget build(BuildContext context) {
     return Row(
       children: [
         _ModoBoton(
-          activo: mode == _ScannerMode.qr,
+          activo: mode == ScannerMode.qr,
           icon: Icons.qr_code_2_rounded,
           label: 'QR y códigos',
-          onTap: () => onChanged(_ScannerMode.qr),
+          onTap: () => onChanged(ScannerMode.qr),
         ),
         const SizedBox(width: 10),
         _ModoBoton(
-          activo: mode == _ScannerMode.product,
+          activo: mode == ScannerMode.product,
           icon: Icons.inventory_2_rounded,
           label: 'Producto',
-          onTap: () => onChanged(_ScannerMode.product),
+          onTap: () => onChanged(ScannerMode.product),
         ),
       ],
     );

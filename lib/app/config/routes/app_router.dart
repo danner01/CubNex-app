@@ -45,6 +45,7 @@ import '../../modules/promotions/presentation/screens/promotions_screen.dart';
 import '../../modules/properties/presentation/screens/properties_screen.dart';
 import '../../modules/review_rating/presentation/screens/my_reviews_screen.dart';
 import '../../modules/scanner/presentation/screens/scanner_screen.dart';
+import '../../modules/business/data/models/product_label_detection.dart';
 import '../../modules/scanner/presentation/screens/scan_history_screen.dart';
 import '../../modules/search/presentation/screens/search_screen.dart';
 import '../../modules/service/data/models/asset_detail_model.dart';
@@ -136,8 +137,17 @@ GoRouter createAppRouter(
           GoRoute(path: AppRoutes.map, builder: (_, __) => const MapScreen()),
           GoRoute(
             path: AppRoutes.scanner,
-            builder: (context, state) =>
-                ScannerScreen(evento: state.uri.queryParameters['evento']),
+            builder: (context, state) {
+              final extra = state.extra as Map<String, dynamic>?;
+              return ScannerScreen(
+                evento: state.uri.queryParameters['evento'],
+                initialMode: (extra?['initialMode'] as ScannerMode?) ??
+                    ScannerMode.qr,
+                onProductDetected:
+                    extra?['onProductDetected']
+                        as void Function(ProductLabelDetection)?,
+              );
+            },
           ),
           GoRoute(
             path: AppRoutes.scanHistory,
