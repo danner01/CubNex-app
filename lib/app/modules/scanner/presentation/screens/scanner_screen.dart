@@ -3,7 +3,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
-import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
@@ -127,31 +126,6 @@ class _ScannerViewState extends State<_ScannerView> {
       unawaited(cubit.detectProductImage(imagePath: null, imageBytes: bytes));
     } else {
       unawaited(cubit.processProductBarcode(value));
-    }
-  }
-
-  Future<void> _capturarProducto() async {
-    final cubit = context.read<ScannerCubit>();
-    if (cubit.state.status == ScannerStatus.resolving) return;
-
-    try {
-      final picked = await ImagePicker().pickImage(
-        source: ImageSource.camera,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 85,
-      );
-      if (picked == null || !mounted) return;
-      final bytes = await picked.readAsBytes();
-      if (!mounted) return;
-      await cubit.detectProductImage(imagePath: picked.path, imageBytes: bytes);
-    } catch (_) {
-      if (mounted) {
-        showSnackOrAuthDialog(
-          context,
-          'No se pudo capturar el producto. Intenta de nuevo.',
-        );
-      }
     }
   }
 
@@ -313,7 +287,6 @@ class _ScannerViewState extends State<_ScannerView> {
                               resolving: resolving,
                               showResult: showProductResult,
                               onDetect: _onDetectProducto,
-                              onCapturar: _capturarProducto,
                             )
                           else ...[
                             MobileScanner(
@@ -526,7 +499,6 @@ class _ProductScanView extends StatelessWidget {
     required this.resolving,
     required this.showResult,
     required this.onDetect,
-    required this.onCapturar,
   });
 
   final MobileScannerController controller;
@@ -534,7 +506,6 @@ class _ProductScanView extends StatelessWidget {
   final bool resolving;
   final bool showResult;
   final void Function(BarcodeCapture) onDetect;
-  final VoidCallback onCapturar;
 
   @override
   Widget build(BuildContext context) {
@@ -588,7 +559,7 @@ class _ProductScanView extends StatelessWidget {
             controller: controller,
             habilitado: true,
             iconoDisparo: Icons.photo_camera_rounded,
-            onDisparar: onCapturar,
+            onDisparar: null,
           ),
       ],
     );
@@ -831,10 +802,10 @@ class _ProductFocusOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     return LayoutBuilder(
       builder: (context, constraints) {
-        final width = constraints.maxWidth * 0.66;
-        final height = constraints.maxHeight * 0.46;
+        final width = constraints.maxWidth * 0.92;
+        final height = constraints.maxHeight * 0.72;
         final rect = Rect.fromCenter(
-          center: Offset(constraints.maxWidth / 2, constraints.maxHeight * 0.46),
+          center: Offset(constraints.maxWidth / 2, constraints.maxHeight * 0.45),
           width: width,
           height: height,
         );
@@ -988,13 +959,13 @@ class _ControlesEscaner extends StatelessWidget {
   const _ControlesEscaner({
     required this.controller,
     required this.habilitado,
-    required this.onDisparar,
+    this.onDisparar,
     this.iconoDisparo = Icons.qr_code_scanner_rounded,
   });
 
   final MobileScannerController controller;
   final bool habilitado;
-  final VoidCallback onDisparar;
+  final VoidCallback? onDisparar;
   final IconData iconoDisparo;
 
   @override
