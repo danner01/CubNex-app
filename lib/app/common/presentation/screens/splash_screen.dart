@@ -48,11 +48,10 @@ class _SplashScreenState extends State<SplashScreen> {
     final target = switch (session.status) {
       AppSessionStatus.authenticated => _defaultLocationForRole(session.role),
       AppSessionStatus.guest => AppRoutes.home,
-      AppSessionStatus.unauthenticated =>
-        session.onboardingSeen ? AppRoutes.login : AppRoutes.onboarding,
-      AppSessionStatus.loading => AppRoutes.onboarding,
+      AppSessionStatus.unauthenticated => AppRoutes.login,
+      AppSessionStatus.loading => null,
     };
-    if (!mounted) return;
+    if (target == null || !mounted) return;
     context.go(target);
   }
 
