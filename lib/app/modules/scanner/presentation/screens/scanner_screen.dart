@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
@@ -154,6 +155,35 @@ class _ScannerViewState extends State<_ScannerView> {
     } catch (_) {}
   }
 
+  Future<void> _escannerEtiqueta() async {
+    if (_mode != ScannerMode.product) return;
+    if (!_arma) return;
+    try {
+      _arma = false;
+      final picked = await ImagePicker().pickImage(
+        source: ImageSource.camera,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 85,
+      );
+      if (!mounted) return;
+      if (picked == null) {
+        _arma = true;
+        return;
+      }
+      final cubit = context.read<ScannerCubit>();
+      unawaited(cubit.detectProductImage(imagePath: picked.path, imageBytes: null));
+    } catch (_) {
+      _arma = true;
+      if (mounted) {
+        showSnackOrAuthDialog(
+          context,
+          'No se pudo capturar la etiqueta. Intenta de nuevo.',
+        );
+      }
+    }
+  }
+
   void _startFallbackTimer() {
     _fallbackTimer?.cancel();
     _showFallbackButton = false;
@@ -287,6 +317,7 @@ class _ScannerViewState extends State<_ScannerView> {
                               resolving: resolving,
                               showResult: showProductResult,
                               onDetect: _onDetectProducto,
+                              onEscanearEtiqueta: _escannerEtiqueta,
                             )
                           else ...[
                             MobileScanner(
@@ -499,6 +530,7 @@ class _ProductScanView extends StatelessWidget {
     required this.resolving,
     required this.showResult,
     required this.onDetect,
+    required this.onEscanearEtiqueta,
   });
 
   final MobileScannerController controller;
@@ -506,6 +538,7 @@ class _ProductScanView extends StatelessWidget {
   final bool resolving;
   final bool showResult;
   final void Function(BarcodeCapture) onDetect;
+  final Future<void> Function()? onEscanearEtiqueta;
 
   @override
   Widget build(BuildContext context) {
@@ -555,13 +588,41 @@ class _ProductScanView extends StatelessWidget {
             ),
           )
         else
-          _ControlesEscaner(
-            controller: controller,
+          _BotonEscanearEtiqueta(
             habilitado: true,
-            iconoDisparo: Icons.photo_camera_rounded,
-            onDisparar: null,
+            onTap: onEscanearEtiqueta,
           ),
       ],
+    );
+  }
+}
+
+class _BotonEscanearEtiqueta extends StatelessWidget {
+  const _BotonEscanearEtiqueta({
+    required this.habilitado,
+    required this.onTap,
+  });
+
+  final bool habilitado;
+  final Future<void> Function()? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.bottomCenter,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 14),
+        child: SizedBox(
+          width: 60,
+          height: 60,
+          child: _BotonDisparo(
+            onTap: habilitado && onTap != null
+                ? () => unawaited(onTap!())
+                : null,
+            icono: Icons.photo_camera_rounded,
+          ),
+        ),
+      ),
     );
   }
 }
