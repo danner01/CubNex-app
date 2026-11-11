@@ -23,6 +23,7 @@ class _SplashScreenState extends State<SplashScreen> {
   static const _flyerSeconds = 1;
 
   bool _showFlyer = false;
+  bool _navigated = false;
 
   @override
   void initState() {
@@ -35,24 +36,31 @@ class _SplashScreenState extends State<SplashScreen> {
         .timeout(const Duration(seconds: 4), onTimeout: () => null)
         .catchError((_) => null);
     await Future<void>.delayed(const Duration(seconds: _logoSplashSeconds));
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
     setState(() => _showFlyer = true);
     await Future<void>.delayed(const Duration(seconds: _flyerSeconds));
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
     final update = await updateFuture;
-    if (mounted && update != null) {
+    if (!mounted || _navigated) return;
+    if (update != null) {
       await _showUpdateDialog(update);
     }
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
     final session = context.read<AppSessionCubit>().state;
-    final target = switch (session.status) {
+    final target = _targetFor(session);
+    if (target != null && !_navigated) {
+      _navigated = true;
+      if (mounted) context.go(target);
+    }
+  }
+
+  String? _targetFor(AppSessionState session) {
+    return switch (session.status) {
       AppSessionStatus.authenticated => _defaultLocationForRole(session.role),
       AppSessionStatus.guest => AppRoutes.home,
       AppSessionStatus.unauthenticated => AppRoutes.login,
       AppSessionStatus.loading => null,
     };
-    if (target == null || !mounted) return;
-    context.go(target);
   }
 
   Future<ApkUpdateInfo?> _checkForUpdate() {
@@ -60,7 +68,7 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _showUpdateDialog(ApkUpdateInfo update) async {
-    if (!mounted) return;
+    if (!mounted || _navigated) return;
     final proceed = await showDialog<bool>(
       context: context,
       barrierDismissible: false,
@@ -96,19 +104,25 @@ class _SplashScreenState extends State<SplashScreen> {
         );
       },
     );
-    if (proceed != true || !mounted) return;
+    if (!mounted || _navigated || proceed != true) return;
     await showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
       isDismissible: false,
       builder: (_) => UpdateDownloadSheet(update: update),
     );
+    if (!mounted || _navigated) return;
+    final session = context.read<AppSessionCubit>().state;
+    final target = _targetFor(session);
+    if (target != null && !_navigated) {
+      _navigated = true;
+      if (mounted) context.go(target);
+    }
   }
 
   String _defaultLocationForRole(UserRole role) {
     return switch (role) {
-      UserRole.businessAdmin ||
-      UserRole.superadmin => AppRoutes.businessDashboard,
+      UserRole.businessAdmin || UserRole.superadmin => AppRoutes.businessDashboard,
       UserRole.delivery => AppRoutes.deliveryDashboard,
       _ => AppRoutes.home,
     };
@@ -116,10 +130,20 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.black,
-      body: SafeArea(
-        child: _showFlyer ? _buildFlyer() : _buildLogo(),
+    return BlocListener<AppSessionCubit, AppSessionState>(
+      listener: (context, state) {
+        if (_navigated || state.status == AppSessionStatus.loading) return;
+        final target = _targetFor(state);
+        if (target != null) {
+          _navigated = true;
+          context.go(target);
+        }
+      },
+      child: Scaffold(
+        backgroundColor: Colors.black,
+        body: SafeArea(
+          child: _showFlyer ? _buildFlyer() : _buildLogo(),
+        ),
       ),
     );
   }
@@ -182,5 +206,4 @@ class _SplashScreenState extends State<SplashScreen> {
       ),
     );
   }
-
 }

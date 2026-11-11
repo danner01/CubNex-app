@@ -32,7 +32,7 @@ class AppSessionCubit extends Cubit<AppSessionState> {
     final preferences = await SharedPreferences.getInstance();
     final onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? false;
 
-    try {
+    Future<void> _run() async {
       if (!await _apiClient.hasLocalSession()) {
         emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
         return;
@@ -46,14 +46,29 @@ class AppSessionCubit extends Cubit<AppSessionState> {
 
       await _apiClient.clearSession();
       emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
+    }
+
+    try {
+      await _run().timeout(
+        const Duration(seconds: 8),
+        onTimeout: () async {
+          try {
+            await _apiClient.clearSession();
+          } catch (_) {}
+          if (!isClosed) {
+            emit(
+              AppSessionState.unauthenticated(onboardingSeen: onboardingSeen),
+            );
+          }
+        },
+      );
     } catch (_) {
       try {
         await _apiClient.clearSession();
-      } catch (_) {
-        // La pantalla de login sigue siendo el estado seguro aun si el
-        // almacenamiento del dispositivo no responde temporalmente.
+      } catch (_) {}
+      if (!isClosed) {
+        emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
       }
-      emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
     }
   }
 
