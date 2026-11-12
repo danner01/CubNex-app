@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -21,14 +22,33 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   static const _logoSplashSeconds = 1;
   static const _flyerSeconds = 1;
+  static const _safetyTimeoutSeconds = 15;
 
   bool _showFlyer = false;
   bool _navigated = false;
+  Timer? _safetyTimer;
 
   @override
   void initState() {
     super.initState();
     _goToOnboarding();
+    _startSafetyTimer();
+  }
+
+  @override
+  void dispose() {
+    _safetyTimer?.cancel();
+    super.dispose();
+  }
+
+  void _startSafetyTimer() {
+    _safetyTimer?.cancel();
+    _safetyTimer = Timer(const Duration(seconds: _safetyTimeoutSeconds), () {
+      if (mounted && !_navigated) {
+        _navigated = true;
+        context.go(AppRoutes.login);
+      }
+    });
   }
 
   Future<void> _goToOnboarding() async {
@@ -122,22 +142,28 @@ class _SplashScreenState extends State<SplashScreen> {
 
   String _defaultLocationForRole(UserRole role) {
     return switch (role) {
-      UserRole.businessAdmin || UserRole.superadmin => AppRoutes.businessDashboard,
+      UserRole.businessAdmin || UserRole.superadmin =>
+        AppRoutes.businessDashboard,
       UserRole.delivery => AppRoutes.deliveryDashboard,
       _ => AppRoutes.home,
     };
+  }
+
+  void _navigateIfReady(AppSessionState session) {
+    if (_navigated || session.status == AppSessionStatus.loading) return;
+    final target = _targetFor(session);
+    if (target != null) {
+      _navigated = true;
+      _safetyTimer?.cancel();
+      context.go(target);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return BlocListener<AppSessionCubit, AppSessionState>(
       listener: (context, state) {
-        if (_navigated || state.status == AppSessionStatus.loading) return;
-        final target = _targetFor(state);
-        if (target != null) {
-          _navigated = true;
-          context.go(target);
-        }
+        _navigateIfReady(state);
       },
       child: Scaffold(
         backgroundColor: Colors.black,

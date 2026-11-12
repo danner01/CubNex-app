@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../config/http/api_client.dart';
+import '../../../config/http/api_result.dart';
 import '../../../modules/auth/domain/entities/auth_session.dart';
 import '../../../modules/auth/domain/repositories/auth_repository.dart';
 import 'app_session_state.dart';
@@ -27,48 +28,46 @@ class AppSessionCubit extends Cubit<AppSessionState> {
   late final StreamSubscription<void> _sessionExpiredSubscription;
   static const _onboardingSeenKey = 'onboarding.seen';
   static const _sessionSaveTimeout = Duration(seconds: 4);
+  static const _restoreTimeout = Duration(seconds: 8);
 
   Future<void> restoreSession() async {
     final preferences = await SharedPreferences.getInstance();
     final onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? false;
 
-    Future<void> _run() async {
-      if (!await _apiClient.hasLocalSession()) {
-        emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
-        return;
-      }
-
-      final result = await _authRepository.me();
-      if (result.isSuccess && result.data != null) {
-        _emitAuthenticated(result.data!);
-        return;
-      }
-
-      await _apiClient.clearSession();
-      emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
-    }
-
-    try {
-      await _run().timeout(
-        const Duration(seconds: 8),
-        onTimeout: () async {
-          try {
-            await _apiClient.clearSession();
-          } catch (_) {}
-          if (!isClosed) {
-            emit(
-              AppSessionState.unauthenticated(onboardingSeen: onboardingSeen),
-            );
-          }
-        },
-      );
-    } catch (_) {
+    Future<void> emitUnauthenticated() async {
       try {
         await _apiClient.clearSession();
       } catch (_) {}
       if (!isClosed) {
         emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
       }
+    }
+
+    try {
+      final hasSession = await _apiClient
+          .hasLocalSession()
+          .timeout(_restoreTimeout, onTimeout: () => false);
+      if (!hasSession) {
+        await emitUnauthenticated();
+        return;
+      }
+
+      final result = await _authRepository
+          .me()
+          .timeout(
+            _restoreTimeout,
+            onTimeout: () => ApiResult.failure(
+              const ApiFailure(code: 'timeout', message: 'Tiempo de espera agotado'),
+            ),
+          );
+      if (result.isSuccess && result.data != null) {
+        _emitAuthenticated(result.data!);
+        return;
+      }
+
+      await emitUnauthenticated();
+    } catch (_) {
+      await emitUnauthenticated();
     }
   }
 
