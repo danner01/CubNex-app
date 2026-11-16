@@ -269,6 +269,16 @@ bool _isModeHomeMismatch(String location, RoleMode mode) {
                 context.go(AppRoutes.businessInventory);
               },
             ),
+          if (can(EmployeePermissionKeys.verReportes))
+            _QuickAction(
+              icon: Icons.fact_check_rounded,
+              label: 'IPV y cierre',
+              subtitle: 'Ventas e inventario',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(AppRoutes.businessIpv);
+              },
+            ),
           if (can(EmployeePermissionKeys.editarNegocio))
             _QuickAction(
               icon: Icons.storefront_rounded,

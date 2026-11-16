@@ -12,6 +12,7 @@ import '../../modules/address/presentation/screens/sales_map_screen.dart';
 import '../../modules/business/presentation/screens/business_customers_screen.dart';
 import '../../modules/business/presentation/screens/business_dashboard_screen.dart';
 import '../../modules/business/presentation/screens/business_inventory_screen.dart';
+import '../../modules/business/presentation/screens/business_ipv_screen.dart';
 import '../../modules/business/presentation/screens/business_settings_screen.dart';
 import '../../modules/business/presentation/screens/business_store_preview_screen.dart';
 import '../../modules/business/presentation/screens/business_team_screen.dart';
@@ -318,6 +319,10 @@ GoRouter createAppRouter(
           GoRoute(
             path: AppRoutes.businessWizard,
             builder: (_, __) => const BusinessWizardScreen(),
+          ),
+          GoRoute(
+            path: AppRoutes.businessIpv,
+            builder: (_, __) => const BusinessIpvScreen(),
           ),
           GoRoute(
             path: AppRoutes.businessTeam,

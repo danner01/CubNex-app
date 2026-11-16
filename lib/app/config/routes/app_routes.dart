@@ -48,6 +48,7 @@ class AppRoutes {
   static const businessSettings = '/business/settings';
   static const businessWizard = '/business/wizard';
   static const businessTeam = '/business/team';
+  static const businessIpv = '/business/ipv';
   static const deliveryDashboard = '/delivery/dashboard';
   static const deliveryRequests = '/delivery/requests';
   static const deliveryRoute = '/delivery/route';

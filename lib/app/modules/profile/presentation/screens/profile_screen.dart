@@ -232,6 +232,12 @@ List<Widget> _profileTilesForMode(BuildContext context, RoleMode mode) {
         onTap: () => context.go(AppRoutes.businessInventory),
       ),
       _ProfileTile(
+        icon: Icons.fact_check_outlined,
+        title: 'IPV y cierre',
+        subtitle: 'Inventario, ventas por empleado y cierre del negocio.',
+        onTap: () => context.go(AppRoutes.businessIpv),
+      ),
+      _ProfileTile(
         icon: Icons.campaign_outlined,
         title: 'Promociones',
         subtitle: 'Ofertas activas del negocio seleccionado.',
