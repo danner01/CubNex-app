@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math' as math;
 
@@ -7,13 +8,21 @@ import '../../../../config/http/api_client.dart';
 import '../../../business/data/models/product_label_detection.dart';
 import '../../../business/data/services/local_product_ocr_service.dart';
 import 'scanner_state.dart';
+import '../../data/services/local_catalog_service.dart';
 
 class ScannerCubit extends Cubit<ScannerState> {
-  ScannerCubit({required ApiClient apiClient})
-    : _apiClient = apiClient,
-      super(const ScannerState());
+  ScannerCubit({
+    required ApiClient apiClient,
+    LocalCatalogService? catalog,
+  }) : _apiClient = apiClient,
+       _catalog = catalog ?? LocalCatalogService(),
+       super(const ScannerState()) {
+    // Mantiene el catalogo local al dia para poder identificar sin conexion.
+    unawaited(_catalog.syncIfStale(_apiClient));
+  }
 
   final ApiClient _apiClient;
+  final LocalCatalogService _catalog;
   bool _processing = false;
 
   Future<void> processCode(String rawValue, {String? evento}) async {
@@ -242,14 +251,19 @@ class ScannerCubit extends Cubit<ScannerState> {
         message: 'Codigo detectado. Preparando busqueda...',
       ),
     );
-    await _saveScan(code);
+    unawaited(_saveScan(code));
     _processing = false;
+    final detection = ProductLabelDetection(barcode: code);
+    final matches = await _catalog.match(detection);
     emit(
       state.copyWith(
         status: ScannerStatus.success,
-        productDetection: ProductLabelDetection(barcode: code),
-        productQuery: code,
-        message: 'Codigo de barras detectado. Revisa y busca.',
+        productDetection: detection,
+        productQuery: matches.isNotEmpty ? matches.first.entry.name : code,
+        catalogMatches: matches,
+        message: matches.isNotEmpty
+            ? 'Producto encontrado en el catalogo.'
+            : 'Codigo de barras detectado. Revisa y busca.',
       ),
     );
   }
@@ -287,18 +301,26 @@ class ScannerCubit extends Cubit<ScannerState> {
 
     ProductLabelDetection? detection;
     var detectedLocally = false;
+    var matches = const <CatalogMatch>[];
+    const solidScore = 0.6;
 
     try {
       if (imagePath != null && imagePath.trim().isNotEmpty) {
         detection = await const LocalProductOcrService().detectPackage(
           frontImagePath: imagePath,
         );
+        if (detection != null) {
+          matches = await _catalog.match(detection);
+        }
         final solidName = detection?.name?.trim().isNotEmpty == true;
         final solidBrand = detection?.brand?.trim().isNotEmpty == true;
-        detectedLocally = solidName && solidBrand;
+        detectedLocally =
+            (solidName && solidBrand) ||
+            (matches.isNotEmpty && matches.first.score >= solidScore);
       }
 
-      if (!detectedLocally && imageBytes != null) {
+      final solidMatch = matches.isNotEmpty && matches.first.score >= solidScore;
+      if (!solidMatch && imageBytes != null) {
         final base64 = base64Encode(imageBytes);
         final result = await _apiClient.post<ProductLabelDetection>(
           '/vision-ia/detectar-etiqueta',
@@ -312,7 +334,26 @@ class ScannerCubit extends Cubit<ScannerState> {
           timeout: const Duration(seconds: 15),
         );
         if (result.isSuccess) {
-          detection = result.data ?? detection;
+          final ai = result.data;
+          if (ai != null) {
+            final merged = ProductLabelDetection(
+              name: ai.name ?? detection?.name,
+              brand: ai.brand ?? detection?.brand,
+              barcode: ai.barcode ?? detection?.barcode,
+              category: ai.category ?? detection?.category,
+              size: ai.size ?? detection?.size,
+              price: ai.price,
+              currency: ai.currency,
+              description: ai.description,
+              properties: {
+                ...?detection?.properties,
+                ...ai.properties,
+              },
+              confidence: ai.confidence,
+            );
+            detection = merged;
+            matches = await _catalog.match(merged);
+          }
         }
       }
     } finally {
@@ -334,7 +375,7 @@ class ScannerCubit extends Cubit<ScannerState> {
     }
 
     final query = _buildProductQuery(detection);
-    if (query.isEmpty) {
+    if (query.isEmpty && matches.isEmpty) {
       emit(
         state.copyWith(
           status: ScannerStatus.failure,
@@ -352,8 +393,11 @@ class ScannerCubit extends Cubit<ScannerState> {
       state.copyWith(
         status: ScannerStatus.success,
         productDetection: detection,
-        productQuery: query,
-        message: detectedLocally
+        productQuery: query.isNotEmpty ? query : matches.first.entry.name,
+        catalogMatches: matches,
+        message: matches.isNotEmpty
+            ? 'Encontramos coincidencias en el catalogo.'
+            : detectedLocally
             ? 'Producto reconocido localmente.'
             : 'Producto reconocido con IA.',
       ),

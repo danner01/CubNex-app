@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
 import 'package:image_picker/image_picker.dart';
+import '../../data/services/local_catalog_service.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
 import '../../../../common/blocs/role_mode/role_mode_cubit.dart';
@@ -172,7 +173,11 @@ class _ScannerViewState extends State<_ScannerView> {
         return;
       }
       final cubit = context.read<ScannerCubit>();
-      unawaited(cubit.detectProductImage(imagePath: picked.path, imageBytes: null));
+      final bytes = await picked.readAsBytes();
+      if (!mounted) return;
+      unawaited(
+        cubit.detectProductImage(imagePath: picked.path, imageBytes: bytes),
+      );
     } catch (_) {
       _arma = true;
       if (mounted) {
@@ -727,6 +732,22 @@ class _ProductResultViewState extends State<_ProductResultView> {
                 theme: theme,
               ),
             const SizedBox(height: 14),
+            if (widget.state.catalogMatches.isNotEmpty) ...[
+              Text(
+                'Coincidencias en el catalogo',
+                style: theme.textTheme.titleSmall?.copyWith(
+                  fontWeight: FontWeight.w900,
+                ),
+              ),
+              const SizedBox(height: 8),
+              for (final match in widget.state.catalogMatches)
+                _MatchTile(
+                  match: match,
+                  onTap: () =>
+                      context.go(AppRoutes.product(match.entry.id)),
+                ),
+              const SizedBox(height: 6),
+            ],
             TextField(
               controller: _queryController,
               textInputAction: TextInputAction.search,
@@ -818,6 +839,58 @@ class _ProductResultViewState extends State<_ProductResultView> {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _MatchTile extends StatelessWidget {
+  const _MatchTile({required this.match, required this.onTap});
+
+  final CatalogMatch match;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final entry = match.entry;
+    final image = entry.imageUrl;
+    final percent = (match.score * 100).round();
+    final price = entry.price == null
+        ? null
+        : '${entry.price!.toStringAsFixed(2)} ${entry.currency ?? ''}'.trim();
+    return Card(
+      margin: const EdgeInsets.only(bottom: 8),
+      child: ListTile(
+        onTap: onTap,
+        leading: ClipRRect(
+          borderRadius: BorderRadius.circular(8),
+          child: SizedBox(
+            width: 48,
+            height: 48,
+            child: image == null || image.isEmpty
+                ? const Icon(Icons.inventory_2_outlined)
+                : Image.network(
+                    image,
+                    fit: BoxFit.cover,
+                    errorBuilder: (_, __, ___) =>
+                        const Icon(Icons.inventory_2_outlined),
+                  ),
+          ),
+        ),
+        title: Text(entry.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+        subtitle: Text(
+          [
+            if ((entry.brand ?? '').isNotEmpty) entry.brand!,
+            if ((entry.businessName ?? '').isNotEmpty) entry.businessName!,
+            if (price != null) price,
+          ].join(' · '),
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+        trailing: Text(
+          '$percent%',
+          style: const TextStyle(fontWeight: FontWeight.w900),
+        ),
       ),
     );
   }

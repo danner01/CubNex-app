@@ -1,6 +1,7 @@
 import 'package:equatable/equatable.dart';
 
 import '../../../business/data/models/product_label_detection.dart';
+import '../../data/services/local_catalog_service.dart';
 
 enum ScannerStatus { initial, scanning, resolving, success, failure }
 
@@ -22,6 +23,7 @@ class ScannerState extends Equatable {
     this.productDetectedLocally = false,
     this.productQuery,
     this.productImagePath,
+    this.catalogMatches = const [],
   });
 
   final ScannerStatus status;
@@ -43,8 +45,10 @@ class ScannerState extends Equatable {
   final String? productQuery;
   final String? productImagePath;
 
-  ScannerState copyWith({
-    ScannerStatus? status,
+  /// Productos del catalogo local que coinciden con lo escaneado.
+  final List<CatalogMatch> catalogMatches;
+
+  ScannerState copyWith({    ScannerStatus? status,
     String? code,
     String? message,
     bool? orderQrValidated,
@@ -60,6 +64,7 @@ class ScannerState extends Equatable {
     bool? productDetectedLocally,
     String? productQuery,
     String? productImagePath,
+    List<CatalogMatch>? catalogMatches,
     bool clearRawCodeFallback = false,
     bool clearOrderResult = false,
     bool clearProductResult = false,
@@ -92,6 +97,9 @@ class ScannerState extends Equatable {
       productImagePath: clearProductResult
           ? null
           : (productImagePath ?? this.productImagePath),
+      catalogMatches: clearProductResult
+          ? const []
+          : (catalogMatches ?? this.catalogMatches),
     );
   }
 
@@ -113,5 +121,6 @@ class ScannerState extends Equatable {
     productDetectedLocally,
     productQuery,
     productImagePath,
+    catalogMatches,
   ];
 }

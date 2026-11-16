@@ -1,6 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 
 import '../models/product_label_detection.dart';
+import 'web_ocr_bridge_stub.dart'
+    if (dart.library.js_interop) 'web_ocr_bridge_web.dart';
 
 class LocalProductOcrService {
   const LocalProductOcrService();
@@ -83,6 +86,16 @@ class LocalProductOcrService {
   }
 
   Future<_OcrResult?> _recognize(String imagePath) async {
+    if (kIsWeb) {
+      final text = await webRecognizeText(imagePath);
+      if (text == null || text.trim().isEmpty) return null;
+      final lines = text
+          .split('\n')
+          .map((l) => l.trim())
+          .where((l) => l.isNotEmpty)
+          .toList();
+      return _OcrResult(text: text, lines: lines);
+    }
     try {
       final raw = await _channel.invokeMapMethod<String, Object?>(
         'recognizeText',
