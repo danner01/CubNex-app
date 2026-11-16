@@ -9,6 +9,7 @@ import '../../../business/data/models/product_label_detection.dart';
 import '../../../business/data/services/local_product_ocr_service.dart';
 import 'scanner_state.dart';
 import '../../data/services/local_catalog_service.dart';
+import '../../../../common/services/offline_sync_service.dart';
 
 class ScannerCubit extends Cubit<ScannerState> {
   ScannerCubit({
@@ -40,7 +41,7 @@ class ScannerCubit extends Cubit<ScannerState> {
         clearProductResult: true,
       ),
     );
-    await _saveScan(code);
+    unawaited(_saveScan(code));
 
         final walletParts = _extractWalletQr(code);
         if (walletParts != null) {
@@ -139,6 +140,10 @@ class ScannerCubit extends Cubit<ScannerState> {
     );
 
     if (!result.isSuccess) {
+      if (isNetworkFailure(result.error) &&
+          await _validateOrderQrOffline(token, rawCode, evento)) {
+        return;
+      }
       final serverMessage =
           result.error?.message ?? 'No se pudo validar el QR de la orden.';
       final normalized = serverMessage.toLowerCase();
@@ -184,6 +189,89 @@ class ScannerCubit extends Cubit<ScannerState> {
             : '$statusMessage Orden: ${orderId.substring(0, math.min(8, orderId.length))}',
       ),
     );
+  }
+
+  /// Sin conexion: el negocio cambia el estado del pedido en este dispositivo
+  /// (si el pedido esta en su cache) y se envia al servidor al volver la red.
+  Future<bool> _validateOrderQrOffline(
+    String token,
+    String rawCode,
+    String? evento,
+  ) async {
+    final sync = OfflineSyncService.instance;
+    final order = await sync.findOrderByQrToken(token);
+    if (order == null || order['_biz_owner'] != true) return false;
+
+    final orderId = order['id'].toString();
+    final overrides = await sync.overrides();
+    final current = overrides[orderId] ?? (order['estado'] ?? 'nuevo').toString();
+    final isDelivery =
+        order['solicita_delivery'] == true || current.contains('delivery');
+
+    String? next;
+    if (evento != null && evento.trim().isNotEmpty) {
+      const allowed = {
+        'confirmado_negocio',
+        'preparando',
+        'listo_para_recoger',
+        'vendido_en_tienda',
+        'completado',
+        'cancelado',
+      };
+      if (allowed.contains(evento.trim())) next = evento.trim();
+    } else if (!isDelivery &&
+        const {
+          'reservado_recogida',
+          'confirmado_negocio',
+          'preparando',
+          'listo_para_recoger',
+        }.contains(current)) {
+      next = 'completado';
+    } else if (isDelivery &&
+        const {'recibido_cliente', 'entregado_por_delivery'}.contains(current)) {
+      next = 'completado';
+    }
+
+    if (next == null) {
+      emit(
+        state.copyWith(
+          status: ScannerStatus.failure,
+          message:
+              'Sin conexion: este pedido esta en "$current" y no puede cambiar con este QR.',
+          orderQrValidated: false,
+          clearOrderResult: true,
+        ),
+      );
+      return true;
+    }
+
+    await sync.setOverride(orderId, next);
+    await sync.enqueue(
+      PendingOp(
+        id: sync.newId(),
+        kind: 'order_qr',
+        method: 'POST',
+        path: '/ordenes/validar-qr',
+        body: {
+          'token': token,
+          if (evento != null && evento.isNotEmpty) 'evento': evento,
+        },
+        createdAt: DateTime.now(),
+        orderId: orderId,
+      ),
+    );
+    emit(
+      state.copyWith(
+        status: ScannerStatus.success,
+        orderQrValidated: true,
+        orderId: orderId,
+        previousStatus: current,
+        nextStatus: next,
+        message:
+            'Sin conexion: pedido actualizado $current -> $next en este dispositivo. Se sincronizara al volver internet.',
+      ),
+    );
+    return true;
   }
 
   String? _extractOrderQrToken(String code) {

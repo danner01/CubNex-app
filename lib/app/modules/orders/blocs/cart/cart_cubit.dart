@@ -3,6 +3,7 @@ import 'package:hive/hive.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
+import '../../../../common/services/offline_sync_service.dart';
 import '../../../home/data/models/product_model.dart';
 import '../../data/models/cart_delivery_selection_model.dart';
 import '../../data/models/cart_item_model.dart';
@@ -267,12 +268,17 @@ class CartCubit extends Cubit<CartState> {
 
     await clear();
     emit(
-      const CartState(
+      CartState(
         status: CartStatus.success,
-        message: 'Orden enviada al negocio.',
+        message: _queuedOffline
+            ? 'Sin conexion: tu reserva quedo guardada y se enviara al volver internet.'
+            : 'Orden enviada al negocio.',
       ),
     );
+    _queuedOffline = false;
   }
+
+  bool _queuedOffline = false;
 
   Future<void> clear() async {
     await _cartBox.clear();
@@ -298,9 +304,7 @@ class CartCubit extends Cubit<CartState> {
     final total = items.fold<double>(0, (sum, item) => sum + item.subtotal);
     final currency = items.first.product.currency ?? 'CUP';
 
-    return _apiClient.post<bool>(
-      '/ordenes',
-      data: {
+    final body = <String, dynamic>{
         'negocio_id': businessId,
         'tipo': requestDelivery ? 'delivery' : 'recogida',
         'estado': requestDelivery ? 'reservado_delivery' : 'reservado_recogida',
@@ -360,9 +364,32 @@ class CartCubit extends Cubit<CartState> {
               },
             )
             .toList(),
-      },
+      };
+
+    return _apiClient.post<bool>(
+      '/ordenes',
+      data: body,
       parser: (_) => true,
-    );
+    ).then((result) async {
+      if (!isNetworkFailure(result.error)) return result;
+      // Sin conexion: la reserva queda guardada y se envia al volver la red.
+      final sync = OfflineSyncService.instance;
+      final localId = 'local-${sync.newId()}';
+      await sync.addLocalOrder(localId, body);
+      await sync.enqueue(
+        PendingOp(
+          id: sync.newId(),
+          kind: 'order_create',
+          method: 'POST',
+          path: '/ordenes',
+          body: body,
+          createdAt: DateTime.now(),
+          localId: localId,
+        ),
+      );
+      _queuedOffline = true;
+      return const ApiResult<bool>.success(true);
+    });
   }
 
   Future<bool> _submitLegacyPedidos({

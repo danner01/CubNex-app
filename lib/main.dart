@@ -10,6 +10,8 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'app/app.dart';
 import 'app/config/injection/injection.dart';
 import 'app/common/services/push_notification_service.dart';
+import 'app/common/services/offline_sync_service.dart';
+import 'app/config/http/api_client.dart';
 import 'firebase_options.dart';
 
 Future<void>? _firebaseInitialization;
@@ -91,6 +93,7 @@ class _BootstrapAppState extends State<_BootstrapApp> {
         'cart_items',
       ).timeout(const Duration(seconds: 8));
       await configureDependencies().timeout(const Duration(seconds: 12));
+      unawaited(OfflineSyncService.instance.start(sl<ApiClient>()));
 
       if (!mounted) return;
       setState(() {

@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../../../../common/presentation/widgets/pending_sync_banner.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -256,6 +257,7 @@ class _BusinessOrdersViewState extends State<_BusinessOrdersView> {
                     ),
                   ),
                 ),
+                const PendingSyncBanner(),
                 Expanded(
                   child: Builder(
                     builder: (context) {
@@ -1162,7 +1164,7 @@ class _ReservationCountdownChipState extends State<_ReservationCountdownChip> {
         : Colors.green.shade700;
     final label = expired
         ? 'Reserva caducada'
-        : 'Caduca en ${_formatDuration(remaining)} · ${_friendlyRemainingLabel(remaining)}';
+        : 'Caduca en ${_formatDuration(remaining)} Ã‚Â· ${_friendlyRemainingLabel(remaining)}';
 
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),

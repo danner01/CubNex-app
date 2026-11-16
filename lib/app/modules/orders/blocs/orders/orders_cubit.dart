@@ -4,6 +4,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
+import '../../../../common/services/offline_sync_service.dart';
 import '../../../home/data/models/business_model.dart';
 import '../../data/models/order_model.dart';
 import 'orders_state.dart';
@@ -11,7 +12,9 @@ import 'orders_state.dart';
 class OrdersCubit extends Cubit<OrdersState> {
   OrdersCubit({required ApiClient apiClient})
     : _apiClient = apiClient,
-      super(const OrdersState());
+      super(const OrdersState()) {
+    OfflineSyncService.instance.syncTick.addListener(_onSynced);
+  }
 
   final ApiClient _apiClient;
   static const _groupedLoadTimeout = Duration(seconds: 4);
@@ -20,6 +23,18 @@ class OrdersCubit extends Cubit<OrdersState> {
   Set<String> _groupedOrderIds = const <String>{};
   Set<String> _requestOrderIds = const <String>{};
   int _loadSequence = 0;
+  final Map<String, Map<String, dynamic>> _fetchedRaw = {};
+
+  void _onSynced() {
+    if (isClosed) return;
+    unawaited(load(businessId: _businessId));
+  }
+
+  @override
+  Future<void> close() {
+    OfflineSyncService.instance.syncTick.removeListener(_onSynced);
+    return super.close();
+  }
 
   Future<void> load({String? businessId}) async {
     _businessId = businessId;
@@ -68,10 +83,12 @@ class OrdersCubit extends Cubit<OrdersState> {
           final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
           return bDate.compareTo(aDate);
         });
+      final merged = await _withLocalChanges(items);
+      if (isClosed || loadSequence != _loadSequence) return;
       emit(
         state.copyWith(
           status: OrdersStatus.success,
-          items: items,
+          items: merged,
           errorMessage: groupedResult.isSuccess || legacyResult.isSuccess
               ? null
               : 'No se pudieron actualizar todos los pedidos.',
@@ -79,6 +96,8 @@ class OrdersCubit extends Cubit<OrdersState> {
       );
       return;
     }
+
+    if (await _emitFromCache(businessId: businessId)) return;
 
     emit(
       state.copyWith(
@@ -108,9 +127,19 @@ class OrdersCubit extends Cubit<OrdersState> {
             ...?extraQuery,
           },
           parser: (json) {
-            return _asList(
-              json,
-            ).map((item) => OrderModel.fromJson(item)).toList();
+            final raw = _asList(json);
+            for (final item in raw) {
+              final id = item['id']?.toString();
+              if (id != null) _fetchedRaw[id] = item;
+            }
+            unawaited(
+              OfflineSyncService.instance.saveOrders(
+                raw,
+                source: path == '/ordenes' ? 'ordenes' : 'pedidos',
+                ownedByBusiness: businessId != null,
+              ),
+            );
+            return raw.map((item) => OrderModel.fromJson(item)).toList();
           },
         )
         .timeout(
@@ -122,6 +151,56 @@ class OrdersCubit extends Cubit<OrdersState> {
             ),
           ),
         );
+  }
+
+  /// Aplica cambios hechos sin conexion y agrega reservas aun no enviadas.
+  Future<List<OrderModel>> _withLocalChanges(List<OrderModel> items) async {
+    final sync = OfflineSyncService.instance;
+    final overrides = await sync.overrides();
+    final result = items.map((order) {
+      final override = overrides[order.id];
+      final raw = _fetchedRaw[order.id];
+      if (override == null || raw == null) return order;
+      return OrderModel.fromJson({...raw, 'estado': override});
+    }).toList();
+    final local = await sync.localPendingOrders();
+    if (local.isEmpty) return result;
+    final known = result.map((o) => o.id).toSet();
+    return [
+      ...local
+          .where((o) => !known.contains(o['id']))
+          .map(OrderModel.fromJson),
+      ...result,
+    ];
+  }
+
+  /// Sin conexion: muestra los pedidos guardados en el dispositivo con los
+  /// cambios locales aplicados.
+  Future<bool> _emitFromCache({String? businessId, String? notice}) async {
+    final sync = OfflineSyncService.instance;
+    var raw = await sync.cachedOrders(businessId: businessId);
+    raw = await sync.applyOverrides(raw);
+    if (raw.isEmpty) return false;
+    _groupedOrderIds = raw
+        .where((o) => o['_src'] == 'ordenes')
+        .map((o) => o['id'].toString())
+        .toSet();
+    final items = raw.map(OrderModel.fromJson).toList()
+      ..sort((a, b) {
+        final aDate = a.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        final bDate = b.createdAt ?? DateTime.fromMillisecondsSinceEpoch(0);
+        return bDate.compareTo(aDate);
+      });
+    if (isClosed) return true;
+    emit(
+      state.copyWith(
+        status: OrdersStatus.success,
+        items: items,
+        errorMessage:
+            notice ?? 'Sin conexion: mostrando pedidos guardados en este dispositivo.',
+      ),
+    );
+    return true;
   }
 
   Future<void> loadBusinessOrders() async {
@@ -210,6 +289,28 @@ class OrdersCubit extends Cubit<OrdersState> {
     );
 
     if (!result.isSuccess) {
+      if (isNetworkFailure(result.error)) {
+        final sync = OfflineSyncService.instance;
+        await sync.setOverride(orderId, status);
+        await sync.enqueue(
+          PendingOp(
+            id: sync.newId(),
+            kind: 'order_status',
+            method: 'PUT',
+            path: path,
+            body: payload,
+            createdAt: DateTime.now(),
+            orderId: orderId,
+          ),
+        );
+        if (await _emitFromCache(
+          businessId: _businessId,
+          notice:
+              'Sin conexion: cambio guardado y se sincronizara al volver internet.',
+        )) {
+          return;
+        }
+      }
       emit(
         state.copyWith(
           status: OrdersStatus.failure,
