@@ -11,6 +11,7 @@ import '../../entities/employee_permissions.dart';
 import 'auth_required_dialog.dart';
 import 'finanzas_ticker_bar.dart';
 import 'market_app_bar.dart';
+import 'proximity_alert_host.dart';
 
 const _clientAllowlistBusinessRoutes = <String>{
   AppRoutes.businessWizard,
@@ -45,7 +46,7 @@ class HomeShell extends StatelessWidget {
       body: Column(
         children: [
           const FinanceTickerBar(),
-          Expanded(child: child),
+          Expanded(child: ProximityAlertHost(child: child)),
         ],
       ),
       bottomNavigationBar: roleMode == RoleMode.business
