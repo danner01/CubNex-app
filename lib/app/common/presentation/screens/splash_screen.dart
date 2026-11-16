@@ -22,7 +22,7 @@ class SplashScreen extends StatefulWidget {
 class _SplashScreenState extends State<SplashScreen> {
   static const _logoSplashSeconds = 1;
   static const _flyerSeconds = 1;
-  static const _safetyTimeoutSeconds = 15;
+  static const _safetyTimeoutSeconds = 8;
 
   bool _showFlyer = false;
   bool _navigated = false;
@@ -46,6 +46,9 @@ class _SplashScreenState extends State<SplashScreen> {
     _safetyTimer = Timer(const Duration(seconds: _safetyTimeoutSeconds), () {
       if (mounted && !_navigated) {
         _navigated = true;
+        Navigator.of(context, rootNavigator: true).popUntil(
+          (route) => route is! PopupRoute,
+        );
         context.go(AppRoutes.login);
       }
     });
@@ -66,12 +69,22 @@ class _SplashScreenState extends State<SplashScreen> {
       await _showUpdateDialog(update);
     }
     if (!mounted || _navigated) return;
+    _finishNavigation();
+  }
+
+  void _finishNavigation() {
+    if (!mounted || _navigated) return;
     final session = context.read<AppSessionCubit>().state;
+    // Si la sesion sigue cargando, el listener o el safety timer navegan luego.
     final target = _targetFor(session);
-    if (target != null && !_navigated) {
-      _navigated = true;
-      if (mounted) context.go(target);
-    }
+    if (target == null) return;
+    _navigated = true;
+    _safetyTimer?.cancel();
+    // Cierra dialogos/sheets abiertos que taparian la nueva ruta.
+    Navigator.of(context, rootNavigator: true).popUntil(
+      (route) => route is! PopupRoute,
+    );
+    context.go(target);
   }
 
   String? _targetFor(AppSessionState session) {
@@ -132,12 +145,7 @@ class _SplashScreenState extends State<SplashScreen> {
       builder: (_) => UpdateDownloadSheet(update: update),
     );
     if (!mounted || _navigated) return;
-    final session = context.read<AppSessionCubit>().state;
-    final target = _targetFor(session);
-    if (target != null && !_navigated) {
-      _navigated = true;
-      if (mounted) context.go(target);
-    }
+    _finishNavigation();
   }
 
   String _defaultLocationForRole(UserRole role) {
@@ -151,12 +159,7 @@ class _SplashScreenState extends State<SplashScreen> {
 
   void _navigateIfReady(AppSessionState session) {
     if (_navigated || session.status == AppSessionStatus.loading) return;
-    final target = _targetFor(session);
-    if (target != null) {
-      _navigated = true;
-      _safetyTimer?.cancel();
-      context.go(target);
-    }
+    _finishNavigation();
   }
 
   @override

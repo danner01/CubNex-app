@@ -31,12 +31,16 @@ class AppSessionCubit extends Cubit<AppSessionState> {
   static const _restoreTimeout = Duration(seconds: 8);
 
   Future<void> restoreSession() async {
-    final preferences = await SharedPreferences.getInstance();
-    final onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? false;
+    var onboardingSeen = false;
+    try {
+      final preferences = await SharedPreferences.getInstance()
+          .timeout(_restoreTimeout);
+      onboardingSeen = preferences.getBool(_onboardingSeenKey) ?? false;
+    } catch (_) {}
 
     Future<void> emitUnauthenticated() async {
       try {
-        await _apiClient.clearSession();
+        await _apiClient.clearSession().timeout(_sessionSaveTimeout);
       } catch (_) {}
       if (!isClosed) {
         emit(AppSessionState.unauthenticated(onboardingSeen: onboardingSeen));
