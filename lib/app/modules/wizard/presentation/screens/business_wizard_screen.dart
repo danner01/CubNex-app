@@ -347,6 +347,37 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
     return _municipalitiesForSelectedProvince.contains(value) ? value : null;
   }
 
+  Future<void> _showSignupPromo(BuildContext context) async {
+    try {
+      final res = await sl<ApiClient>().get<Map<String, dynamic>>(
+        '/gamificacion/promo-registro-negocio',
+        parser: (j) => Map<String, dynamic>.from(j as Map),
+      );
+      final data = res.data;
+      if (data == null ||
+          data['activo'] != true ||
+          data['otorgada'] != true ||
+          !context.mounted) {
+        return;
+      }
+      final seeds = data['semillas_otorgadas'] ?? data['semillas'];
+      await showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          icon: const Icon(Icons.card_giftcard_rounded, size: 36),
+          title: Text('${data['titulo']}'),
+          content: Text('${data['mensaje']}\n\nSemillas recibidas: $seeds'),
+          actions: [
+            FilledButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: const Text('Empezar'),
+            ),
+          ],
+        ),
+      );
+    } catch (_) {}
+  }
+
   @override
   Widget build(BuildContext context) {
     return BlocConsumer<BusinessWizardCubit, BusinessWizardState>(
@@ -356,6 +387,8 @@ class _BusinessWizardViewState extends State<_BusinessWizardView> {
         }
         if (state.status == BusinessWizardStatus.success) {
           await context.read<RoleModeCubit>().setMode(RoleMode.business);
+          if (!context.mounted) return;
+          await _showSignupPromo(context);
           if (!context.mounted) return;
           context.go(AppRoutes.businessInventory);
         }
