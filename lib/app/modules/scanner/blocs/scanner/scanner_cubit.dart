@@ -361,6 +361,35 @@ class ScannerCubit extends Cubit<ScannerState> {
     emit(const ScannerState());
   }
 
+  /// Prueba silenciosa de un fotograma de la camara en vivo: solo OCR local.
+  /// Devuelve true (y completa el reconocimiento) si ve una etiqueta solida;
+  /// si no, no cambia el estado para seguir escaneando.
+  Future<bool> probeProductFrame({
+    required String imagePath,
+    List<int>? imageBytes,
+  }) async {
+    if (_processing) return false;
+    try {
+      final detection = await const LocalProductOcrService().detectPackage(
+        frontImagePath: imagePath,
+      );
+      if (detection == null) return false;
+      final hasName = detection.name?.trim().isNotEmpty == true;
+      final hasBrand = detection.brand?.trim().isNotEmpty == true;
+      final hasBarcode = detection.barcode?.trim().isNotEmpty == true;
+      var solid = (hasName && hasBrand) || hasBarcode;
+      if (!solid && hasName) {
+        final matches = await _catalog.match(detection);
+        solid = matches.isNotEmpty && matches.first.score >= 0.6;
+      }
+      if (!solid) return false;
+    } catch (_) {
+      return false;
+    }
+    await detectProductImage(imagePath: imagePath, imageBytes: imageBytes);
+    return true;
+  }
+
   /// Escanea un producto capturado con la camara:
   /// reconoce tipo/marca/categoria (OCR local + IA del backend)
   /// y prepara la consulta para buscar en la base de datos.

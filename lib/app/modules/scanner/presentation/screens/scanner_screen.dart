@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:go_router/go_router.dart';
@@ -66,7 +67,8 @@ class _ScannerViewState extends State<_ScannerView> {
   );
   late ScannerMode _mode;
   bool _arma = true;
-  bool _capturaPendiente = false;
+  final GlobalKey<_LiveProductCameraState> _cameraKey = GlobalKey();
+  int _framesSinResultado = 0;
   String? _ultimoCodigo;
   DateTime? _ultimoProcesado;
   bool _productResultNotified = false;
@@ -98,53 +100,14 @@ class _ScannerViewState extends State<_ScannerView> {
     context.read<ScannerCubit>().processCode(value, evento: widget.evento);
   }
 
-  /// En modo producto escanea directo desde la camara en vivo, como en QR:
-  /// si detecta un codigo en la etiqueta usa el fotograma capturado para
-  /// reconocer el producto sin abrir la camara del sistema. Si no hay
-  /// fotograma (web), deja el codigo listo para buscar.
-  void _onDetectProducto(BarcodeCapture capture) {
-    if (_mode != ScannerMode.product) return;
-    if (!_arma) return;
-    if (_capturaPendiente && capture.image != null && capture.image!.isNotEmpty) {
-      _capturaPendiente = false;
-      _arma = false;
-      unawaited(
-        context.read<ScannerCubit>().detectProductImage(
-          imagePath: null,
-          imageBytes: capture.image,
-        ),
-      );
-      return;
-    }
-    final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
-    final value = barcode?.rawValue;
-    if (value == null) return;
-
-    final ahora = DateTime.now();
-    if (_ultimoCodigo == value &&
-        _ultimoProcesado != null &&
-        ahora.difference(_ultimoProcesado!) < const Duration(seconds: 4)) {
-      return;
-    }
-
-    _ultimoCodigo = value;
-    _ultimoProcesado = ahora;
-    _arma = false;
-    final cubit = context.read<ScannerCubit>();
-    if (cubit.state.status == ScannerStatus.resolving) {
-      _arma = true;
-      return;
-    }
-    final bytes = capture.image;
-    if (bytes != null && bytes.isNotEmpty) {
-      unawaited(cubit.detectProductImage(imagePath: null, imageBytes: bytes));
-    } else {
-      unawaited(cubit.processProductBarcode(value));
-    }
-  }
-
   void _cambiarModo(ScannerMode mode) {
     if (mode == _mode) return;
+    if (mode == ScannerMode.product) {
+      unawaited(_controller.stop().catchError((_) {}));
+    } else {
+      _framesSinResultado = 0;
+      unawaited(_controller.start().catchError((_) {}));
+    }
     setState(() {
       _mode = mode;
       _arma = true;
@@ -168,16 +131,40 @@ class _ScannerViewState extends State<_ScannerView> {
     } catch (_) {}
   }
 
-  /// Captura el fotograma de la camara en vivo (sin abrir la camara del
-  /// sistema); si no llega ningun fotograma, usa la camara del sistema.
+  /// Escaneo continuo: la camara en vivo envia fotogramas cada ~2 s y se
+  /// reconoce la etiqueta localmente sin que el usuario toque nada. Si tras
+  /// varios intentos no hay resultado, se consulta a la IA del backend.
+  Future<void> _onFrame(XFile file, bool manual) async {
+    if (_mode != ScannerMode.product || !mounted) return;
+    final cubit = context.read<ScannerCubit>();
+    if (cubit.state.status == ScannerStatus.resolving) return;
+    final bytes = await file.readAsBytes();
+    if (!mounted) return;
+    if (manual) {
+      _framesSinResultado = 0;
+      await cubit.detectProductImage(imagePath: file.path, imageBytes: bytes);
+      return;
+    }
+    final ok = await cubit.probeProductFrame(
+      imagePath: file.path,
+      imageBytes: bytes,
+    );
+    if (ok || !mounted) {
+      _framesSinResultado = 0;
+      return;
+    }
+    if (++_framesSinResultado >= 3) {
+      _framesSinResultado = 0;
+      await cubit.detectProductImage(imagePath: file.path, imageBytes: bytes);
+    }
+  }
+
+  /// Boton de camara: fuerza el reconocimiento inmediato del cuadro actual;
+  /// si la camara en vivo no esta disponible usa la camara del sistema.
   Future<void> _escannerEtiqueta() async {
     if (_mode != ScannerMode.product) return;
-    if (!_arma) return;
-    _capturaPendiente = true;
-    await Future<void>.delayed(const Duration(milliseconds: 1500));
-    if (!mounted || !_capturaPendiente) return;
-    _capturaPendiente = false;
-    await _capturarConCamaraSistema();
+    final ok = await _cameraKey.currentState?.captureNow() ?? false;
+    if (!ok && mounted) await _capturarConCamaraSistema();
   }
 
   Future<void> _capturarConCamaraSistema() async {
@@ -340,11 +327,11 @@ class _ScannerViewState extends State<_ScannerView> {
                         children: [
                           if (productMode)
                             _ProductScanView(
-                              controller: _controller,
                               state: state,
                               resolving: resolving,
                               showResult: showProductResult,
-                              onDetect: _onDetectProducto,
+                              cameraKey: _cameraKey,
+                              onFrame: _onFrame,
                               onEscanearEtiqueta: _escannerEtiqueta,
                             )
                           else ...[
@@ -553,19 +540,19 @@ class _ModoBoton extends StatelessWidget {
 
 class _ProductScanView extends StatelessWidget {
   const _ProductScanView({
-    required this.controller,
+    required this.cameraKey,
     required this.state,
     required this.resolving,
     required this.showResult,
-    required this.onDetect,
+    required this.onFrame,
     required this.onEscanearEtiqueta,
   });
 
-  final MobileScannerController controller;
+  final GlobalKey<_LiveProductCameraState> cameraKey;
   final ScannerState state;
   final bool resolving;
   final bool showResult;
-  final void Function(BarcodeCapture) onDetect;
+  final Future<void> Function(XFile, bool) onFrame;
   final Future<void> Function()? onEscanearEtiqueta;
 
   @override
@@ -581,7 +568,11 @@ class _ProductScanView extends StatelessWidget {
     return Stack(
       fit: StackFit.expand,
       children: [
-        MobileScanner(controller: controller, onDetect: onDetect),
+        _LiveProductCamera(
+          key: cameraKey,
+          active: !resolving,
+          onFrame: onFrame,
+        ),
         if (capturedPath != null && resolving) ...[
           ColoredBox(
             color: Colors.black,
@@ -600,7 +591,7 @@ class _ProductScanView extends StatelessWidget {
             child: Padding(
               padding: EdgeInsets.only(top: 12),
               child: Text(
-                'Apunta a la etiqueta o toca la camara',
+                'Apunta a la etiqueta: se escanea sola',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 12,
@@ -636,6 +627,146 @@ class _ProductScanView extends StatelessWidget {
             onTap: onEscanearEtiqueta,
           ),
       ],
+    );
+  }
+}
+
+class _LiveProductCamera extends StatefulWidget {
+  const _LiveProductCamera({
+    super.key,
+    required this.active,
+    required this.onFrame,
+  });
+
+  final bool active;
+  final Future<void> Function(XFile, bool) onFrame;
+
+  @override
+  State<_LiveProductCamera> createState() => _LiveProductCameraState();
+}
+
+class _LiveProductCameraState extends State<_LiveProductCamera>
+    with WidgetsBindingObserver {
+  CameraController? _camera;
+  Timer? _timer;
+  bool _busy = false;
+  bool _failed = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(_init());
+  }
+
+  Future<void> _init() async {
+    try {
+      final cameras = await availableCameras();
+      if (cameras.isEmpty) throw StateError('sin camara');
+      final back = cameras.firstWhere(
+        (c) => c.lensDirection == CameraLensDirection.back,
+        orElse: () => cameras.first,
+      );
+      final controller = CameraController(
+        back,
+        ResolutionPreset.high,
+        enableAudio: false,
+        imageFormatGroup: ImageFormatGroup.jpeg,
+      );
+      await controller.initialize();
+      try {
+        await controller.setFlashMode(FlashMode.off);
+      } catch (_) {}
+      if (!mounted) {
+        await controller.dispose();
+        return;
+      }
+      setState(() => _camera = controller);
+      _timer = Timer.periodic(
+        const Duration(milliseconds: 2200),
+        (_) => unawaited(_tick(false)),
+      );
+    } catch (_) {
+      if (mounted) setState(() => _failed = true);
+    }
+  }
+
+  Future<bool> _tick(bool manual) async {
+    final camera = _camera;
+    if (camera == null || !mounted || !camera.value.isInitialized) {
+      return false;
+    }
+    if (_busy || (!manual && !widget.active)) return manual ? false : true;
+    _busy = true;
+    try {
+      final file = await camera.takePicture();
+      await widget.onFrame(file, manual);
+      return true;
+    } catch (_) {
+      return false;
+    } finally {
+      _busy = false;
+    }
+  }
+
+  Future<bool> captureNow() => _tick(true);
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    final camera = _camera;
+    if (camera == null || !camera.value.isInitialized) return;
+    if (state == AppLifecycleState.inactive) {
+      _timer?.cancel();
+      _camera = null;
+      unawaited(camera.dispose());
+      if (mounted) setState(() {});
+    } else if (state == AppLifecycleState.resumed) {
+      unawaited(_init());
+    }
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _timer?.cancel();
+    unawaited(_camera?.dispose());
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final camera = _camera;
+    if (_failed) {
+      return const ColoredBox(
+        color: Colors.black,
+        child: Center(
+          child: Text(
+            'No se pudo abrir la camara.\nUsa el boton para tomar la foto.',
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.white70, fontSize: 13),
+          ),
+        ),
+      );
+    }
+    if (camera == null || !camera.value.isInitialized) {
+      return const ColoredBox(
+        color: Colors.black,
+        child: Center(child: CircularProgressIndicator()),
+      );
+    }
+    final size = camera.value.previewSize;
+    return ColoredBox(
+      color: Colors.black,
+      child: SizedBox.expand(
+        child: FittedBox(
+          fit: BoxFit.cover,
+          child: SizedBox(
+            width: size?.height ?? 1,
+            height: size?.width ?? 1,
+            child: CameraPreview(camera),
+          ),
+        ),
+      ),
     );
   }
 }
