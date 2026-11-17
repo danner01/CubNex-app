@@ -310,6 +310,16 @@ bool _isModeHomeMismatch(String location, RoleMode mode) {
                 context.go(AppRoutes.businessPromotions);
               },
             ),
+          if (can(EmployeePermissionKeys.gestionarPublicaciones))
+            _QuickAction(
+              icon: Icons.article_rounded,
+              label: 'Mis publicaciones',
+              subtitle: 'Ver y gestionar lo que publicaste',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(AppRoutes.businessPosts);
+              },
+            ),
           if (can(EmployeePermissionKeys.gestionarRed))
             _QuickAction(
               icon: Icons.hub_rounded,
