@@ -35,6 +35,8 @@ class AppRoutes {
   static const businessProperties = '/business/properties';
   static const businessTransport = '/business/transport';
   static const businessMenus = '/business/menus';
+  static const carta = '/carta/:slug';
+  static String cartaPublic(String slug) => '/carta/$slug';
   static const businessOrders = '/business/orders';
   static const businessMyOrders = '/business/my-orders';
   static const productDetail = '/product/:id';

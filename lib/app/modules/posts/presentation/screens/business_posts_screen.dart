@@ -11,6 +11,7 @@ import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../business/presentation/widgets/business_switcher.dart';
 import '../../../home/data/models/product_model.dart';
+import '../../../menus/presentation/screens/carta_screen.dart' show cartaPublicUrl;
 import '../../blocs/posts/posts_cubit.dart';
 import '../../blocs/posts/posts_state.dart';
 import '../../data/models/business_post_model.dart';
@@ -349,6 +350,9 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
   late final TextEditingController _tags;
   late final TextEditingController _link;
   late final TextEditingController _cta;
+  late final TextEditingController _price;
+  String _currency = 'CUP';
+  String? _cartaUrl;
   late List<String> _mediaUrls;
   ProductModel? _linkedProduct;
   List<ProductModel> _inventoryProducts = const [];
@@ -365,6 +369,9 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags = TextEditingController(text: post?.tags.join(', '));
     _link = TextEditingController(text: post?.linkUrl);
     _cta = TextEditingController(text: post?.ctaText);
+    _price = TextEditingController(
+      text: post?.precio == null ? '' : post!.precio!.toStringAsFixed(2),
+    );
     _mediaUrls = [...?post?.mediaUrls];
     _linkedProduct = widget.initialProduct;
     if (widget.initialProduct != null) _applyProduct(widget.initialProduct!);
@@ -379,6 +386,7 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     _tags.dispose();
     _link.dispose();
     _cta.dispose();
+    _price.dispose();
     super.dispose();
   }
 
@@ -412,6 +420,62 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
               },
             ),
             const SizedBox(height: 12),
+            if (_linkedProduct != null) ...[
+              Row(
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: _price,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      decoration: const InputDecoration(
+                        labelText: 'Precio (obligatorio)',
+                      ),
+                      validator: (value) {
+                        final parsed = double.tryParse(
+                          (value ?? '').trim().replaceAll(',', '.'),
+                        );
+                        return parsed == null || parsed <= 0
+                            ? 'Indica el precio del producto o servicio.'
+                            : null;
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 104,
+                    child: DropdownButtonFormField<String>(
+                      initialValue: _currency,
+                      decoration: const InputDecoration(labelText: 'Moneda'),
+                      items: const [
+                        DropdownMenuItem(value: 'CUP', child: Text('CUP')),
+                        DropdownMenuItem(value: 'USD', child: Text('USD')),
+                        DropdownMenuItem(value: 'MLC', child: Text('MLC')),
+                      ],
+                      onChanged: (value) =>
+                          setState(() => _currency = value ?? 'CUP'),
+                    ),
+                  ),
+                ],
+              ),
+              if (_cartaUrl != null)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Row(
+                    children: [
+                      const Icon(Icons.restaurant_menu_rounded, size: 18),
+                      const SizedBox(width: 6),
+                      const Expanded(
+                        child: Text(
+                          'Este producto esta en tu carta: la publicacion enlazara a ella.',
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const SizedBox(height: 12),
+            ],
             TextFormField(
               controller: _title,
               decoration: const InputDecoration(labelText: 'Título opcional'),
@@ -573,7 +637,21 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
 
   Future<void> _save(bool draft) async {
     if (!_formKey.currentState!.validate()) return;
+    if (widget.businessId.isEmpty) {
+      showSnackOrAuthDialog(context, 'Selecciona un negocio para publicar.');
+      return;
+    }
     setState(() => _saving = true);
+    final linked = _linkedProduct != null;
+    final precio = linked
+        ? double.tryParse(_price.text.trim().replaceAll(',', '.'))
+        : null;
+    var link = _link.text;
+    var cta = _cta.text;
+    if (_cartaUrl != null && link.trim().isEmpty) {
+      link = _cartaUrl!;
+      if (cta.trim().isEmpty) cta = 'Ver en la carta';
+    }
     final tags = _tags.text
         .split(',')
         .map((tag) => tag.trim().replaceFirst(RegExp(r'^#'), ''))
@@ -590,9 +668,10 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
       mediaType: 'imagen',
       tags: tags,
       productId: _linkedProduct?.id,
-      precio: null,
-      linkUrl: _link.text,
-      ctaText: _cta.text,
+      precio: precio,
+      moneda: linked ? _currency : null,
+      linkUrl: link,
+      ctaText: cta,
       scheduledAt: _scheduledAt,
       saveAsDraft: draft,
     );
@@ -619,8 +698,53 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     setState(() => _inventoryProducts = result.data ?? const []);
   }
 
+  Future<void> _lookupCarta(ProductModel product) async {
+    _cartaUrl = null;
+    final api = sl<ApiClient>();
+    final menus = await api.get<List<Map<String, dynamic>>>(
+      '/menus/${widget.businessId}',
+      queryParameters: const {'limit': '20'},
+      parser: (json) => json is List
+          ? json
+                .whereType<Map>()
+                .map((e) => Map<String, dynamic>.from(e))
+                .toList()
+          : const [],
+    );
+    for (final menu in menus.data ?? const <Map<String, dynamic>>[]) {
+      final slug = menu['slug_publico']?.toString();
+      if (slug == null || slug.isEmpty || menu['activo'] == false) continue;
+      final items = await api.get<List<Map<String, dynamic>>>(
+        '/menus/${menu['id']}/items',
+        queryParameters: const {'limit': '200'},
+        parser: (json) => json is List
+            ? json
+                  .whereType<Map>()
+                  .map((e) => Map<String, dynamic>.from(e))
+                  .toList()
+            : const [],
+      );
+      final name = product.name.trim().toLowerCase();
+      final found = (items.data ?? const <Map<String, dynamic>>[]).any(
+        (item) =>
+            item['producto_id']?.toString() == product.id ||
+            item['nombre']?.toString().trim().toLowerCase() == name,
+      );
+      if (found) {
+        if (mounted) setState(() => _cartaUrl = cartaPublicUrl(slug));
+        return;
+      }
+    }
+    if (mounted) setState(() {});
+  }
+
   void _applyProduct(ProductModel product) {
     _linkedProduct = product;
+    final base = product.offerPrice ?? product.price;
+    if (base != null && base > 0) _price.text = base.toStringAsFixed(2);
+    final cur = product.currency?.toUpperCase();
+    if (cur == 'CUP' || cur == 'USD' || cur == 'MLC') _currency = cur!;
+    _lookupCarta(product);
     _title.text = product.name;
     _content.text = product.description?.trim().isNotEmpty == true
         ? product.description!

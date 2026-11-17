@@ -12,28 +12,35 @@ class MenusCubit extends Cubit<MenusState> {
 
   final ApiClient _apiClient;
 
-  Future<void> loadMine() async {
+  String? _preferredBusinessId;
+
+  Future<void> loadMine({String? preferredBusinessId}) async {
+    _preferredBusinessId = preferredBusinessId ?? _preferredBusinessId;
     emit(state.copyWith(status: MenusStatus.loading));
-    final businessResult = await _apiClient.get<BusinessModel?>(
-      '/negocios/mi-negocio',
-      parser: (json) {
-        if (json is List && json.isNotEmpty) {
-          return BusinessModel.fromJson(
-            Map<String, dynamic>.from(json.first as Map),
-          );
-        }
-        return null;
-      },
-    );
-    final businessId = businessResult.data?.id;
-    if (!businessResult.isSuccess || businessId == null) {
-      emit(
-        state.copyWith(
-          status: MenusStatus.failure,
-          message: businessResult.error?.message ?? 'No tienes negocio creado.',
-        ),
+    String? businessId = _preferredBusinessId;
+    if (businessId == null || businessId.isEmpty) {
+      final businessResult = await _apiClient.get<BusinessModel?>(
+        '/negocios/mi-negocio',
+        parser: (json) {
+          if (json is List && json.isNotEmpty) {
+            return BusinessModel.fromJson(
+              Map<String, dynamic>.from(json.first as Map),
+            );
+          }
+          return null;
+        },
       );
-      return;
+      businessId = businessResult.data?.id;
+      if (!businessResult.isSuccess || businessId == null) {
+        emit(
+          state.copyWith(
+            status: MenusStatus.failure,
+            message:
+                businessResult.error?.message ?? 'No tienes negocio creado.',
+          ),
+        );
+        return;
+      }
     }
 
     final menusResult = await _apiClient.get<List<MenuModel>>(
@@ -53,7 +60,26 @@ class MenusCubit extends Cubit<MenusState> {
       return;
     }
 
-    final menus = menusResult.data ?? const [];
+    var menus = menusResult.data ?? const <MenuModel>[];
+    var generated = false;
+    for (final menu in menus) {
+      if (menu.publicUrl == null || menu.publicUrl!.isEmpty) {
+        final r = await _apiClient.post<void>(
+          '/menus/${menu.id}/generar-qr',
+          data: const {},
+          parser: (_) {},
+        );
+        generated = generated || r.isSuccess;
+      }
+    }
+    if (generated) {
+      final refreshed = await _apiClient.get<List<MenuModel>>(
+        '/menus/$businessId',
+        queryParameters: {'limit': 50, 'order': 'created_at.desc'},
+        parser: _parseMenus,
+      );
+      if (refreshed.isSuccess) menus = refreshed.data ?? menus;
+    }
     final items = <String, List<MenuItemModel>>{};
     for (final menu in menus) {
       final result = await _apiClient.get<List<MenuItemModel>>(
@@ -109,6 +135,7 @@ class MenusCubit extends Cubit<MenusState> {
     String? category,
     String? description,
     String currency = 'CUP',
+    String? productId,
   }) async {
     emit(state.copyWith(status: MenusStatus.saving));
     final result = await _apiClient.post<void>(
@@ -120,6 +147,7 @@ class MenusCubit extends Cubit<MenusState> {
         'descripcion': description,
         'moneda': currency,
         'disponible': true,
+        if (productId != null) 'producto_id': productId,
       },
       parser: (_) {},
     );

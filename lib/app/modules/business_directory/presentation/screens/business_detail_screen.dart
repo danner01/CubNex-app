@@ -244,6 +244,10 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                         ),
                       ],
                     ),
+                    if (business.isFoodBusiness || business.isServiceLike) ...[
+                      const SizedBox(height: 10),
+                      _CartaButton(businessId: business.id),
+                    ],
                     if (canConnectAsBusiness) ...[
                       const SizedBox(height: 10),
                       SizedBox(
@@ -546,6 +550,50 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
       return true;
     }
     return false;
+  }
+}
+
+class _CartaButton extends StatelessWidget {
+  const _CartaButton({required this.businessId});
+
+  final String businessId;
+
+  Future<String?> _slug() async {
+    final result = await sl<ApiClient>().get<String?>(
+      '/menus/$businessId',
+      queryParameters: {'limit': 10, 'activo': 'eq.true'},
+      parser: (json) {
+        if (json is List) {
+          for (final item in json.whereType<Map>()) {
+            final slug = item['slug_publico']?.toString();
+            if (slug != null && slug.isNotEmpty && item['activo'] != false) {
+              return slug;
+            }
+          }
+        }
+        return null;
+      },
+    );
+    return result.data;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return FutureBuilder<String?>(
+      future: _slug(),
+      builder: (context, snapshot) {
+        final slug = snapshot.data;
+        if (slug == null) return const SizedBox.shrink();
+        return SizedBox(
+          width: double.infinity,
+          child: FilledButton.tonalIcon(
+            onPressed: () => context.push(AppRoutes.cartaPublic(slug)),
+            icon: const Icon(Icons.restaurant_menu_rounded),
+            label: const Text('Ver carta'),
+          ),
+        );
+      },
+    );
   }
 }
 

@@ -320,6 +320,17 @@ bool _isModeHomeMismatch(String location, RoleMode mode) {
                 context.go(AppRoutes.businessPosts);
               },
             ),
+          if ((business?.isFoodBusiness ?? true) &&
+              can(EmployeePermissionKeys.gestionarMenus))
+            _QuickAction(
+              icon: Icons.restaurant_menu_rounded,
+              label: 'Mi carta',
+              subtitle: 'Menu y enlace web para clientes',
+              onTap: () {
+                Navigator.of(sheetContext).pop();
+                context.go(AppRoutes.businessMenus);
+              },
+            ),
           if (can(EmployeePermissionKeys.gestionarRed))
             _QuickAction(
               icon: Icons.hub_rounded,

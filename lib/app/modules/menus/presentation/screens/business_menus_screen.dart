@@ -1,20 +1,26 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:go_router/go_router.dart';
 
+import '../../../../common/blocs/active_business/active_business_cubit.dart';
 import '../../../../common/presentation/widgets/auth_required_dialog.dart';
 import '../../../../config/injection/injection.dart';
+import '../../../../config/routes/app_routes.dart';
 import '../../../business/presentation/widgets/service_price_history_sheet.dart';
 import '../../blocs/menus/menus_cubit.dart';
 import '../../blocs/menus/menus_state.dart';
 import '../../data/models/menu_model.dart';
+import 'carta_screen.dart' show cartaPublicUrl;
 
 class BusinessMenusScreen extends StatelessWidget {
   const BusinessMenusScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final activeId = context.read<ActiveBusinessCubit>().state.activeBusiness?.id;
     return BlocProvider(
-      create: (_) => sl<MenusCubit>()..loadMine(),
+      create: (_) => sl<MenusCubit>()..loadMine(preferredBusinessId: activeId),
       child: const _BusinessMenusView(),
     );
   }
@@ -123,15 +129,13 @@ class _MenuCard extends StatelessWidget {
               ),
             ],
           ),
+          if (menu.slug != null && menu.slug!.isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _CartaLinkBox(url: cartaPublicUrl(menu.slug!), slug: menu.slug!),
+          ],
           if (menu.qrCodeUrl != null && menu.qrCodeUrl!.isNotEmpty) ...[
             const SizedBox(height: 12),
             Image.network(menu.qrCodeUrl!, height: 120),
-            if (menu.publicUrl != null)
-              SelectableText(
-                menu.publicUrl!,
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
           ],
           const SizedBox(height: 10),
           if (items.isEmpty)
@@ -155,6 +159,58 @@ class _MenuCard extends StatelessWidget {
                 ),
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CartaLinkBox extends StatelessWidget {
+  const _CartaLinkBox({required this.url, required this.slug});
+
+  final String url;
+  final String slug;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Enlace de tu carta',
+            style: TextStyle(fontWeight: FontWeight.w800),
+          ),
+          const SizedBox(height: 4),
+          SelectableText(url, style: Theme.of(context).textTheme.bodySmall),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            children: [
+              OutlinedButton.icon(
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: url));
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Enlace copiado.')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.copy, size: 18),
+                label: const Text('Copiar'),
+              ),
+              FilledButton.tonalIcon(
+                onPressed: () => context.push(AppRoutes.cartaPublic(slug)),
+                icon: const Icon(Icons.visibility_outlined, size: 18),
+                label: const Text('Ver carta'),
+              ),
+            ],
+          ),
         ],
       ),
     );

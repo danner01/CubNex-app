@@ -31,6 +31,7 @@ import '../../modules/home/presentation/screens/home_screen.dart';
 import '../../modules/jobs/presentation/screens/business_jobs_screen.dart';
 import '../../modules/jobs/presentation/screens/jobs_screen.dart';
 import '../../modules/menus/presentation/screens/business_menus_screen.dart';
+import '../../modules/menus/presentation/screens/carta_screen.dart';
 import '../../modules/notifications/presentation/screens/notifications_screen.dart';
 import '../../modules/orders/presentation/screens/cart_screen.dart';
 import '../../modules/orders/presentation/screens/business_orders_screen.dart';
@@ -74,6 +75,9 @@ GoRouter createAppRouter(
       final isLogin = state.matchedLocation == AppRoutes.login;
       final isSplash = state.matchedLocation == AppRoutes.splash;
 
+      // Las cartas publicas se ven sin sesion (enlace compartido / QR).
+      if (state.matchedLocation.startsWith('/carta/')) return null;
+
       if (session.status == AppSessionStatus.loading) {
         return (isSplash || isLogin) ? null : AppRoutes.splash;
       }
@@ -103,6 +107,11 @@ GoRouter createAppRouter(
     routes: [
       GoRoute(path: AppRoutes.splash, builder: (_, __) => const SplashScreen()),
       GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
+      GoRoute(
+        path: AppRoutes.carta,
+        builder: (_, state) =>
+            CartaScreen(slug: state.pathParameters['slug'] ?? ''),
+      ),
       GoRoute(
         path: '/market/negocio/pedidos',
         redirect: (_, __) => AppRoutes.businessOrders,
