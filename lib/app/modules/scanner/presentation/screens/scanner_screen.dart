@@ -66,6 +66,7 @@ class _ScannerViewState extends State<_ScannerView> {
   );
   late ScannerMode _mode;
   bool _arma = true;
+  bool _capturaPendiente = false;
   String? _ultimoCodigo;
   DateTime? _ultimoProcesado;
   bool _productResultNotified = false;
@@ -104,6 +105,17 @@ class _ScannerViewState extends State<_ScannerView> {
   void _onDetectProducto(BarcodeCapture capture) {
     if (_mode != ScannerMode.product) return;
     if (!_arma) return;
+    if (_capturaPendiente && capture.image != null && capture.image!.isNotEmpty) {
+      _capturaPendiente = false;
+      _arma = false;
+      unawaited(
+        context.read<ScannerCubit>().detectProductImage(
+          imagePath: null,
+          imageBytes: capture.image,
+        ),
+      );
+      return;
+    }
     final barcode = capture.barcodes.isEmpty ? null : capture.barcodes.first;
     final value = barcode?.rawValue;
     if (value == null) return;
@@ -156,9 +168,19 @@ class _ScannerViewState extends State<_ScannerView> {
     } catch (_) {}
   }
 
+  /// Captura el fotograma de la camara en vivo (sin abrir la camara del
+  /// sistema); si no llega ningun fotograma, usa la camara del sistema.
   Future<void> _escannerEtiqueta() async {
     if (_mode != ScannerMode.product) return;
     if (!_arma) return;
+    _capturaPendiente = true;
+    await Future<void>.delayed(const Duration(milliseconds: 1500));
+    if (!mounted || !_capturaPendiente) return;
+    _capturaPendiente = false;
+    await _capturarConCamaraSistema();
+  }
+
+  Future<void> _capturarConCamaraSistema() async {
     try {
       _arma = false;
       final picked = await ImagePicker().pickImage(
@@ -298,15 +320,16 @@ class _ScannerViewState extends State<_ScannerView> {
                     onChanged: _cambiarModo,
                   ),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
-                  child: _HeaderCard(
-                    mode: _mode,
-                    onRestart: resolving || showProductResult
-                        ? null
-                        : () => context.read<ScannerCubit>().restart(),
+                if (!productMode)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                    child: _HeaderCard(
+                      mode: _mode,
+                      onRestart: resolving || showProductResult
+                          ? null
+                          : () => context.read<ScannerCubit>().restart(),
+                    ),
                   ),
-                ),
                 Expanded(
                   child: Padding(
                     padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
@@ -571,6 +594,21 @@ class _ProductScanView extends StatelessWidget {
           ),
         ],
         const _ProductFocusOverlay(),
+        if (!resolving)
+          const Align(
+            alignment: Alignment.topCenter,
+            child: Padding(
+              padding: EdgeInsets.only(top: 12),
+              child: Text(
+                'Apunta a la etiqueta o toca la camara',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
         if (resolving)
           ColoredBox(
             color: Colors.black.withValues(alpha: 0.55),
