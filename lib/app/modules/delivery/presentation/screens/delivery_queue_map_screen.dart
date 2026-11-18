@@ -30,7 +30,7 @@ class DeliveryQueueMapScreen extends StatefulWidget {
 
 class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
   static final _defaultCenter = Position(-82.3666, 23.1136);
-  static const _pollInterval = Duration(seconds: 15);
+  static const _pollInterval = Duration(seconds: 25);
 
   MapboxMap? _mapboxMap;
   PointAnnotationManager? _pointManager;

@@ -27,7 +27,7 @@ class DeliveryRouteScreen extends StatefulWidget {
 }
 
 class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
-  static const _pollInterval = Duration(seconds: 15);
+  static const _pollInterval = Duration(seconds: 25);
   static final _defaultCenter = Position(-82.3666, 23.1136);
   static const _palette = [
     Color(0xFF1E88E5),
@@ -1523,11 +1523,11 @@ class _ManualStatusBanner extends StatelessWidget {
     final String main;
     final String sub;
     if (waypoints == 0) {
-      main = 'Paso 1 de 2 — fija el ORIGEN';
+      main = 'Paso 1 de 2 â€” fija el ORIGEN';
       sub =
           'Toca el mapa, busca una direccion o usa "Mi ubicacion" como origen.';
     } else if (waypoints == 1) {
-      main = 'Paso 2 de 2 — fija el DESTINO';
+      main = 'Paso 2 de 2 â€” fija el DESTINO';
       sub = 'Toca el mapa o busca la direccion de entrega.';
     } else {
       main = '$waypoints paradas';
@@ -1705,7 +1705,7 @@ class _ActiveDeliveryCard extends StatelessWidget {
             _vehiculoLabel(item.tipoVehiculo),
             if (item.placa != null && item.placa!.isNotEmpty) item.placa,
             'Disponible',
-          ].join(' · '),
+          ].join(' Â· '),
           style: theme.textTheme.bodySmall,
         ),
         trailing: _ActiveDot(color: _markerColor(item)),

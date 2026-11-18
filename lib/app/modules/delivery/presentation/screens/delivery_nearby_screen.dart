@@ -20,7 +20,7 @@ class DeliveryNearbyScreen extends StatefulWidget {
 }
 
 class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
-  static const _pollInterval = Duration(seconds: 15);
+  static const _pollInterval = Duration(seconds: 25);
   static final _defaultCenter = Position(-82.3666, 23.1136);
   static const _palette = [
     Color(0xFF1E88E5),
@@ -456,7 +456,7 @@ class _DeliveryActivoCard extends StatelessWidget {
               [
                 _vehiculoLabel(item.tipoVehiculo),
                 if (item.placa != null && item.placa!.isNotEmpty) item.placa,
-              ].join(' · '),
+              ].join(' Â· '),
               style: theme.textTheme.bodySmall,
             ),
             const SizedBox(height: 6),

@@ -34,7 +34,7 @@ class DeliveryOrderTrackingScreen extends StatefulWidget {
 
 class _DeliveryOrderTrackingScreenState
     extends State<DeliveryOrderTrackingScreen> {
-  static const _pollInterval = Duration(seconds: 8);
+  static const _pollInterval = Duration(seconds: 12);
   static final _defaultCenter = Position(-82.3666, 23.1136);
 
   final ApiClient _apiClient = sl<ApiClient>();

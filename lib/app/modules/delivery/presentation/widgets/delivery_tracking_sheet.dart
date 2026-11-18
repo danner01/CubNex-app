@@ -42,7 +42,7 @@ class DeliveryTrackingSheet extends StatefulWidget {
 }
 
 class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
-  static const _pollInterval = Duration(seconds: 8);
+  static const _pollInterval = Duration(seconds: 12);
   final ApiClient _apiClient = sl<ApiClient>();
 
   String? _entregaId;

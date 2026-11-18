@@ -22,7 +22,7 @@ class DeliveryHubDashboardView extends StatefulWidget {
 }
 
 class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
-  static const _queueRefreshInterval = Duration(seconds: 12);
+  static const _queueRefreshInterval = Duration(seconds: 25);
   static const _gpsReportInterval = Duration(seconds: 10);
   Timer? _queueTimer;
   Timer? _gpsTimer;

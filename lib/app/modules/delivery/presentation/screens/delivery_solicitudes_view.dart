@@ -21,7 +21,7 @@ class DeliverySolicitudesView extends StatefulWidget {
 }
 
 class _DeliverySolicitudesViewState extends State<DeliverySolicitudesView> {
-  static const _queueRefreshInterval = Duration(seconds: 12);
+  static const _queueRefreshInterval = Duration(seconds: 25);
   Timer? _queueTimer;
   String? _lastShownError;
   bool _autoOpenRouteAfterAccept = false;
