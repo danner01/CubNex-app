@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -32,7 +33,7 @@ class _DeliveryHubDashboardViewState extends State<DeliveryHubDashboardView> {
   @override
   void initState() {
     super.initState();
-    _queueTimer = Timer.periodic(_queueRefreshInterval, (_) {
+    _queueTimer = foregroundPeriodic(_queueRefreshInterval, (_) {
       final cubit = context.read<DeliveryCubit>();
       if (cubit.state.profile?.available == true) {
         cubit.loadDisponibles(silent: true);

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:mapbox_maps_flutter/mapbox_maps_flutter.dart';
@@ -59,7 +60,7 @@ class _DeliveryTrackingSheetState extends State<DeliveryTrackingSheet> {
   @override
   void initState() {
     super.initState();
-    _pollTimer = Timer.periodic(
+    _pollTimer = foregroundPeriodic(
       _pollInterval,
       (_) => unawaited(_hasEntrega ? _refresh() : _resolveEntrega()),
     );

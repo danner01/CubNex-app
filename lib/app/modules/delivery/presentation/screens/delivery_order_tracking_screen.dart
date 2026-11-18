@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:go_router/go_router.dart';
@@ -68,7 +69,7 @@ class _DeliveryOrderTrackingScreenState
   @override
   void initState() {
     super.initState();
-    _pollTimer = Timer.periodic(
+    _pollTimer = foregroundPeriodic(
       _pollInterval,
       (_) => unawaited(_hasEntrega ? _refresh() : _resolveEntrega()),
     );

@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -74,7 +75,7 @@ class _DeliveryQueueMapScreenState extends State<DeliveryQueueMapScreen> {
       }
       unawaited(_loadFocusEntrega());
     });
-    _pollTimer = Timer.periodic(
+    _pollTimer = foregroundPeriodic(
       _pollInterval,
       (_) => unawaited(_refreshQueue()),
     );

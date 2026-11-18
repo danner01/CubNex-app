@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -78,7 +79,7 @@ class _DeliveryRouteScreenState extends State<DeliveryRouteScreen> {
     if (_tokenReady) {
       MapboxOptions.setAccessToken(AppEnvironment.mapboxAccessToken);
     }
-    _pollTimer = Timer.periodic(_pollInterval, (_) {
+    _pollTimer = foregroundPeriodic(_pollInterval, (_) {
       unawaited(_refresh());
       if (_followingDelivery) unawaited(_pollPosition());
     });

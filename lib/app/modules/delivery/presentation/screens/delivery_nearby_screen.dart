@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart' as geo;
@@ -49,7 +50,7 @@ class _DeliveryNearbyScreenState extends State<DeliveryNearbyScreen> {
   @override
   void initState() {
     super.initState();
-    _pollTimer = Timer.periodic(_pollInterval, (_) => unawaited(_refresh()));
+    _pollTimer = foregroundPeriodic(_pollInterval, (_) => unawaited(_refresh()));
     unawaited(_boot());
   }
 

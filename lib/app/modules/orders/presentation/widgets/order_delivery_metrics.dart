@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 
@@ -70,7 +71,7 @@ class _OrderDeliveryMetricsCardState extends State<OrderDeliveryMetricsCard> {
 
   void _startIfEnabled({bool reset = false}) {
     if (!_enabled) return;
-    _pollTimer ??= Timer.periodic(_pollInterval, (_) => unawaited(_fetch()));
+    _pollTimer ??= foregroundPeriodic(_pollInterval, (_) => unawaited(_fetch()));
     _tickTimer ??= Timer.periodic(
       const Duration(seconds: 1),
       (_) {

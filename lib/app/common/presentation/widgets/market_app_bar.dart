@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:cubnex_app/app/common/services/foreground_timer.dart';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -127,7 +128,7 @@ class _UnreadNotificationsButtonState extends State<_UnreadNotificationsButton>
     _pushSubscription = _pushNotificationService.notificationsChanged.listen(
       (_) => _loadUnreadCount(),
     );
-    _timer = Timer.periodic(
+    _timer = foregroundPeriodic(
       const Duration(seconds: 45),
       (_) => _loadUnreadCount(),
     );
