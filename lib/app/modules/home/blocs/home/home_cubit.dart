@@ -2,6 +2,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import '../../../../config/http/api_client.dart';
 import '../../../../config/http/api_result.dart';
+import '../../../../common/services/json_cache.dart';
 import '../../data/models/banner_model.dart';
 import '../../data/models/business_model.dart';
 import '../../data/models/product_model.dart';
@@ -18,7 +19,18 @@ class HomeCubit extends Cubit<HomeState> {
 
   Future<void> loadHome() async {
     if (isClosed) return;
-    emit(state.copyWith(status: HomeStatus.loading, errorMessage: null));
+    final hadData = state.businesses.isNotEmpty || state.products.isNotEmpty;
+    if (!hadData) {
+      final cached = await _readCache();
+      if (isClosed) return;
+      if (cached != null) {
+        emit(cached);
+      } else {
+        emit(state.copyWith(status: HomeStatus.loading, errorMessage: null));
+      }
+    } else {
+      emit(state.copyWith(status: HomeStatus.loading, errorMessage: null));
+    }
 
     final results =
         await Future.wait([
@@ -50,23 +62,62 @@ class HomeCubit extends Cubit<HomeState> {
     ].whereType<String>().toList();
     final warning = warnings.isEmpty ? null : warnings.first;
 
+    // Si la red falla, se conserva lo mostrado desde la cache.
+    List<T> pick<T>(_HomeLoadResult<List<T>> r, List<T> current) =>
+        r.data.isEmpty && r.message != null && current.isNotEmpty
+        ? current
+        : r.data;
+    final banners = pick(bannersResult, state.banners);
+    final businesses = pick(businessesResult, state.businesses);
+    final products = pick(productsResult, state.products);
+    final jobs = pick(jobsResult, state.jobs);
+
     emit(
       state.copyWith(
         status: HomeStatus.success,
-        banners: bannersResult.data,
-        businesses: businessesResult.data,
-        products: productsResult.data,
-        jobs: jobsResult.data,
-        businessOffset: businessesResult.data.length,
-        productOffset: productsResult.data.length,
-        hasMoreBusinesses: businessesResult.data.length >= _pageSize,
-        hasMoreProducts: productsResult.data.length >= _pageSize,
+        banners: banners,
+        businesses: businesses,
+        products: products,
+        jobs: jobs,
+        businessOffset: businesses.length,
+        productOffset: products.length,
+        hasMoreBusinesses: businesses.length >= _pageSize,
+        hasMoreProducts: products.length >= _pageSize,
         loadingMoreBusinesses: false,
         loadingMoreProducts: false,
         errorMessage: warning,
       ),
     );
   }
+
+  Future<HomeState?> _readCache() async {
+    try {
+      final banners = await JsonCache.read('home:banners');
+      final businesses = await JsonCache.read('home:businesses');
+      final products = await JsonCache.read('home:products');
+      if (businesses == null && products == null) return null;
+      final b = _parseList(businesses, BusinessModel.fromJson);
+      final p = _parseList(products, ProductModel.fromJson);
+      return state.copyWith(
+        status: HomeStatus.success,
+        banners: _parseList(banners, BannerModel.fromJson),
+        businesses: b,
+        products: p,
+        businessOffset: b.length,
+        productOffset: p.length,
+        hasMoreBusinesses: b.length >= _pageSize,
+        hasMoreProducts: p.length >= _pageSize,
+        errorMessage: null,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  List<T> _parseList<T>(
+    dynamic json,
+    T Function(Map<String, dynamic>) fromJson,
+  ) => _asList(json).map(fromJson).toList();
 
   Future<void> loadMoreBusinesses() async {
     if (isClosed || state.loadingMoreBusinesses || !state.hasMoreBusinesses) {
@@ -116,8 +167,10 @@ class HomeCubit extends Cubit<HomeState> {
     final result = await _apiClient.get<List<BannerModel>>(
       '/banners',
       queryParameters: {'limit': 5},
-      parser: (json) =>
-          _asList(json).map((item) => BannerModel.fromJson(item)).toList(),
+      parser: (json) {
+        if (json is List) JsonCache.save('home:banners', json);
+        return _asList(json).map((item) => BannerModel.fromJson(item)).toList();
+      },
     );
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }
@@ -132,8 +185,12 @@ class HomeCubit extends Cubit<HomeState> {
         'offset': offset,
         'order': 'created_at.desc',
       },
-      parser: (json) =>
-          _asList(json).map((item) => BusinessModel.fromJson(item)).toList(),
+      parser: (json) {
+        if (offset == 0 && json is List) JsonCache.save('home:businesses', json);
+        return _asList(json)
+            .map((item) => BusinessModel.fromJson(item))
+            .toList();
+      },
     );
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }
@@ -144,8 +201,10 @@ class HomeCubit extends Cubit<HomeState> {
     final result = await _apiClient.get<List<ProductModel>>(
       '/productos/recomendados',
       queryParameters: {'limit': _pageSize, 'offset': offset},
-      parser: (json) =>
-          _asList(json).map((item) => ProductModel.fromJson(item)).toList(),
+      parser: (json) {
+        if (offset == 0 && json is List) JsonCache.save('home:products', json);
+        return _asList(json).map((item) => ProductModel.fromJson(item)).toList();
+      },
     );
     return _HomeLoadResult.fromApi(result, fallback: const []);
   }

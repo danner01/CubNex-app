@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../../common/services/contact_service.dart';
+import '../../../../common/services/json_cache.dart';
 import '../../../../config/http/api_client.dart';
 import '../../../../config/injection/injection.dart';
 import '../../../../config/routes/app_routes.dart';
@@ -39,22 +40,33 @@ class _CartaScreenState extends State<CartaScreen> {
     _load();
   }
 
+  PublicCartaModel? _parseCarta(dynamic json) => json is Map
+      ? PublicCartaModel.fromJson(Map<String, dynamic>.from(json))
+      : null;
+
   Future<void> _load() async {
+    final cacheKey = 'carta:${widget.slug}';
+    final cached = _carta ?? _parseCarta(await JsonCache.read(cacheKey));
+    if (!mounted) return;
     setState(() {
-      _loading = true;
+      _loading = cached == null;
+      _carta = cached;
       _error = null;
     });
     final result = await sl<ApiClient>().get<PublicCartaModel?>(
       '/menus/carta/${Uri.encodeComponent(widget.slug)}',
-      parser: (json) => json is Map
-          ? PublicCartaModel.fromJson(Map<String, dynamic>.from(json))
-          : null,
+      parser: (json) {
+        final carta = _parseCarta(json);
+        if (carta != null) JsonCache.save(cacheKey, json);
+        return carta;
+      },
     );
     if (!mounted) return;
     setState(() {
       _loading = false;
-      _carta = result.data;
-      if (!result.isSuccess || result.data == null) {
+      if (result.isSuccess && result.data != null) {
+        _carta = result.data;
+      } else if (_carta == null) {
         _error = result.error?.message ?? 'No se encontro la carta.';
       }
     });
