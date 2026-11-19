@@ -550,7 +550,10 @@ class ProductPreviewCard extends StatelessWidget {
                 ),
                 const SizedBox(height: 4),
                 Text(
-                  brand ?? 'Disponible',
+                  (brand != null &&
+                          !name.toLowerCase().contains(brand!.toLowerCase()))
+                      ? brand!
+                      : 'Disponible',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(

@@ -745,7 +745,7 @@ class _PostEditorScreenState extends State<_PostEditorScreen> {
     final cur = product.currency?.toUpperCase();
     if (cur == 'CUP' || cur == 'USD' || cur == 'MLC') _currency = cur!;
     _lookupCarta(product);
-    _title.text = product.name;
+    _title.text = product.displayName;
     _content.text = product.description?.trim().isNotEmpty == true
         ? product.description!
         : 'Disponible en nuestro inventario.';
@@ -788,7 +788,7 @@ class _InventoryProductSelector extends StatelessWidget {
           (product) => DropdownMenuItem<String>(
             value: product.id,
             child: Text(
-              product.name,
+              product.displayName,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
             ),

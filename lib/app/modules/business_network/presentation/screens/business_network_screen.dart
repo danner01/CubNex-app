@@ -1572,7 +1572,7 @@ class _ConnectionCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                product.name,
+                                product.displayName,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
                               ),
@@ -2406,13 +2406,13 @@ class _SupplyRequestSheetState extends State<_SupplyRequestSheet> {
     return products
         .where((product) {
           final text = [
-            product.name,
+            product.displayName,
             product.brand,
             product.description,
             product.currency,
             product.businessName,
           ].whereType<String>().join(' ').toLowerCase();
-          return text.contains(query);
+          return query.split(RegExp(r'\s+')).every(text.contains);
         })
         .take(12)
         .toList();
@@ -2636,7 +2636,7 @@ class _CatalogProductTile extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    product.name,
+                    product.displayName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: Theme.of(context).textTheme.titleSmall?.copyWith(

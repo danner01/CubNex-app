@@ -490,7 +490,7 @@ class _PromotionFormSheetState extends State<_PromotionFormSheet> {
                           (product) => DropdownMenuItem<String>(
                             value: product.id,
                             child: Text(
-                              product.name,
+                              product.displayName,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),

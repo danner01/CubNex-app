@@ -342,9 +342,26 @@ class _BusinessIpvScreenState extends State<BusinessIpvScreen> {
                     DataCell(
                       SizedBox(
                         width: 130,
-                        child: Text(
-                          '${f['nombre']}',
-                          overflow: TextOverflow.ellipsis,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${f['nombre']}',
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            if ('${f['categoria'] ?? ''}'.isNotEmpty)
+                              Text(
+                                '${f['categoria']}',
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: Colors.grey,
+                                ),
+                              ),
+                          ],
                         ),
                       ),
                     ),

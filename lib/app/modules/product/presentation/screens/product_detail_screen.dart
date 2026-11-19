@@ -171,7 +171,7 @@ class _ProductDetailView extends StatelessWidget {
                   ],
                   const SizedBox(height: 8),
                   Text(
-                    product.name,
+                    product.displayName,
                     style: Theme.of(context).textTheme.headlineSmall?.copyWith(
                       fontWeight: FontWeight.w900,
                       height: 1.08,
@@ -314,7 +314,7 @@ class _ProductDetailView extends StatelessWidget {
     final message = await sl<ShareService>().shareEntity(
       entityType: 'producto',
       entityId: product.id,
-      title: product.name,
+      title: product.displayName,
       message: product.description,
     );
     if (message != null && context.mounted) {

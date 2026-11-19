@@ -269,7 +269,7 @@ class _HomeViewState extends State<_HomeView> {
 
                       final product = state.products[index];
                       return ProductPreviewCard(
-                        name: product.name,
+                        name: product.displayName,
                         brand: product.brand,
                         imageUrl: product.imageUrl,
                         price: product.currentPrice,

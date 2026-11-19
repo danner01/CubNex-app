@@ -67,8 +67,10 @@ class ProductoFinanzas {
   String get descripcion {
     final marca = this.marca?.trim() ?? '';
     final nombre = this.nombre.trim();
-    if (marca.isEmpty || marca.toLowerCase() == nombre.toLowerCase()) return nombre;
-    return '$marca $nombre';
+    if (marca.isEmpty || nombre.toLowerCase().contains(marca.toLowerCase())) {
+      return nombre;
+    }
+    return '$nombre $marca';
   }
 
   factory ProductoFinanzas.fromJson(Map<String, dynamic> json) {

@@ -323,7 +323,8 @@ class _FinanzasScreenState extends State<FinanzasScreen> {
           producto.marca ?? '',
           producto.descripcion,
         ].join(' ').toLowerCase();
-        if (texto.contains(query)) {
+        final palabras = query.split(RegExp(r'\s+')).where((w) => w.isNotEmpty);
+        if (palabras.every(texto.contains)) {
           salida.add((producto: producto, categoria: categoria.nombre));
         }
       }

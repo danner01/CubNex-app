@@ -224,7 +224,7 @@ class _SearchResults extends StatelessWidget {
               itemBuilder: (context, index) {
                 final product = state.results.products[index];
                 return ProductPreviewCard(
-                  name: product.name,
+                  name: product.displayName,
                   brand: product.brand,
                   imageUrl: product.imageUrl,
                   price: product.currentPrice,

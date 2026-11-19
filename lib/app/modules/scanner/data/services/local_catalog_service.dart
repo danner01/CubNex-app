@@ -54,7 +54,7 @@ class CatalogEntry {
 
   factory CatalogEntry.fromProduct(ProductModel p) => CatalogEntry(
     id: p.id,
-    name: p.name,
+    name: p.displayName,
     brand: p.brand,
     barcode: p.barcode,
     sku: p.sku,

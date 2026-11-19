@@ -354,7 +354,7 @@ class CartCubit extends Cubit<CartState> {
             .map(
               (item) => {
                 'producto_id': item.product.id,
-                'nombre': item.product.name,
+                'nombre': item.product.displayName,
                 'marca': item.product.brand,
                 'cantidad': item.quantity,
                 'precio_unitario': item.product.currentPrice ?? 0,
@@ -426,7 +426,7 @@ class CartCubit extends Cubit<CartState> {
           'total_estimado': item.subtotal,
           'origen': 'apk',
           'metadata': {
-            'producto_nombre': item.product.name,
+            'producto_nombre': item.product.displayName,
             'marca': item.product.brand,
             'solicita_delivery': requestDelivery,
             'direccion_entrega': deliveryAddress,

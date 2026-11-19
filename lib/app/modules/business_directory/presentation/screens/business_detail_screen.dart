@@ -149,15 +149,18 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
             activeBusiness != null && activeBusiness.id == business.id;
         final filteredProducts = state.products.where((product) {
           final text = [
-            product.name,
+            product.displayName,
             product.brand,
             product.description,
             product.features['categoria'],
             product.features['categoria_sugerida'],
           ].whereType<Object>().join(' ').toLowerCase();
-          final matchesQuery =
-              _query.trim().isEmpty ||
-              text.contains(_query.trim().toLowerCase());
+          final queryWords = _query
+              .trim()
+              .toLowerCase()
+              .split(RegExp(r'\s+'))
+              .where((w) => w.isNotEmpty);
+          final matchesQuery = queryWords.every(text.contains);
           final categoryValue = _categoryForProduct(product);
           final matchesCategory =
               _category == 'todas' || categoryValue == _category;
@@ -377,7 +380,7 @@ class _BusinessDetailViewState extends State<_BusinessDetailView> {
                           itemBuilder: (context, index) {
                             final product = filteredProducts[index];
                             return ProductPreviewCard(
-                              name: product.name,
+                              name: product.displayName,
                               brand: product.brand,
                               imageUrl: product.imageUrl,
                               price: product.currentPrice,
@@ -677,7 +680,7 @@ class _MayoristaEscaparateBanner extends StatelessWidget {
                     (product) => InputChip(
                       visualDensity: VisualDensity.compact,
                       label: Text(
-                        '${product.name}: ${product.transferPrice!.toStringAsFixed(0)} ${product.currency ?? 'CUP'}',
+                        '${product.displayName}: ${product.transferPrice!.toStringAsFixed(0)} ${product.currency ?? 'CUP'}',
                       ),
                       onPressed: () {},
                     ),
@@ -728,7 +731,7 @@ class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
     final visibleProducts = products.where((product) {
       if (search.isEmpty) return true;
       final haystack = [
-        product.name,
+        product.displayName,
         product.brand,
         product.description,
         product.features['categoria'],
@@ -805,7 +808,7 @@ class _BusinessConnectionSheetState extends State<_BusinessConnectionSheet> {
                   children: selectedProducts
                       .map(
                         (product) => InputChip(
-                          label: Text(product.name),
+                          label: Text(product.displayName),
                           onDeleted: () => setState(
                             () => _selectedProductIds.remove(product.id),
                           ),
@@ -905,7 +908,7 @@ class _ConnectionCatalogTile extends StatelessWidget {
       value: selected,
       controlAffinity: ListTileControlAffinity.leading,
       onChanged: (value) => onChanged(value ?? false),
-      title: Text(product.name, maxLines: 1, overflow: TextOverflow.ellipsis),
+      title: Text(product.displayName, maxLines: 1, overflow: TextOverflow.ellipsis),
       subtitle: Text(
         [
           if ((product.brand ?? '').trim().isNotEmpty)

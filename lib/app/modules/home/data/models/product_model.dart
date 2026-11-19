@@ -54,6 +54,13 @@ class ProductModel {
   final Map<String, dynamic> features;
 
   double? get currentPrice => offerPrice ?? price;
+
+  /// Nombre completo para mostrar: "Cerveza Bucanero" (nombre + marca).
+  String get displayName {
+    final b = brand?.trim() ?? '';
+    if (b.isEmpty || name.toLowerCase().contains(b.toLowerCase())) return name;
+    return '$name $b';
+  }
   double? get calculatedTransferPrice {
     if (transferPrice != null) return transferPrice;
     final basePrice = currentPrice;

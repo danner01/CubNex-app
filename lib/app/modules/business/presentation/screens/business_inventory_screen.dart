@@ -243,7 +243,7 @@ class _InventoryProductCard extends StatelessWidget {
                           children: [
                             Expanded(
                               child: Text(
-                                product.name,
+                                product.displayName,
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: const TextStyle(
@@ -512,7 +512,7 @@ class _ProfitabilitySheetState extends State<_ProfitabilitySheet> {
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  widget.product.name,
+                  widget.product.displayName,
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
